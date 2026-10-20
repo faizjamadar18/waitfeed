@@ -1,0 +1,16 @@
+{
+  "name": "waitfeed",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Idle-time news ticker + /news reader for the OpenCode terminal",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.12"
+  }
+}
