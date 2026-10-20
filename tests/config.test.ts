@@ -14,7 +14,6 @@ describe("normalizeConfig", () => {
     const out = normalizeConfig({ sources: { hn: false } })
     expect(out.sources.hn).toBe(false)
     expect(out.sources.reddit).toBe(true)
-    expect(out.tips).toBe(true)
     expect(out.setupDone).toBe(false)
   })
   it("ignores unknown source keys instead of erroring", () => {
@@ -28,9 +27,15 @@ describe("normalizeConfig", () => {
     const capped = normalizeConfig({ rssUrls: Array.from({ length: 15 }, (_, i) => `https://x/${i}`) })
     expect(capped.rssUrls).toHaveLength(10)
   })
-  it("records the tips switch and setupDone flag", () => {
-    const out = normalizeConfig({ tips: false, setupDone: true })
-    expect(out.tips).toBe(false)
+  it("records the setupDone flag", () => {
+    const out = normalizeConfig({ setupDone: true })
     expect(out.setupDone).toBe(true)
+  })
+  it("clamps dwellSeconds into the 5-120 window, integer, default 20", () => {
+    expect(normalizeConfig({ dwellSeconds: 1 }).dwellSeconds).toBe(5)
+    expect(normalizeConfig({ dwellSeconds: 500 }).dwellSeconds).toBe(120)
+    expect(normalizeConfig({ dwellSeconds: 45.6 }).dwellSeconds).toBe(46)
+    expect(normalizeConfig({ dwellSeconds: "fast" }).dwellSeconds).toBe(20)
+    expect(normalizeConfig(undefined).dwellSeconds).toBe(20)
   })
 })

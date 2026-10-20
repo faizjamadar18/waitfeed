@@ -1,17 +1,15 @@
 # WaitFeed
 
-> While your OpenCode agent works, a slim news/tip ticker appears above the input box.
+> While your OpenCode agent works, a slim news ticker appears above the input box.
 > You start typing — it vanishes. `/news` opens a fullscreen reader.
 > **100% local. No ads, no accounts, no server, no API keys.**
 
-## Channels & personal tips
+## Channels
 
 The reader is the setup: open `/news`, keys **1-4** switch channels on/off
 (instantly saved to `~/.config/waitfeed/config.json`), **Enter** opens the
-selected link, **up/down** (or **j/k**) moves the cursor. Every 4th ticker slot
-is the `▍ YOU` card — tips computed **only** from local `git status` / `git log`
-metadata in the open project. Never file contents, never network, never sent
-anywhere.
+selected link, **up/down** (or **j/k**) moves the cursor. Every card is real
+news — headline, a short story, and the link underneath.
 
 ## Data sources (all free, all keyless)
 

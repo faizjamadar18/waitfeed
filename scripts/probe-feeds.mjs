@@ -13,8 +13,8 @@ const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
 
 const probes = [
   ["HN", `https://hacker-news.firebaseio.com/v0/topstories.json`],
-  ["DEV", `https://dev.to/api/articles?per_page=8`],
-  ["GH", `https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>${since} stars:>50`)}&sort=stars&order=desc&per_page=8`],
+  ["DEV", `https://dev.to/api/articles?per_page=15`],
+  ["GH", `https://api.github.com/search/repositories?q=${encodeURIComponent(`created:>${since} stars:>50`)}&sort=stars&order=desc&per_page=15`],
   ["R/PROG", `https://www.reddit.com/r/programming/.rss`],
 ]
 

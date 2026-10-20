@@ -6,14 +6,18 @@
 import Parser from "rss-parser"
 import type { ChannelKey } from "./config"
 import type { FeedItem } from "./types"
-import { decodeEntities, stripHtmlTags } from "./ticker"
+import { decodeEntities, stripHtmlTags, truncateSentence } from "./ticker"
 
 const UA = "waitfeed/0.1 (local terminal ticker)"
 const TIMEOUT_MS = 10_000
-/** Longest stored description. Generous enough that the reader never shows a
- * visible mid-sentence cut; still bounded so the cache stays tiny. The display
+/** Longest stored description. The cut (truncateSentence) always lands on a
+ * complete sentence, so stored data never ends mid-sentence. The display
  * layer wraps what it gets — it never re-saves the text. */
 const CONTEXT_MAX = 600
+/** HN look-through: the ID list is one free call, so scanning ~60 fresh
+ * stories per cycle costs nothing and keeps the usable pool deep enough
+ * that the 30-story runtime target always fills. */
+export const HN_LOOK = 60
 
 const rss = new Parser({ timeout: TIMEOUT_MS, headers: { "User-Agent": UA } })
 
@@ -36,7 +40,7 @@ interface HNItem {
   score?: number
 }
 
-export async function hackerNews(count = 8): Promise<FeedItem[]> {
+export async function hackerNews(count = HN_LOOK): Promise<FeedItem[]> {
   const ids = await fetchJson<number[]>("https://hacker-news.firebaseio.com/v0/topstories.json")
   const top = ids.slice(0, count)
   const fetched = await Promise.allSettled(
@@ -51,7 +55,7 @@ export async function hackerNews(count = 8): Promise<FeedItem[]> {
       source: "HN",
       title: v.title,
       url: v.url ?? `https://news.ycombinator.com/item?id=${v.id}`,
-      context: selfText.length >= 15 ? truncateInline(selfText, CONTEXT_MAX) : undefined,
+      context: selfText.length >= 15 ? truncateSentence(selfText, CONTEXT_MAX) : undefined,
       time: v.time ? v.time * 1000 : undefined,
       score: v.score,
     }]
@@ -67,7 +71,7 @@ interface DevArticle {
   positive_reactions_count?: number
 }
 
-export async function devTo(count = 8): Promise<FeedItem[]> {
+export async function devTo(count = 15): Promise<FeedItem[]> {
   const arts = await fetchJson<DevArticle[]>(`https://dev.to/api/articles?per_page=${count}`)
   return arts.flatMap((a) => {
     if (!a.title || !a.url) return []
@@ -76,7 +80,7 @@ export async function devTo(count = 8): Promise<FeedItem[]> {
       source: "DEV",
       title: a.title,
       url: a.url,
-      context: a.description?.trim() ? truncateInline(a.description.trim(), CONTEXT_MAX) : undefined,
+      context: a.description?.trim() ? truncateSentence(a.description.trim(), CONTEXT_MAX) : undefined,
       time: a.published_at ? Date.parse(a.published_at) : undefined,
       score: a.positive_reactions_count,
     }]
@@ -94,7 +98,7 @@ interface GitHubSearch {
   }>
 }
 
-export async function githubTrending(count = 8): Promise<FeedItem[]> {
+export async function githubTrending(count = 15): Promise<FeedItem[]> {
   // Trending proxy: repos created in the last 7 days, ranked by stars.
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
   const q = `created:>${since} stars:>50`
@@ -110,7 +114,7 @@ export async function githubTrending(count = 8): Promise<FeedItem[]> {
       source: "GH",
       title: r.full_name,
       url: r.html_url,
-      context: desc ? truncateInline(desc, CONTEXT_MAX) : undefined,
+      context: desc ? truncateSentence(desc, CONTEXT_MAX) : undefined,
       time: r.pushed_at ? Date.parse(r.pushed_at) : undefined,
       score: r.stargazers_count,
     }]
@@ -118,7 +122,7 @@ export async function githubTrending(count = 8): Promise<FeedItem[]> {
 }
 
 /** Generic RSS/Atom channel (also the shape future user-supplied feeds use). */
-export async function rssChannel(source: string, url: string, count = 8): Promise<FeedItem[]> {
+export async function rssChannel(source: string, url: string, count = 15): Promise<FeedItem[]> {
   const feed = await rss.parseURL(url)
   return feed.items.flatMap((e) => {
     const title = e.title?.trim()
@@ -127,7 +131,7 @@ export async function rssChannel(source: string, url: string, count = 8): Promis
     const snippet = e.contentSnippet?.replace(/\s+/g, " ").trim()
     // Reddit's Atom "content" is just "submitted by /u/x [link] [comments]" —
     // no real description, so leave context undefined (title-only line).
-    const useful = snippet && !/^submitted by \//i.test(snippet) ? truncateInline(snippet, CONTEXT_MAX) : undefined
+    const useful = snippet && !/^submitted by \//i.test(snippet) ? truncateSentence(snippet, CONTEXT_MAX) : undefined
     return [{
       id: `${source.toLowerCase()}-${(e as { id?: string }).id ?? link}`,
       source,
@@ -140,12 +144,15 @@ export async function rssChannel(source: string, url: string, count = 8): Promis
   }).slice(0, count)
 }
 
-export const redditTech = (count = 8) =>
+export const redditTech = (count = 15) =>
   rssChannel("R/PROG", "https://www.reddit.com/r/programming/.rss", count)
 
 /** Fetch the enabled channels; each failure degrades to an empty group. The
  * enabled map comes from the user config — a disabled channel is never even
- * contacted. User RSS URLs always run (they were explicitly subscribed). */
+ * contacted. User RSS URLs always run (they were explicitly subscribed).
+ * Free channels ride the same single response (summaries included), so the
+ * larger per-page counts cost zero extra requests — only the fill-up rule
+ * on the HN page-visit path (index.ts) spends beyond the direct ask. */
 export async function fetchAllFeeds(
   enabled?: Partial<Record<ChannelKey, boolean>>,
   rssUrls: string[] = [],
@@ -158,8 +165,4 @@ export async function fetchAllFeeds(
   for (const url of rssUrls) jobs.push(rssChannel("RSS", url))
   const results = await Promise.allSettled(jobs)
   return results.map((r) => (r.status === "fulfilled" ? r.value : []))
-}
-
-function truncateInline(s: string, max: number): string {
-  return s.length <= max ? s : `${s.slice(0, max - 1)}…`
 }

@@ -1,13 +1,15 @@
 // WaitFeed — server-side plugin. Owns the data pipeline and writes the shared
 // cache file the TUI reads:
 //
-//   fetch channels → merge → enrich (meta descriptions) → drop junk →
-//   write cache (headline data lands immediately; the TUI reveals an item once
-//   its story is ready, or shows everything as headlines when the LLM layer is
-//   off) → LLM stories (one-glance digest, ≤180 chars, via a dedicated digest
-//   session and ctx.session.generate — the session pipeline the free tier
-//   allows, with retries for the flaky upstream) → incremental cache write
-//   after each story
+//   fetch channels → merge → enrich (meta descriptions, batches that stop
+//   the moment 30 usable items exist) → drop junk → write cache (headline
+//   data lands immediately) → LLM stories (strict rewrite of the description
+//   ONLY — items without a usable description never reach the model, and the
+//   model must answer NEEDS_MORE instead of inventing; binned replies leave
+//   the item invisible) → incremental cache write after each story
+//
+// Story mode shows ONLY story-complete items; the whole-view headline
+// fallback stays reserved for when the LLM layer itself is unavailable.
 //
 // Refresh every 30 minutes; the TUI polls the file, so no cross-process
 // messaging is needed. Zero keys, zero cloud.
@@ -18,8 +20,7 @@ import { join } from "node:path"
 import { loadConfig } from "./core/config"
 import { enrichMissing } from "./core/enrich"
 import { fetchAllFeeds } from "./core/feeds"
-import { buildStoryPrompt, cleanStory, isFreeTierGate } from "./core/llm"
-import { gitTips } from "./core/tip"
+import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable } from "./core/llm"
 import { dropJunk, mergeItems } from "./core/ticker"
 import type { FeedItem } from "./core/types"
 
@@ -32,22 +33,27 @@ interface CacheFile {
   llmUnavailable: boolean
   /** Dedicated session reused for all story generations. */
   digestSessionID?: string
-  /** Personal "▍ YOU" lines from local git metadata, per cycle. */
-  tips?: string[]
 }
 
 const REFRESH_MS = 30 * 60 * 1000
-/** Stories per refresh cycle, newest headlines first — the TUI shows an item
- * only once its story is ready, so fresh news needs coverage quickly. After
- * the backlog is covered this only spends on genuinely new headlines. */
-const SUMMARY_BUDGET = 8
+/** Runtime target: 30 story-complete cards visible. Enrichment page-visits
+ * stop the moment this fills, so the look-through budget is only spent on
+ * items that can actually appear on screen. */
+const TARGET_READY = 30
+/** Stories per refresh cycle — doubled from 8 so the 30-card pool fills
+ * within a couple of cycles of fresh news instead of lagging hours behind.
+ * Newest headlines first; the TUI shows an item only once its story is
+ * ready, so fresh news needs coverage quickly. */
+const SUMMARY_BUDGET = 16
 /** Soft cap for the story phase so the cycle lock never outlives its TTL;
  * anything left over is picked up next cycle. */
 const SUMMARY_TIME_BUDGET_MS = 8 * 60 * 1000
 const GENERATE_TIMEOUT_MS = 90_000
 /** Upstream generation is flaky ("Endpoint is unavailable") — bounded retries. */
 const GENERATE_RETRIES = 3
-const CACHE_ITEMS = 40
+/** Cache cap. With ~60 HN candidates + 15 per free channel per cycle, 90
+ * keeps the whole fresh backlog around for the story phase to work through. */
+const CACHE_ITEMS = 90
 /** Re-running setup in the same shared service process leaves old timers; a
  * module-level counter tells us how many times the host re-ran setup. */
 let ALIVE_SETUPS = 0
@@ -186,31 +192,63 @@ export default Plugin.define({
       }
     }
 
+    /**
+     * How many on-screen-eligible items are story-complete right now: story
+     * mode shows ONLY items with a story, so this counts exactly what will
+     * be visible. Items without a usable description are permanently plain
+     * and never count toward — nor pad — the target.
+     */
+    const readyCount = (cache: CacheFile, items: FeedItem[]): number =>
+      items.filter((it) => isStoryable(it) && !!cache.summaries[it.url]?.text).length
+
     const summarize = async (cache: CacheFile, items: FeedItem[]): Promise<void> => {
       if (cache.llmUnavailable) return
       const digest = await getDigest()
       if (!digest) return
       const started = Date.now()
-      // Newest first: the freshest headlines are what the ticker will show.
-      const pending = items
-        .filter((it) => !cache.summaries[it.url])
-        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))
-        .slice(0, SUMMARY_BUDGET)
+      /** One attempt per item per cycle: a NEEDS_MORE or failed item is not
+       * re-asked within the same cycle (the data will not change mid-cycle).
+       * isStoryable already excluded permanently-plain items above. */
+      const attempted = new Set<string>()
+      let ready = readyCount(cache, items)
       let doneCount = 0
-      for (const it of pending) {
+      for (const it of items) {
+        // mergeItems already sorted newest-first: the freshest headlines are
+        // what the ticker will show, so they get stories first.
+        if (doneCount >= SUMMARY_BUDGET) {
+          await probeLog(`story budget spent (${doneCount}); ${ready}/${TARGET_READY} ready`)
+          break
+        }
+        if (ready >= TARGET_READY) {
+          await probeLog(`story target reached: ${ready}/${TARGET_READY} ready`)
+          break
+        }
+        if (cache.summaries[it.url]?.text) continue
+        if (!isStoryable(it)) continue // no description → never a story, never visible
+        if (attempted.has(it.url)) continue
         if (doneCount > 0 && Date.now() - started > SUMMARY_TIME_BUDGET_MS) {
           await probeLog(
-            `story phase paused after ${Math.round((Date.now() - started) / 1000)}s (${pending.length - doneCount} left for next cycle)`,
+            `story phase paused after ${Math.round((Date.now() - started) / 1000)}s (${ready}/${TARGET_READY} ready)`,
           )
           break
         }
+        attempted.add(it.url)
         let done = false
         for (let attempt = 1; attempt <= GENERATE_RETRIES; attempt++) {
           if (attempt > 1) await new Promise((r) => setTimeout(r, 2_000 * (attempt - 1)))
           const result = await generateText(digest, buildStoryPrompt(it))
           if (result.ok) {
+            if (isNeedsMoreReply(result.text)) {
+              // Door 2: the model says the description is unusable — bin the
+              // reply, save nothing. The item stays invisible; it is NOT
+              // retried (padding it from memory is exactly what was banned).
+              await probeLog(`story NEEDS_MORE: ${it.url} — description unusable, item stays invisible`)
+              done = true
+              break
+            }
             if (result.text) {
               cache.summaries[it.url] = { text: result.text, at: Date.now() }
+              ready++
               await writeCache(cache) // incremental: stories trickle to the TUI
               await probeLog(`story ok: ${it.url} -> ${result.text.slice(0, 80)}...`)
             }
@@ -258,13 +296,20 @@ export default Plugin.define({
         cache.llmUnavailable = false
 
         const groups = await fetchAllFeeds(cfg.sources, cfg.rssUrls)
-        let items = mergeItems(groups, CACHE_ITEMS)
-        await enrichMissing(items)
-        items = dropJunk(items)
+        const merged = mergeItems(groups, CACHE_ITEMS)
+        // Story mode shows ONLY story-complete items, so enrichment opens
+        // pages in batches and stops the moment 30 usable items exist.
+        // Reddit/HN-discussion URLs are skipped inside enrichMissing.
+        const fromChannels = merged.filter((it) => isStoryable(it)).length
+        await enrichMissing(merged, {
+          slotsLeft: () => TARGET_READY - readyCount(cache, merged),
+        })
+        const items = dropJunk(merged)
+        await probeLog(
+          `pipeline: ${merged.length} fetched · ${fromChannels} already have channel descriptions · ${readyCount(cache, items)} stories ready of ${TARGET_READY} target`,
+        )
         cache.items = items
         cache.fetchedAt = Date.now()
-        // Personal tips ride along in the same file — local git metadata only.
-        cache.tips = cfg.tips ? await gitTips(process.cwd()) : []
         await writeCache(cache) // headline data lands now; the TUI reveals items as stories arrive
 
         await summarize(cache, items)

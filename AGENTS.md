@@ -1,6 +1,6 @@
 # WaitFeed — Agent Instructions
 
-> While the OpenCode agent works, a slim news/tip ticker appears in the line above the
+> While the OpenCode agent works, a slim news ticker appears in the line above the
 > input box. You start typing — it vanishes. `/news` opens a fullscreen reader.
 > **100% local, no ads, no accounts, no server, no API keys.**
 
@@ -56,8 +56,7 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
   headline data lands fast), then generates LLM stories for up to 8 new items
   per cycle (newest first, soft time budget) with an incremental cache write
   after each; the TUI (`tui.tsx`) only polls that file (5 s) and never fetches
-  feeds itself. The cycle also writes `cache.tips` (gitMetadata-only "▍ YOU"
-  lines from `core/tip.ts`) and re-reads the user config each cycle.
+  feeds itself. The cycle re-reads the user config each cycle.
 - User config (`core/config.ts`): `~/.config/waitfeed/config.json`, created
   with defaults on the first `/news` open. Keys 1-4 in the reader toggle
   channels (`sources`), persist instantly, and the server stops even
@@ -89,15 +88,14 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
 M0 spike (slots, panel, hide mechanism) → M1 core ticker → M2 context lines
 (junk filter, meta-description enrichment, one-glance LLM story ≤180 chars per
 headline via the digest session, source link under each story)
-→ M3 `/news` reader extras (Enter opens link, filters) → M4 personal tip (local
-git only) → M5 ship (init CLI, npm publish, landing page).
+→ M3 `/news` reader extras (Enter opens link, filters) → M5 ship (init CLI, npm
+publish, landing page).
 
 ## Hard boundaries
 
 1. **Never commit or push without the user's explicit YES.**
 2. **No API keys, no secrets, no `.env` in this project — keyless by design.**
-3. The personal tip reads ONLY the open project's `git status`/`git log` metadata. Never read or store file contents; nothing ever leaves the machine.
-4. **Never swallow user keystrokes.** Hide-on-type must never intercept or eat input.
-5. Stay observational: the plugin must not modify prompts, tools, or agent behavior.
-6. Verify plugin APIs against the current V2 docs before use — the API is young.
-7. Keep changes small and consistent; this repo will be public open source (MIT).
+3. **Never swallow user keystrokes.** Hide-on-type must never intercept or eat input.
+4. Stay observational: the plugin must not modify prompts, tools, or agent behavior.
+5. Verify plugin APIs against the current V2 docs before use — the API is young.
+6. Keep changes small and consistent; this repo will be public open source (MIT).

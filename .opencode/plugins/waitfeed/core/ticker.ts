@@ -27,6 +27,28 @@ export function formatDuration(ms: number): string {
   return rem === 0 ? `${h}h` : `${h}h ${rem}m`
 }
 
+/** Store-time description cut, v2 rule: ALWAYS end at a complete sentence —
+ * data that ends somewhere ("…can already") reads broken. The last sentence
+ * that fits inside the cap wins; terminator + space + capital/digit starts a
+ * new sentence (skips "e.g. this" style false hits), and a terminator that
+ * IS the last character counts too. When even the first sentence exceeds the
+ * cap (super rare), fall back to a word-boundary ellipsis. */
+export function truncateSentence(s: string, max: number): string {
+  const one = s.replace(/\s+/g, " ").trim()
+  if (one.length <= max) return one
+  const cut = one.slice(0, max)
+  for (let i = cut.length - 1; i >= 0; i--) {
+    const ch = cut[i]
+    if (ch !== "." && ch !== "!" && ch !== "?") continue
+    if (i + 1 < cut.length && cut[i + 1] !== " ") continue // no space after → mid-token
+    const next = cut[i + 2]
+    if (next !== undefined && !/[A-Z0-9"'’]/.test(next)) continue // lowercase → abbreviation
+    return cut.slice(0, i + 1)
+  }
+  const lastSpace = cut.lastIndexOf(" ")
+  return `${cut.slice(0, lastSpace > 0 ? lastSpace : cut.length)}…`
+}
+
 /** Collapse whitespace and cap to one terminal line. */
 export function truncate(s: string, max: number): string {
   const one = s.replace(/\s+/g, " ").trim()

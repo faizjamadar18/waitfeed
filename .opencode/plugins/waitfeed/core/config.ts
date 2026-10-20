@@ -17,15 +17,23 @@ export interface WaitFeedConfig {
   sources: Record<ChannelKey, boolean>
   /** Bring-your-own RSS/Atom channels (max 10) — badges as RSS. */
   rssUrls: string[]
-  /** Personal "▍ YOU" slots from local git metadata only. */
-  tips: boolean
+  /** Card hold time in seconds while the agent runs — the ticker rotation
+   * pace. Narrow knob (5-120s), default 20s: a full story card reads in
+   * roughly 15-25s, so the dwell must cover the read, never cut it. */
+  dwellSeconds: number
 }
+
+/** The dwell knob's bounds — deliberately narrow so a typo can't freeze or
+ * strobe the ticker. */
+export const DWELL_MIN = 5
+export const DWELL_MAX = 120
+export const DWELL_DEFAULT = 20
 
 export const DEFAULT_CONFIG: WaitFeedConfig = {
   setupDone: false,
   sources: { hn: true, devto: true, github: true, reddit: true },
   rssUrls: [],
-  tips: true,
+  dwellSeconds: DWELL_DEFAULT,
 }
 
 /** Pure validation — no I/O, fully testable. */
@@ -50,7 +58,9 @@ export function normalizeConfig(raw: unknown): WaitFeedConfig {
       .map((u) => u.trim())
       .slice(0, 10)
   }
-  if (typeof obj.tips === "boolean") out.tips = obj.tips
+  if (typeof obj.dwellSeconds === "number" && Number.isFinite(obj.dwellSeconds)) {
+    out.dwellSeconds = Math.min(DWELL_MAX, Math.max(DWELL_MIN, Math.round(obj.dwellSeconds)))
+  }
   return out
 }
 

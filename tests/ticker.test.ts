@@ -16,7 +16,8 @@ import {
   truncate,
   type FeedItem,
 } from "../.opencode/plugins/waitfeed/core/ticker"
-import { buildStoryPrompt, cleanStory, isFreeTierGate } from "../.opencode/plugins/waitfeed/core/llm"
+import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable, NEEDS_MORE } from "../.opencode/plugins/waitfeed/core/llm"
+import { truncateSentence } from "../.opencode/plugins/waitfeed/core/ticker"
 
 const item = (over: Partial<FeedItem> = {}): FeedItem => ({
   id: `t-${Math.random().toString(36).slice(2)}`,
@@ -56,6 +57,32 @@ describe("truncate", () => {
   })
   it("caps long text with an ellipsis", () => {
     expect(truncate("abcdefghij", 5)).toBe("abcd…")
+  })
+})
+
+describe("truncateSentence (v2 store rule: never end mid-sentence)", () => {
+  it("keeps short text untouched", () => {
+    expect(truncateSentence("Short.", 10)).toBe("Short.")
+  })
+  it("ends at the last complete sentence inside the cap", () => {
+    const out = truncateSentence(
+      "First sentence here. The rest of this description drags far beyond the tiny limit for sure.",
+      40,
+    )
+    expect(out).toBe("First sentence here.")
+  })
+  it("accepts a sentence that ends exactly at the cap", () => {
+    expect(truncateSentence("Done and finished.", 18)).toBe("Done and finished.")
+  })
+  it("skips abbreviation dots (e.g. the. next words are lowercase)", () => {
+    // "e.g. " would false-hit; the next word is lowercase, so we cut later.
+    const out = truncateSentence("Use it daily e.g. when working. But this tail goes past every reasonable cap at last.", 60)
+    expect(out).toBe("Use it daily e.g. when working.")
+  })
+  it("falls back to a word-boundary ellipsis when no sentence fits", () => {
+    const out = truncateSentence("just a bunch of lowercase words with no terminal punctuation anywhere in sight okay", 30)
+    expect(out.endsWith("…")).toBe(true)
+    expect(out.startsWith("just a bunch")).toBe(true)
   })
 })
 
@@ -158,6 +185,32 @@ describe("llm story helpers", () => {
     const bare = buildStoryPrompt(item({ title: "Thin", url: "https://example.com/y" }))
     expect(bare).toContain("Description: (none)")
     expect(bare).not.toContain("Score:")
+  })
+  it("v2 prompt bans the guess-clause and mandates the NEEDS_MORE handshake", () => {
+    const story = buildStoryPrompt(item({ title: "T", context: "D", url: "https://example.com/z" }))
+    expect(story).not.toContain("most likely refers to")
+    expect(story).toContain(NEEDS_MORE)
+  })
+  it("isNeedsMoreReply detects the handshake and nothing else", () => {
+    expect(isNeedsMoreReply("NEEDS_MORE")).toBe(true)
+    expect(isNeedsMoreReply("  NEEDS MORE ")).toBe(true)
+    expect(isNeedsMoreReply('"Needs-more."')).toBe(true)
+    expect(isNeedsMoreReply("needs more — the description does not say enough")).toBe(true)
+    expect(isNeedsMoreReply("OpenBSD 8.0 ships today.")).toBe(false)
+    expect(isNeedsMoreReply("")).toBe(false)
+  })
+  it("isStoryable is the pre-model gate: real description only, no echoes", () => {
+    const tooShort = item({ title: "Real headline about things", context: "Tiny blurb." })
+    const echo = item({ title: "Super Intelligence", context: "Super Intelligence" })
+    const ok = item({
+      title: "Real headline about things",
+      context:
+        "A full page description that carries actual information about the release and its contents for devs.",
+    })
+    expect(isStoryable(tooShort)).toBe(false)
+    expect(isStoryable(echo)).toBe(false)
+    expect(isStoryable({ ...item({ title: "Real headline" }) })).toBe(false) // no context at all
+    expect(isStoryable(ok)).toBe(true)
   })
   it("cleanStory collapses to flowing prose, strips quotes", () => {
     expect(cleanStory('  "A clean\n multi-line  story." ')).toBe("A clean multi-line story.")

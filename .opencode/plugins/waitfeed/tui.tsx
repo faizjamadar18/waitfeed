@@ -35,16 +35,15 @@ import { formatAgo, formatDuration, isContextDuplicate, linkLabel, truncate } fr
 import type { FeedItem } from "./core/types"
 
 /** Bump on every edit — the debug log reports which build actually ran. */
-const BUILD = "2026-10-20T08-45-clean-reader"
+const BUILD = "2026-10-20-v2-news-only"
 
-const ROTATE_MS = 9_000
 const CACHE_POLL_MS = 5_000
 const SUMMARY_MS = 6_000
-const PANEL_ITEMS = 8
-
+/** Reader rows — generous on purpose: the reader is where a headline that
+ * rotated away gets re-read, so browsing should feel roomy. */
+const PANEL_ITEMS = 12
 /** Fixed text-grade colors, distrotv-style — consistent across user themes. */
 const MUTED = "#7d8590"
-const TIP_COLOR = "#79c0ff"
 const SELECT_COLOR = "#f0883e"
 const BADGE_STYLE: Record<string, string> = {
   HN: "#ff6600",
@@ -77,7 +76,6 @@ interface CacheFile {
   fetchedAt: number
   summaries?: Record<string, { text: string; at: number }>
   llmUnavailable?: boolean
-  tips?: string[]
 }
 
 const dataDir = () => join(homedir(), ".config", "waitfeed")
@@ -118,7 +116,10 @@ export default Plugin.define({
       sources: { ...DEFAULT_CONFIG.sources },
       rssUrls: [],
     })
-    void loadConfig().then((c) => setCfg(c))
+    void loadConfig().then((c) => {
+      setCfg(c)
+      rescheduleRotate() // config may carry a custom dwellSeconds — apply live
+    })
 
     const summaries = () => cache().summaries ?? {}
     const items = () => cache().items
@@ -145,16 +146,6 @@ export default Plugin.define({
       return list[index() % list.length]
     }
 
-    /** Every 4th rotation slot is a personal tip from local git metadata —
-     * the "▍ YOU" card. Tips arrive on the cache like everything else. */
-    const TIP_EVERY = 4
-    const currentTip = (): string | undefined => {
-      const list = cache().tips ?? []
-      if (list.length === 0) return undefined
-      const i = index()
-      return i % TIP_EVERY === TIP_EVERY - 1 ? list[i % list.length] : undefined
-    }
-
     /** Card body: the item's LLM story when present, else the channel/meta
      * description. A body that just repeats the headline is dropped — no
      * value, no line. */
@@ -179,14 +170,42 @@ export default Plugin.define({
     void poll()
     const pollTimer = setInterval(() => void poll(), CACHE_POLL_MS)
 
-    const rotateTimer = setInterval(() => {
+    /** The single rotation tick, kept out of setInterval because the dwell
+     * comes from the user config and can change on load. */
+    const rotationTick = (): void => {
       trackBusy()
-      if (lastBusy) seen++ // rotated a new headline in front of the user
+      if (lastBusy) {
+        // Count DISTINCT headlines actually displayed this run — a rotation
+        // that shows the same card again is the same glance. Empty list
+        // (stories still writing) = nothing seen, counted honestly.
+        const shown = current()
+        if (shown && shown.id !== lastShownId) {
+          lastShownId = shown.id
+          seen++
+        }
+      }
       setIndex((i) => i + 1)
-    }, ROTATE_MS)
+    }
+
+    /** Card dwell: distrotv's 9s was tuned for a ONE-LINE ad. Our full card
+     * (headline + story + link) reads in ~15-25s, so the default dwell is
+     * 20s — the knob `dwellSeconds` in config.json sets it (5-120, clamped
+     * on load). Rotating faster than the read is the mid-read pop-up bug. */
+    const dwellMs = (): number => cfg().dwellSeconds * 1000
+    let rotateTimer: ReturnType<typeof setInterval> | undefined
+    const rescheduleRotate = (): void => {
+      if (rotateTimer) clearInterval(rotateTimer)
+      rotateTimer = setInterval(rotationTick, dwellMs())
+    }
+    rescheduleRotate()
 
     // --- done-summary bookkeeping (observational: no keystrokes touched) ---
+    // `seen` = distinct headlines displayed during the CURRENT busy run: it
+    // resets when the session turns busy and is snapshotted into the "✓ done"
+    // summary when that run succeeds — so the number always describes the
+    // run the user just watched, never a total from earlier runs.
     let seen = 0
+    let lastShownId: string | undefined
     let lastBusy = false
     let lastSessionID: string | undefined
     const busySince = new Map<string, number>()
@@ -221,13 +240,18 @@ export default Plugin.define({
     }
 
     /** Keeps the busy window for the done summary. Runs in the rotation tick —
-     * always alive, no mount-order games. */
+     * always alive, no mount-order games. A busy flip STARTS a run: the seen
+     * counter resets so the done summary describes exactly that run. */
     const trackBusy = (): void => {
       const sid = lastSessionID
       const busy = isBusy(sid)
       if (busy !== lastBusy) {
         void debugLog(`busy flip: ${lastBusy} -> ${busy} (sid ${sid ?? "?"})`)
         lastBusy = busy
+        if (busy) {
+          seen = 0 // fresh run → fresh count
+          lastShownId = undefined
+        }
       }
       if (busy) {
         if (sid && !busySince.has(sid)) busySince.set(sid, Date.now())
@@ -285,17 +309,6 @@ export default Plugin.define({
       )
     }
 
-    /** The "▍ YOU" card: one friendly git-metadata line from your own repo. */
-    const TipParagraph = (props: { tip: string }) => (
-      <box>
-        <box flexDirection="row" gap={1}>
-          <text fg={TIP_COLOR}>▍</text>
-          <text fg={TIP_COLOR}>[YOU]</text>
-          <text width={Math.max(40, columns() - 20)}>{props.tip}</text>
-        </box>
-      </box>
-    )
-
     /** Reader row: ONE line per item — marker + badge + truncated title +
      * score + age. Only the selected row expands to show its story. Long
      * URLs never render as text (enter opens them). Plain-safe glyphs only. */
@@ -339,15 +352,8 @@ export default Plugin.define({
         void debugLog(`slot A render: sid=${props.sessionID} idx=${index()}`)
         return (
           <Show when={isBusy(props.sessionID)}>
-            <Show
-              when={currentTip()}
-              fallback={
-                <Show when={current()}>
-                  <NewsParagraph item={current() as FeedItem} withBar />
-                </Show>
-              }
-            >
-              <TipParagraph tip={currentTip() as string} />
+            <Show when={current()}>
+              <NewsParagraph item={current() as FeedItem} withBar />
             </Show>
           </Show>
         )
@@ -525,7 +531,7 @@ export default Plugin.define({
 
     return () => {
       clearInterval(pollTimer)
-      clearInterval(rotateTimer)
+      if (rotateTimer) clearInterval(rotateTimer)
       if (summaryTimer) clearTimeout(summaryTimer)
     }
   },
