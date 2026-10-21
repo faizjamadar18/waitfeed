@@ -8,16 +8,16 @@ import type { ChannelKey } from "./config"
 import type { FeedItem } from "./types"
 import { decodeEntities, stripHtmlTags, truncateSentence } from "./ticker"
 
-const UA = "waitfeed/0.1 (local terminal ticker)"
+const UA = "waitfeed/2.0 (local terminal ticker)"
 const TIMEOUT_MS = 10_000
 /** Longest stored description. The cut (truncateSentence) always lands on a
  * complete sentence, so stored data never ends mid-sentence. The display
  * layer wraps what it gets — it never re-saves the text. */
 const CONTEXT_MAX = 600
-/** HN look-through: the ID list is one free call, so scanning ~60 fresh
+/** HN look-through: the ID list is one free call, so scanning ~90 fresh
  * stories per cycle costs nothing and keeps the usable pool deep enough
- * that the 30-story runtime target always fills. */
-export const HN_LOOK = 60
+ * that the 60-story runtime target always fills. */
+export const HN_LOOK = 90
 
 const rss = new Parser({ timeout: TIMEOUT_MS, headers: { "User-Agent": UA } })
 
@@ -71,7 +71,7 @@ interface DevArticle {
   positive_reactions_count?: number
 }
 
-export async function devTo(count = 15): Promise<FeedItem[]> {
+export async function devTo(count = 30): Promise<FeedItem[]> {
   const arts = await fetchJson<DevArticle[]>(`https://dev.to/api/articles?per_page=${count}`)
   return arts.flatMap((a) => {
     if (!a.title || !a.url) return []
@@ -98,7 +98,7 @@ interface GitHubSearch {
   }>
 }
 
-export async function githubTrending(count = 15): Promise<FeedItem[]> {
+export async function githubTrending(count = 30): Promise<FeedItem[]> {
   // Trending proxy: repos created in the last 7 days, ranked by stars.
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
   const q = `created:>${since} stars:>50`
@@ -144,25 +144,65 @@ export async function rssChannel(source: string, url: string, count = 15): Promi
   }).slice(0, count)
 }
 
-export const redditTech = (count = 15) =>
+export const redditTech = (count = 25) =>
   rssChannel("R/PROG", "https://www.reddit.com/r/programming/.rss", count)
 
-/** Fetch the enabled channels; each failure degrades to an empty group. The
- * enabled map comes from the user config — a disabled channel is never even
- * contacted. User RSS URLs always run (they were explicitly subscribed).
- * Free channels ride the same single response (summaries included), so the
- * larger per-page counts cost zero extra requests — only the fill-up rule
- * on the HN page-visit path (index.ts) spends beyond the direct ask. */
+/** Per-channel outcome for diagnostics: a count of 0 with an error means the
+ * channel was contacted and failed; Disabled channels are simply absent. */
+export interface ChannelStatus {
+  name: string
+  count: number
+  error?: string
+}
+
+export interface FetchAllResult {
+  groups: FeedItem[][]
+  status: ChannelStatus[]
+}
+
+/** Fetch the enabled channels; each failure degrades to an empty group AND
+ * is reported by name, so a dead channel is visible in the log instead of
+ * silently shrinking the ticker. The enabled map comes from the user config
+ * — a disabled channel is never even contacted. User RSS URLs always run
+ * (they were explicitly subscribed). Free channels ride the same single
+ * response (summaries included), so the larger per-page counts cost zero
+ * extra requests — only the fill-up rule on the HN page-visit path (index.ts)
+ * spends beyond the direct ask. */
 export async function fetchAllFeeds(
   enabled?: Partial<Record<ChannelKey, boolean>>,
   rssUrls: string[] = [],
-): Promise<FeedItem[][]> {
-  const jobs: Promise<FeedItem[]>[] = []
-  if (enabled?.hn !== false) jobs.push(hackerNews())
-  if (enabled?.devto !== false) jobs.push(devTo())
-  if (enabled?.github !== false) jobs.push(githubTrending())
-  if (enabled?.reddit !== false) jobs.push(redditTech())
-  for (const url of rssUrls) jobs.push(rssChannel("RSS", url))
-  const results = await Promise.allSettled(jobs)
-  return results.map((r) => (r.status === "fulfilled" ? r.value : []))
+): Promise<FetchAllResult> {
+  const jobs: Array<{ name: string; run: Promise<FeedItem[]> }> = []
+  if (enabled?.hn !== false) jobs.push({ name: "HN", run: hackerNews() })
+  if (enabled?.devto !== false) jobs.push({ name: "DEV", run: devTo() })
+  if (enabled?.github !== false) jobs.push({ name: "GH", run: githubTrending() })
+  if (enabled?.reddit !== false) jobs.push({ name: "R/PROG", run: redditTech() })
+  for (const url of rssUrls)
+    jobs.push({
+      name: (() => {
+        try {
+          return `RSS ${new URL(url).host}`
+        } catch {
+          return "RSS (bad url)"
+        }
+      })(),
+      run: rssChannel("RSS", url),
+    })
+  const results = await Promise.allSettled(jobs.map((j) => j.run))
+  const groups: FeedItem[][] = []
+  const status: ChannelStatus[] = []
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      groups.push(r.value)
+      status.push({ name: jobs[i].name, count: r.value.length })
+    } else {
+      groups.push([])
+      status.push({
+        name: jobs[i].name,
+        count: 0,
+        error: (r.reason as Error)?.message ?? String(r.reason),
+      })
+    }
+  })
+  return { groups, status }
 }

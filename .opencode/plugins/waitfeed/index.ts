@@ -2,7 +2,7 @@
 // cache file the TUI reads:
 //
 //   fetch channels → merge → enrich (meta descriptions, batches that stop
-//   the moment 30 usable items exist) → drop junk → write cache (headline
+//   the moment 60 usable items exist) → drop junk → write cache (headline
 //   data lands immediately) → LLM stories (strict rewrite of the description
 //   ONLY — items without a usable description never reach the model, and the
 //   model must answer NEEDS_MORE instead of inventing; binned replies leave
@@ -21,7 +21,7 @@ import { loadConfig } from "./core/config"
 import { enrichMissing } from "./core/enrich"
 import { fetchAllFeeds } from "./core/feeds"
 import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable } from "./core/llm"
-import { dropJunk, mergeItems } from "./core/ticker"
+import { dropJunk, mergeItems, retainMerge } from "./core/ticker"
 import type { FeedItem } from "./core/types"
 
 interface CacheFile {
@@ -36,24 +36,29 @@ interface CacheFile {
 }
 
 const REFRESH_MS = 30 * 60 * 1000
-/** Runtime target: 30 story-complete cards visible. Enrichment page-visits
- * stop the moment this fills, so the look-through budget is only spent on
- * items that can actually appear on screen. */
-const TARGET_READY = 30
-/** Stories per refresh cycle — doubled from 8 so the 30-card pool fills
- * within a couple of cycles of fresh news instead of lagging hours behind.
- * Newest headlines first; the TUI shows an item only once its story is
- * ready, so fresh news needs coverage quickly. */
-const SUMMARY_BUDGET = 16
+/** Runtime target: 60 story-complete cards visible (~20 minutes of unique
+ * watching at the 20s default dwell). Enrichment page-visits stop the moment
+ * this fills, so the look-through budget is only spent on items that can
+ * actually appear on screen. */
+const TARGET_READY = 60
+/** Stories per refresh cycle — fresh headlines need coverage quickly, so
+ * 24 land per cycle (newest first) while the whole phase stays comfortably
+ * inside the cycle-lock TTL. */
+const SUMMARY_BUDGET = 24
 /** Soft cap for the story phase so the cycle lock never outlives its TTL;
  * anything left over is picked up next cycle. */
 const SUMMARY_TIME_BUDGET_MS = 8 * 60 * 1000
 const GENERATE_TIMEOUT_MS = 90_000
 /** Upstream generation is flaky ("Endpoint is unavailable") — bounded retries. */
 const GENERATE_RETRIES = 3
-/** Cache cap. With ~60 HN candidates + 15 per free channel per cycle, 90
- * keeps the whole fresh backlog around for the story phase to work through. */
+/** Cache cap. With ~90 HN candidates + 25-30 per free channel per cycle, 90
+ * carries over the story-phase backlog cycle to cycle (retainMerge) instead
+ * of throwing it away. */
 const CACHE_ITEMS = 90
+/** How long previous items may survive a refresh: deep enough that a dead
+ * channel, a rate limit or an LLM hiccup never empties the ticker, short
+ * enough that the shelf stays fresh. */
+const RETAIN_TTL_MS = 36 * 60 * 60 * 1000
 /** Re-running setup in the same shared service process leaves old timers; a
  * module-level counter tells us how many times the host re-ran setup. */
 let ALIVE_SETUPS = 0
@@ -180,6 +185,7 @@ export default Plugin.define({
     ): Promise<{ ok: true; text: string } | { ok: false; gate: boolean; message: string }> => {
       try {
         const attempt = ctx.session.generate({ sessionID, prompt }) as Promise<{ text?: string }>
+        attempt.catch(() => {}) // a timed-out loser must not become an unhandled rejection
         const timeout = new Promise<never>((_, reject) => {
           const t = setTimeout(() => reject(new Error("generate timed out")), GENERATE_TIMEOUT_MS)
           if (typeof t.unref === "function") t.unref()
@@ -295,18 +301,27 @@ export default Plugin.define({
         // Self-healing probe: a fresh cycle may have a working model now.
         cache.llmUnavailable = false
 
-        const groups = await fetchAllFeeds(cfg.sources, cfg.rssUrls)
-        const merged = mergeItems(groups, CACHE_ITEMS)
+        const { groups, status } = await fetchAllFeeds(cfg.sources, cfg.rssUrls)
+        const beforeCount = cache.items.length
+        // Retention merge: the fresh fetch is deduped and capped on its own,
+        // then previous items that are still inside the retention window are
+        // carried underneath it — a dead channel leaves the shelf standing.
+        const fetched = mergeItems(groups, CACHE_ITEMS)
+        const merged = retainMerge(cache.items, fetched, { ttlMs: RETAIN_TTL_MS, cap: CACHE_ITEMS })
         // Story mode shows ONLY story-complete items, so enrichment opens
-        // pages in batches and stops the moment 30 usable items exist.
+        // pages in batches and stops the moment 60 usable items exist.
         // Reddit/HN-discussion URLs are skipped inside enrichMissing.
-        const fromChannels = merged.filter((it) => isStoryable(it)).length
         await enrichMissing(merged, {
           slotsLeft: () => TARGET_READY - readyCount(cache, merged),
         })
         const items = dropJunk(merged)
+        const prevKeys = new Set(cache.items.map((it) => (it.url || it.id).trim().toLowerCase()))
+        const kept = items.filter((it) => prevKeys.has((it.url || it.id).trim().toLowerCase())).length
+        const channelLine = status
+          .map((s) => `${s.name} ${s.count}${s.error ? ` (FAILED: ${s.error})` : ""}`)
+          .join(" · ")
         await probeLog(
-          `pipeline: ${merged.length} fetched · ${fromChannels} already have channel descriptions · ${readyCount(cache, items)} stories ready of ${TARGET_READY} target`,
+          `pipeline: ${items.length} in play · ${channelLine} · carried ${kept}/${beforeCount} previous · ${readyCount(cache, items)} stories ready of ${TARGET_READY} target`,
         )
         cache.items = items
         cache.fetchedAt = Date.now()

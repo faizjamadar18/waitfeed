@@ -3,6 +3,8 @@
 // Slot A (session.composer.top): a rotating news card while the agent works —
 // colored channel badge + headline, dim context beneath. NO fixed line count:
 // the text is one wrapping paragraph and grows as tall as the news needs.
+// The rotation is no-repeat first: an unseen card plays before any seen one,
+// and shown cards drift to the back of the line instead of looping instantly.
 // Slot B (prompt.footer.status): a short "✓ done in Xm · N headlines seen"
 // summary after a run. `/news` opens the full reader panel (esc closes,
 // f toggles fullscreen).
@@ -35,7 +37,7 @@ import { formatAgo, formatDuration, isContextDuplicate, linkLabel, truncate } fr
 import type { FeedItem } from "./core/types"
 
 /** Bump on every edit — the debug log reports which build actually ran. */
-const BUILD = "2026-10-20-v2-news-only"
+const BUILD = "2026-10-20-v3-no-repeat"
 
 const CACHE_POLL_MS = 5_000
 const SUMMARY_MS = 6_000
@@ -109,7 +111,7 @@ export default Plugin.define({
     }
 
     const [cache, setCache] = createSignal<CacheFile>({ items: [], fetchedAt: 0, summaries: {} })
-    const [index, setIndex] = createSignal(0)
+    const [rotation, bumpRotation] = createSignal(0)
     const [summary, setSummary] = createSignal<string | null>(null)
     const [cfg, setCfg] = createSignal<WaitFeedConfig>({
       ...DEFAULT_CONFIG,
@@ -140,10 +142,46 @@ export default Plugin.define({
       )
     }
 
+    /** No-repeat rotation. An unseen card is always the first choice
+     * (newest-first); cards already shown this session drift to the BACK of
+     * the line — a repeat only happens once everything currently visible has
+     * been shown once, and then it is the card shown the LONGEST time ago.
+     * The chosen card is pinned for its whole dwell, so a mid-dwell cache
+     * poll can never swap the headline mid-read. */
+    const shownAt = new Map<string, number>() // id -> presentation number
+    let presentationNo = 0
+    let pinnedId: string | undefined
+
     const current = (): FeedItem | undefined => {
+      void rotation() // subscribe: each dwell tick re-picks
       const list = visible()
-      if (list.length === 0) return undefined
-      return list[index() % list.length]
+      if (list.length === 0) {
+        pinnedId = undefined
+        return undefined
+      }
+      const present = new Set(list.map((it) => it.id))
+      for (const id of shownAt.keys()) if (!present.has(id)) shownAt.delete(id)
+      const pinned = pinnedId ? list.find((it) => it.id === pinnedId) : undefined
+      if (pinned) return pinned // one card, full dwell, never swapped mid-read
+      let chosen: FeedItem | undefined
+      const unseenIdx = list.findIndex((it) => !shownAt.has(it.id))
+      if (unseenIdx >= 0) {
+        chosen = list[unseenIdx]
+      } else {
+        // All shown at least once: least-recently-shown wins (back-of-line rule).
+        let bestId: string | undefined
+        let bestTick = Infinity
+        for (const it of list) {
+          const t = shownAt.get(it.id)
+          if (t !== undefined && t < bestTick) {
+            bestTick = t
+            bestId = it.id
+          }
+        }
+        chosen = bestId ? list.find((it) => it.id === bestId) : list[0]
+      }
+      pinnedId = chosen?.id
+      return chosen
     }
 
     /** Card body: the item's LLM story when present, else the channel/meta
@@ -171,20 +209,24 @@ export default Plugin.define({
     const pollTimer = setInterval(() => void poll(), CACHE_POLL_MS)
 
     /** The single rotation tick, kept out of setInterval because the dwell
-     * comes from the user config and can change on load. */
+     * comes from the user config and can change on load. The card that just
+     * finished its dwell is the pinned one; it is marked shown the moment its
+     * dwell ends, so the next dwell picks the never-repeat order. */
     const rotationTick = (): void => {
       trackBusy()
+      const shownId = pinnedId
       if (lastBusy) {
         // Count DISTINCT headlines actually displayed this run — a rotation
         // that shows the same card again is the same glance. Empty list
         // (stories still writing) = nothing seen, counted honestly.
-        const shown = current()
-        if (shown && shown.id !== lastShownId) {
-          lastShownId = shown.id
+        if (shownId && shownId !== lastShownId) {
+          lastShownId = shownId
           seen++
         }
       }
-      setIndex((i) => i + 1)
+      if (shownId) shownAt.set(shownId, ++presentationNo)
+      pinnedId = undefined
+      bumpRotation((n) => n + 1)
     }
 
     /** Card dwell: distrotv's 9s was tuned for a ONE-LINE ad. Our full card
@@ -349,7 +391,7 @@ export default Plugin.define({
       append: "session.composer.top",
       render: (props) => {
         lastSessionID = props.sessionID
-        void debugLog(`slot A render: sid=${props.sessionID} idx=${index()}`)
+        void debugLog(`slot A render: sid=${props.sessionID} idx=${rotation()}`)
         return (
           <Show when={isBusy(props.sessionID)}>
             <Show when={current()}>

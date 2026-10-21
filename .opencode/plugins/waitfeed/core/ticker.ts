@@ -71,6 +71,37 @@ export function mergeItems(groups: FeedItem[][], cap = 30): FeedItem[] {
   return out.slice(0, cap)
 }
 
+export interface RetainOptions {
+  /** How long previous items stay eligible, epoch ms (defaults to 36h). */
+  ttlMs?: number
+  /** Final list cap (defaults to 90 — the cycle's CACHE_ITEMS). */
+  cap?: number
+  /** Timestamp the retention age is measured against (tests inject a fixed one). */
+  now?: number
+}
+
+/**
+ * Carry the previous cycle's list into the fresh fetch instead of replacing
+ * it. A single failed channel must never empty the ticker: previous items
+ * survive until they age past the retention window, and their stories stay
+ * attached (the cache's summaries are keyed by the same url). Fresh data
+ * wins url collisions; the result is newest-first and capped. Items without
+ * a known time cannot be proven old, so they survive the window.
+ */
+export function retainMerge(previous: FeedItem[], fresh: FeedItem[], opts: RetainOptions = {}): FeedItem[] {
+  const ttlMs = opts.ttlMs ?? 36 * HOUR
+  const cap = opts.cap ?? 90
+  const now = opts.now ?? Date.now()
+  const byKey = new Map<string, FeedItem>()
+  for (const it of fresh) byKey.set((it.url || it.id).trim().toLowerCase(), it) // fresh wins
+  for (const it of previous) {
+    if (typeof it.time === "number" && now - it.time > ttlMs) continue // expired
+    const key = (it.url || it.id).trim().toLowerCase()
+    if (!byKey.has(key)) byKey.set(key, it)
+  }
+  return [...byKey.values()].sort((a, b) => (b.time ?? 0) - (a.time ?? 0)).slice(0, cap)
+}
+
 /** Parts of one headline, so the UI can color the badge and dim the age. */
 export interface HeadlineParts {
   bar: string

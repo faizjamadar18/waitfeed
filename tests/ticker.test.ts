@@ -12,12 +12,16 @@ import {
   isJunkTitle,
   linkLabel,
   mergeItems,
+  retainMerge,
   stripHtmlTags,
   truncate,
   type FeedItem,
 } from "../.opencode/plugins/waitfeed/core/ticker"
 import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable, NEEDS_MORE } from "../.opencode/plugins/waitfeed/core/llm"
 import { truncateSentence } from "../.opencode/plugins/waitfeed/core/ticker"
+
+const MIN = 60_000
+const HOUR = 3_600_000
 
 const item = (over: Partial<FeedItem> = {}): FeedItem => ({
   id: `t-${Math.random().toString(36).slice(2)}`,
@@ -97,6 +101,58 @@ describe("mergeItems", () => {
     expect(merged).toHaveLength(2)
     expect(merged[0].id).toBe("b") // newest first
     expect(merged.map((m) => m.id)).not.toContain("a2")
+  })
+})
+
+describe("retainMerge", () => {
+  it("keeps previous items alive when the fresh fetch is empty (dead channel = no empty screen)", () => {
+    const now = Date.now()
+    const prev = [item({ id: "p1", url: "https://x.com/p1", time: now - HOUR })]
+    const out = retainMerge(prev, [], { now })
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe("p1")
+  })
+  it("drops previous items that aged past the retention window", () => {
+    const now = Date.now()
+    const fresh = [item({ id: "f1", url: "https://x.com/f1", time: now })]
+    const tooOld = item({ id: "old", url: "https://x.com/old", time: now - 37 * HOUR })
+    const stillGood = item({ id: "good", url: "https://x.com/good", time: now - 30 * HOUR })
+    const out = retainMerge([tooOld, stillGood], fresh, { now })
+    expect(out.map((it) => it.id)).toEqual(["f1", "good"])
+  })
+  it("previous items with unknown time are kept (age cannot be proven)", () => {
+    const now = Date.now()
+    const noTime = item({ id: "nt", url: "https://x.com/nt", time: undefined })
+    const out = retainMerge([noTime], [], { now })
+    expect(out.map((it) => it.id)).toEqual(["nt"])
+  })
+  it("fresh data wins url collisions with previous items", () => {
+    const now = Date.now()
+    const fresh = [item({ id: "fresh-id", url: "https://x.com/same", time: now, score: 10 })]
+    const prev = [item({ id: "prev-id", url: "https://x.com/same", time: now - HOUR, score: 5 })]
+    const out = retainMerge(prev, fresh, { now })
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe("fresh-id")
+    expect(out[0].score).toBe(10)
+  })
+  it("dedupes within the fresh fetch as well (same key across channels)", () => {
+    const a = item({ id: "a", url: "https://x.com/a" })
+    const dupA = item({ id: "dup", url: "https://x.com/a" })
+    const out = retainMerge([], [a, dupA])
+    expect(out).toHaveLength(1)
+  })
+  it("sorts newest first and respects the cap", () => {
+    const now = Date.now()
+    const fresh = [
+      item({ id: "f1", url: "https://x.com/f1", time: now - 10 * MIN }),
+      item({ id: "f2", url: "https://x.com/f2", time: now - 5 * MIN }),
+    ]
+    const prev = [item({ id: "p1", url: "https://x.com/p1", time: now - MIN })]
+    const filler = (n: number): FeedItem[] =>
+      Array.from({ length: n }, (_, i) => item({ id: `x${i}`, url: `https://x.com/x${i}`, time: now - 20 * MIN - i * MIN }))
+    const out = retainMerge([...prev, ...filler(10)], fresh, { now, cap: 5 })
+    expect(out).toHaveLength(5)
+    expect(out.map((it) => it.id)).toEqual(["p1", "f2", "f1", "x0", "x1"])
   })
 })
 
