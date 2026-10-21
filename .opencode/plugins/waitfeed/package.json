@@ -1,18 +1,51 @@
 {
-  "name": "waitfeed-plugin",
-  "version": "0.0.1",
-  "private": true,
+  "name": "waitfeed",
+  "version": "1.0.0",
+  "description": "While your agent works: a slim news ticker above the input box + a /news fullscreen reader, with story-anchored AI digests. No ads, no keys, no server.",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "news",
+    "ticker",
+    "reader",
+    "hacker-news",
+    "rss",
+    "tui",
+    "terminal"
+  ],
+  "license": "MIT",
+  "author": "faizjamadar18 (https://github.com/faizjamadar18)",
+  "homepage": "https://github.com/faizjamadar18/waitfeed#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/faizjamadar18/waitfeed.git",
+    "directory": ".opencode/plugins/waitfeed"
+  },
+  "bugs": {
+    "url": "https://github.com/faizjamadar18/waitfeed/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
+  "main": "./index.ts",
   "exports": {
     ".": "./index.ts",
     "./tui": "./tui.tsx"
   },
+  "files": [
+    "index.ts",
+    "tui.tsx",
+    "core/",
+    "LICENSE",
+    "README.md"
+  ],
   "dependencies": {
-    "@opencode/plugin": "latest",
-    "@opentui/core": "latest",
-    "@opentui/solid": "latest",
+    "@opencode/plugin": "2.0.32",
+    "@opentui/core": "0.6.6",
+    "@opentui/solid": "0.6.6",
     "rss-parser": "^3.13.0",
-    "solid-js": "latest"
+    "solid-js": "1.9.17"
   },
   "overrides": {
     "undici": "6.29.1"

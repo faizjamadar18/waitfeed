@@ -82,6 +82,16 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
 - Gates before every handover:
   - `npx tsc --noEmit` — clean (0 errors)
   - `npx vitest run` — passes (from M1 onward)
+- npm publishing facts (verified against npm docs 2026-10-21): the publish
+  root is `.opencode/plugins/waitfeed/` (its package.json is the published
+  `waitfeed` package; root package.json is the private `waitfeed-dev`
+  harness). Runtime dependencies are EXACT-pinned — bump them deliberately
+  per release, never silently. `overrides` do not travel with a published
+  package (npm rule), so consumer installs resolve OpenCode's own chain
+  (undici@8 + seroval advisories) — documented honestly in the package
+  README; re-check `npm audit` and a tarball consumer-install at each
+  release. `npm pack --dry-run` from the publish root previews the tarball;
+  `package-lock.json` is always excluded from it.
 
 ## Milestones
 

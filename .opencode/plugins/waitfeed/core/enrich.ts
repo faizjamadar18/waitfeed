@@ -11,7 +11,7 @@ const MAX_PER_CYCLE = 24
  * enough usable items exist instead of always spending the whole cap. */
 const BATCH = 8
 const MAX_CONTEXT = 240
-const UA = "waitfeed/0.1 (local terminal ticker)"
+const UA = "waitfeed/2.0 (local terminal ticker)"
 
 function extractMetaDescription(html: string): string | undefined {
   const patterns = [

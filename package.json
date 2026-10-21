@@ -1,12 +1,13 @@
 {
-  "name": "waitfeed",
+  "name": "waitfeed-dev",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Idle-time news ticker + /news reader for the OpenCode terminal",
+  "description": "Dev harness for the WaitFeed plugin — typecheck and tests. The published npm package lives in .opencode/plugins/waitfeed.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview": "cd .opencode/plugins/waitfeed && npm pack --dry-run"
   },
   "devDependencies": {
     "@types/node": "^20",

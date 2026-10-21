@@ -1,13 +1,7 @@
 // Diagnostics: probe every WaitFeed channel with the same URLs the plugin uses.
 // Run: node scripts/probe-feeds.mjs
-const UA = "waitfeed/0.1 (local terminal ticker)"
+const UA = "waitfeed/2.0 (local terminal ticker)"
 const TIMEOUT = 10_000
-
-const get = async (url) => {
-  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT) })
-  const body = await res.json()
-  return { status: res.status, body }
-}
 
 const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
 
