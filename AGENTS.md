@@ -81,7 +81,21 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
   text into shorter stored data.
 - Gates before every handover:
   - `npx tsc --noEmit` — clean (0 errors)
-  - `npx vitest run` — passes (from M1 onward)
+  - `npx vitest run` — passes (from M1 onward; 53 tests since the
+    package-integrity suite landed)
+- Consumer-machine safety rules (found the hard way via the 1.0.0 TUI load
+  failure — "works in dev, breaks on install" bug class, guarded by
+  `tests/package.test.ts`):
+  - `tui.tsx` line 1 MUST stay `/* @jsxImportSource @opentui/solid */` — the
+    file must self-describe its JSX source because consumer installs have no
+    repo tsconfig above them; without the pragma OpenCode's transpiler
+    defaults to React and the TUI half fails with `Cannot find package
+    'react'`.
+  - The plugin dir ships its own `tsconfig.json` (mirrors the repo root
+    settings; listed in package.json `files`) — second safety net.
+  - Never import React anywhere; never use `__dirname`, `process.cwd()` or
+    hardcoded absolute paths in shipped files; every file access anchors to
+    `join(homedir(), ".config", "waitfeed", ...)` so it works on any machine.
 - npm publishing facts (verified against npm docs 2026-10-21): the publish
   root is `.opencode/plugins/waitfeed/` (its package.json is the published
   `waitfeed` package; root package.json is the private `waitfeed-dev`

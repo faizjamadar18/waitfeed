@@ -1,3 +1,4 @@
+/* @jsxImportSource @opentui/solid */
 // WaitFeed — TUI plugin.
 //
 // Slot A (session.composer.top): a rotating news card while the agent works —

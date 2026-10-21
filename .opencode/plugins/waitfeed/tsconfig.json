@@ -1,0 +1,15 @@
+{
+  "//": "Shipped so the plugin's TSX always transpiles as Solid — even on a consumer machine where no project tsconfig sits above the package. Mirrors the repo root settings exactly (that configuration is proven-good in OpenCode's loader). Keep in sync with the root tsconfig.json.",
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
