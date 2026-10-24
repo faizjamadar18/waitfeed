@@ -7,7 +7,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "preview": "cd .opencode/plugins/waitfeed && npm pack --dry-run"
+    "preview": "cd .opencode/plugins/waitfeed && npm pack --dry-run",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build"
   },
   "devDependencies": {
     "@types/node": "^20",

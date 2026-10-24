@@ -3,3 +3,10 @@ node_modules/
 opencode-api-spec.json
 *.log
 .DS_Store
+.vscode/
+.idea/
+*.tsbuildinfo
+.next/
+dist/
+build/
+
