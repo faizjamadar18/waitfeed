@@ -15,6 +15,19 @@ export function formatAgo(ts?: number): string {
   return `${Math.floor(delta / DAY)}d`
 }
 
+/** Ticker card meta tail — "▲ 4.0k · 2h" (reader order: points first, age
+ * second); either half optional; "" when neither is known. Pure and
+ * unit-tested so the card never re-implements the math inline. */
+export function formatMeta(score?: number, time?: number): string {
+  const pts =
+    typeof score === "number" && score > 0
+      ? `▲ ${score > 999 ? `${(score / 1000).toFixed(1)}k` : score}`
+      : undefined
+  const ago = time ? formatAgo(time) : undefined
+  const tail = ago ? `· ${ago}` : undefined
+  return [pts, tail].filter((p): p is string => Boolean(p)).join(" ")
+}
+
 /** "48s" / "1m 32s" / "1h 05m" style wait durations. */
 export function formatDuration(ms: number): string {
   const s = Math.max(1, Math.round(ms / 1000))

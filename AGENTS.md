@@ -83,6 +83,7 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
   - `npx tsc --noEmit` — clean (0 errors)
   - `npx vitest run` — passes (from M1 onward; 53 tests since the
     package-integrity suite landed)
+  - Zero IDE/Lint warnings — 0 warnings, standard utility classes (no unnecessary arbitrary Tailwind brackets), 0 unused imports.
 - Consumer-machine safety rules (found the hard way via the 1.0.0 TUI load
   failure — "works in dev, breaks on install" bug class, guarded by
   `tests/package.test.ts`):
@@ -96,6 +97,14 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
   - Never import React anywhere; never use `__dirname`, `process.cwd()` or
     hardcoded absolute paths in shipped files; every file access anchors to
     `join(homedir(), ".config", "waitfeed", ...)` so it works on any machine.
+  - Slot-rendered rows (`NewsParagraph`, composer.top) must NEVER size from
+    `process.stdout.columns` — the row spans `width="100%"` of its real
+    parent box instead (OpenTUI Yoga resolves percentages against the
+    parent), the headline is a `flexGrow` middle cell that wraps and is
+    NEVER truncated, and badge-left/meta-right is justified by that growth
+    (meta pinned at the corner even when the headline is huge). Pieces own
+    their spacing; meta strings come from the pure `formatMeta()` helper.
+    Guarded by the `ticker card layout` test in `tests/package.test.ts`.
 - npm publishing facts (verified against npm docs 2026-10-21): the publish
   root is `.opencode/plugins/waitfeed/` (its package.json is the published
   `waitfeed` package; root package.json is the private `waitfeed-dev`
@@ -123,3 +132,4 @@ publish, landing page).
 4. Stay observational: the plugin must not modify prompts, tools, or agent behavior.
 5. Verify plugin APIs against the current V2 docs before use — the API is young.
 6. Keep changes small and consistent; this repo will be public open source (MIT).
+7. **Zero-warning standard practices:** Always fix all IDE/lint warnings, remove unused imports/variables, and use standard utility classes before handing over code.

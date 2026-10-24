@@ -34,7 +34,7 @@ import {
   type ChannelKey,
   type WaitFeedConfig,
 } from "./core/config"
-import { formatAgo, formatDuration, isContextDuplicate, linkLabel, truncate } from "./core/ticker"
+import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel, truncate } from "./core/ticker"
 import type { FeedItem } from "./core/types"
 
 /** Bump on every edit — the debug log reports which build actually ran. */
@@ -303,48 +303,40 @@ export default Plugin.define({
       }
     }
 
-    /** Ticker card, built only from proven primitives (separate colored
-     * texts in a row). The title gets an explicit width so it WRAPS to as
-     * many lines as the sentence needs — nothing is ever cut mid-word. The
-     * body gets its own column (indent rendered as a separate text node) so
-     * wrapped lines stay aligned with the first one instead of snapping to
-     * the left edge. All glyphs are plain-ASCII-safe (no fancy arrows). */
+    /** Ticker card — the single-paragraph look with justified ends. Field
+     * rules locked across 1.0.1/1.0.2 consumer runs:
+     * 1) NO columns()-based sizing — the row spans width="100%" of its real
+     *    parent box (the composer slot), so every width is the truth.
+     * 2) The headline NEVER truncates: it is a flexGrow middle cell that
+     *    wraps to as many lines as needed; nothing cuts it.
+     * 3) Badge left, meta right, justified by the growing headline — meta
+     *    stays pinned at the corner even when the headline is huge.
+     * 4) Every piece owns its spacing inside its own string (a former gap
+     *    rendering glued "[R/PROG]PHP2Shell"); meta text comes from the pure
+     *    formatMeta() helper in reader order (points · age). */
     const NewsParagraph = (props: { item: FeedItem; withBar?: boolean }) => {
       const color = () => badgeColor(props.item.source)
-      const ago = () => formatAgo(props.item.time)
       const body = () => bodyOf(props.item)
-      const titleW = () => Math.max(40, columns() - 24)
-      /** HN points / GH stars / DEV hearts — shown dim like the age stamp. */
-      const score = (): string | undefined =>
-        typeof props.item.score === "number" && props.item.score > 0
-          ? `▲ ${props.item.score > 999 ? `${(props.item.score / 1000).toFixed(1)}k` : props.item.score}`
-          : undefined
+      const meta = (): string => formatMeta(props.item.score, props.item.time)
       return (
         <box>
-          <box flexDirection="row" gap={1}>
-            <Show when={props.withBar}>
-              <text fg={color()}>▍</text>
-            </Show>
-            <text fg={color()}>{`[${props.item.source}]`}</text>
-            <text width={titleW()}>{props.item.title}</text>
-            <Show when={score()}>
-              <text fg={MUTED}>{score()}</text>
-            </Show>
-            <Show when={ago()}>
-              <text fg={MUTED}>{`· ${ago()}`}</text>
+          <box flexDirection="row" width="100%" alignItems="flex-start">
+            <text fg={color()}>{props.withBar ? `▍ [${props.item.source}]` : `[${props.item.source}]`}</text>
+            <text flexGrow={1} flexBasis={0} minWidth={0}>
+              {props.item.title}
+            </text>
+            <Show when={meta()}>
+              <text fg={MUTED}>{meta()}</text>
             </Show>
           </box>
           <Show when={body()}>
-            <box flexDirection="row">
-              <text fg={MUTED}>{"   "}</text>
-              <text fg={MUTED} width={Math.max(40, columns() - 7)}>{body()}</text>
-            </box>
+            <text fg={MUTED}>{`   ${body()}`}</text>
           </Show>
           <Show when={props.item.url}>
-            <text fg={MUTED} width={Math.max(40, columns() - 4)}>
+            <text fg={MUTED}>
               {`   > `}
               <a href={props.item.url}>
-                {linkLabel(props.item.url, Math.max(40, columns() - 10))}
+                {linkLabel(props.item.url, 48)}
               </a>
             </text>
           </Show>

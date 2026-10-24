@@ -6,6 +6,7 @@ import {
   dropJunk,
   formatAgo,
   formatDuration,
+  formatMeta,
   headline,
   headlineParts,
   isContextDuplicate,
@@ -318,5 +319,19 @@ describe("linkLabel", () => {
     const single = linkLabel("https://example.com/oneverylongpathwithoutslashes", 20)
     expect(single.length).toBeLessThanOrEqual(20)
     expect(single.endsWith("…")).toBe(true)
+  })
+})
+
+describe("formatMeta (ticker card meta tail)", () => {
+  it("joins points and age, points first like the reader; caps 1k+", () => {
+    expect(formatMeta(4000, 0)).toBe("▲ 4.0k")
+    expect(formatMeta(999, 0)).toBe("▲ 999")
+    expect(formatMeta(1240, 0)).toBe("▲ 1.2k")
+    expect(formatMeta(123, Date.now())).toBe("▲ 123 · now")
+  })
+  it("hides unknown or junk halves, empty when nothing is known", () => {
+    expect(formatMeta(0, 0)).toBe("")
+    expect(formatMeta(-5, 0)).toBe("")
+    expect(formatMeta(undefined, 0)).toBe("")
   })
 })

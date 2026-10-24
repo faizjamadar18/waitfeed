@@ -99,3 +99,19 @@ describe("package integrity (consumer-machine safety)", () => {
     }
   })
 })
+
+describe("ticker card layout (field-bug guard from 1.0.1, narrow terminal)", () => {
+  it("the slot card sizes nothing from the global terminal width", async () => {
+    const src = await readFile(join(PKG, "tui.tsx"), "utf8")
+    const start = src.indexOf("const NewsParagraph")
+    const end = src.indexOf("const ReaderRow")
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const card = src.slice(start, end)
+    // Root cause of the vanished badge/score/age in the field: the card sized
+    // itself from process.stdout.columns, but the composer slot is narrower
+    // than the terminal — the oversize row overflowed and clipped. The card
+    // must use fixed compact pieces and the box's own width instead.
+    expect(card, "NewsParagraph must not size from columns()").not.toContain("columns()")
+  })
+})
