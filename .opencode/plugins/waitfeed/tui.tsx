@@ -18,13 +18,14 @@
 // The TUI never fetches feeds itself: the server-side plugin owns the
 // pipeline and writes ~/.config/waitfeed/cache.json; this side polls the
 // file. Zero keys, zero cloud, and typing is never intercepted.
-import { For, Show, createSignal } from "solid-js"
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { spawn } from "node:child_process"
 import { appendFile, readFile, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { Plugin } from "@opencode/plugin/tui"
 import type { PanelInput } from "@opencode/plugin/tui/context"
+import type { KeyEvent } from "@opentui/core"
 import {
   CHANNEL_KEYS,
   DEFAULT_CONFIG,
@@ -38,7 +39,7 @@ import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel, t
 import type { FeedItem } from "./core/types"
 
 /** Bump on every edit — the debug log reports which build actually ran. */
-const BUILD = "2026-10-20-v3-no-repeat"
+const BUILD = "2026-10-24-v11-safe-guards"
 
 const CACHE_POLL_MS = 5_000
 const SUMMARY_MS = 6_000
@@ -200,8 +201,14 @@ export default Plugin.define({
       const next = await readCache()
       if (next && next.items.length > 0) {
         setCache(next)
+        // New stories / stories while the reader is open must repaint it.
         if (next.items.length !== lastItemCount) {
           lastItemCount = next.items.length
+          try {
+            context.renderer.requestRender()
+          } catch {
+            // renderer request is best-effort
+          }
           void debugLog(`cache poll: ${next.items.length} items (fetchedAt ${next.fetchedAt})`)
         }
       }
@@ -314,68 +321,83 @@ export default Plugin.define({
      * 4) Every piece owns its spacing inside its own string (a former gap
      *    rendering glued "[R/PROG]PHP2Shell"); meta text comes from the pure
      *    formatMeta() helper in reader order (points · age). */
-    const NewsParagraph = (props: { item: FeedItem; withBar?: boolean }) => {
-      const color = () => badgeColor(props.item.source)
-      const body = () => bodyOf(props.item)
-      const meta = (): string => formatMeta(props.item.score, props.item.time)
+    const NewsParagraph = (props: { item?: FeedItem; withBar?: boolean }) => {
+      const it = () => props.item
+      const color = () => (it() ? badgeColor(it()!.source) : MUTED)
+      const body = () => (it() ? bodyOf(it()!) : "")
+      const meta = (): string => (it() ? formatMeta(it()!.score, it()!.time) : "")
       return (
-        <box>
-          <box flexDirection="row" width="100%" alignItems="flex-start">
-            <text fg={color()}>{props.withBar ? `▍ [${props.item.source}]` : `[${props.item.source}]`}</text>
-            <text flexGrow={1} flexBasis={0} minWidth={0}>
-              {props.item.title}
-            </text>
-            <Show when={meta()}>
-              <text fg={MUTED}>{meta()}</text>
-            </Show>
-          </box>
-          <Show when={body()}>
-            <text fg={MUTED}>{`   ${body()}`}</text>
-          </Show>
-          <Show when={props.item.url}>
-            <text fg={MUTED}>
-              {`   > `}
-              <a href={props.item.url}>
-                {linkLabel(props.item.url, 48)}
-              </a>
-            </text>
-          </Show>
-        </box>
+        <Show when={it()}>
+          {(item) => (
+            <box>
+              <box flexDirection="row" width="100%" alignItems="flex-start">
+                <text fg={color()}>{props.withBar ? `▍ [${item().source}]` : `[${item().source}]`}</text>
+                <text flexGrow={1} flexBasis={0} minWidth={0}>
+                  {item().title}
+                </text>
+                <Show when={meta()}>
+                  <text fg={MUTED}>{meta()}</text>
+                </Show>
+              </box>
+              <Show when={body()}>
+                <text fg={MUTED}>{`   ${body()}`}</text>
+              </Show>
+              <Show when={item().url}>
+                <text fg={MUTED}>
+                  {`   > `}
+                  <a href={item().url}>
+                    {linkLabel(item().url, 48)}
+                  </a>
+                </text>
+              </Show>
+            </box>
+          )}
+        </Show>
       )
     }
 
-    /** Reader row: ONE line per item — marker + badge + truncated title +
-     * score + age. Only the selected row expands to show its story. Long
-     * URLs never render as text (enter opens them). Plain-safe glyphs only. */
-    const ReaderRow = (props: { item: FeedItem; selected: boolean; titleW: number }) => {
-      const ago = () => formatAgo(props.item.time)
-      const score = (): string | undefined =>
-        typeof props.item.score === "number" && props.item.score > 0
-          ? `▲ ${props.item.score > 999 ? `${(props.item.score / 1000).toFixed(1)}k` : props.item.score}`
+    /** Reader row (SNAPSHOT variant): one line per item — marker + badge +
+     * truncated title + score + age; only the selected row expands to its
+     * story. Renders ONCE per reader repaint with plain values — the whole
+     * row is painted on mount, so nothing here may depend on later
+     * reactivity (reader state changes remount instead). Plain-safe glyphs
+     * only; long URLs never render as text (enter opens them). */
+    const ReaderRow = (props: { item?: FeedItem; selected: boolean; titleW: number }) => {
+      const it = () => props.item
+      const ago = () => (it() ? formatAgo(it()!.time) : "")
+      const score = (): string | undefined => {
+        const item = it()
+        return item && typeof item.score === "number" && item.score > 0
+          ? `▲ ${item.score > 999 ? `${(item.score / 1000).toFixed(1)}k` : item.score}`
           : undefined
-      const body = () => bodyOf(props.item)
+      }
+      const body = () => (it() ? bodyOf(it()!) : "")
       return (
-        <box>
-          <box flexDirection="row" gap={1}>
-            <text fg={props.selected ? SELECT_COLOR : MUTED}>{props.selected ? "▸" : " "}</text>
-            <text fg={badgeColor(props.item.source)}>{`[${props.item.source}]`}</text>
-            <text width={props.titleW}>{truncate(props.item.title, props.titleW)}</text>
-            <Show when={score()}>
-              <text fg={MUTED}>{score()}</text>
-            </Show>
-            <Show when={ago()}>
-              <text fg={MUTED}>{`· ${ago()}`}</text>
-            </Show>
-          </box>
-          <Show when={props.selected}>
-            <Show when={body()}>
-              <box flexDirection="row">
-                <text fg={MUTED}>{"  "}</text>
-                <text fg={MUTED} width={Math.max(40, columns() - 9)}>{body()}</text>
+        <Show when={it()}>
+          {(item) => (
+            <box>
+              <box flexDirection="row" gap={1}>
+                <text fg={props.selected ? SELECT_COLOR : MUTED}>{props.selected ? "▸" : " "}</text>
+                <text fg={badgeColor(item().source)}>{`[${item().source}]`}</text>
+                <text width={props.titleW}>{truncate(item().title, props.titleW)}</text>
+                <Show when={score()}>
+                  <text fg={MUTED}>{score()}</text>
+                </Show>
+                <Show when={ago()}>
+                  <text fg={MUTED}>{`· ${ago()}`}</text>
+                </Show>
               </box>
-            </Show>
-          </Show>
-        </box>
+              <Show when={props.selected}>
+                <Show when={body()}>
+                  <box flexDirection="row">
+                    <text fg={MUTED}>{"  "}</text>
+                    <text fg={MUTED} width={Math.max(40, columns() - 9)}>{body()}</text>
+                  </box>
+                </Show>
+              </Show>
+            </box>
+          )}
+        </Show>
       )
     }
 
@@ -388,7 +410,7 @@ export default Plugin.define({
         return (
           <Show when={isBusy(props.sessionID)}>
             <Show when={current()}>
-              <NewsParagraph item={current() as FeedItem} withBar />
+              {(item) => <NewsParagraph item={item()} withBar />}
             </Show>
           </Show>
         )
@@ -443,6 +465,13 @@ export default Plugin.define({
     const NewsPanel = (props: { panel: PanelInput }) => {
       const [cursor, setCursor] = createSignal(0)
 
+      // Ensure the panel takes focus immediately on open
+      try {
+        props.panel.focus()
+      } catch {
+        // focus is best-effort on some host presentations
+      }
+
       // First run: materialize config.json on first open so setup has a real
       // file from day one; the key presses below then persist instantly.
       void (async () => {
@@ -456,7 +485,14 @@ export default Plugin.define({
       const at = (): number => Math.min(cursor(), shownMax())
       const move = (delta: number): void => {
         const max = shownMax()
-        setCursor((c) => Math.min(max, Math.max(0, Math.min(max, c) + delta)))
+        const next = Math.min(max, Math.max(0, cursor() + delta))
+        void debugLog(`cursor -> ${next}/${max}`)
+        setCursor(next)
+        try {
+          context.renderer.requestRender()
+        } catch {
+          // ignore
+        }
       }
 
       /** Cross-platform open in the user's browser. No shell strings —
@@ -487,6 +523,11 @@ export default Plugin.define({
           setupDone: true,
         }
         setCfg(next)
+        try {
+          context.renderer.requestRender()
+        } catch {
+          // ignore
+        }
         void saveConfig(next)
           .then(() => debugLog(`config: ${key} -> ${next.sources[key] ? "on" : "off"}`))
           .catch((err) =>
@@ -494,11 +535,119 @@ export default Plugin.define({
           )
       }
 
-      // The host does not auto-bind Esc — the panel owns its keys.
+      // Direct OpenTUI renderer keyboard listener.
+      // Active for the lifetime of NewsPanel (onCleanup cleanly removes it).
+      // Calls preventDefault() and stopPropagation() so keystrokes are handled
+      // immediately without leaking into the host composer input.
+      const handleKey = (key: KeyEvent): void => {
+        if (key.eventType === "release") return
+        if (key.ctrl) return // allow Ctrl+C to pass through to host
+
+        const name = (key.name ?? "").toLowerCase()
+        const seq = key.sequence ?? ""
+
+        void debugLog(`keypress: name=${name} seq=${JSON.stringify(seq)}`)
+
+        if (name === "escape" || seq === "\x1B") {
+          key.preventDefault()
+          key.stopPropagation()
+          void debugLog("close panel via escape")
+          try {
+            props.panel.close()
+          } catch {
+            context.ui.panel.close()
+          }
+          return
+        }
+        if (name === "up" || name === "k" || seq === "k" || seq === "\x1B[A" || seq === "\x1BOA") {
+          key.preventDefault()
+          key.stopPropagation()
+          move(-1)
+          return
+        }
+        if (name === "down" || name === "j" || seq === "j" || seq === "\x1B[B" || seq === "\x1BOB") {
+          key.preventDefault()
+          key.stopPropagation()
+          move(1)
+          return
+        }
+        if (name === "enter" || name === "return" || name === "linefeed" || seq === "\r" || seq === "\n") {
+          key.preventDefault()
+          key.stopPropagation()
+          const it = readerList()[at()]
+          if (it && it.url && it.url.length > 0) openUrl(it.url)
+          return
+        }
+        if (name === "f" || seq === "f") {
+          key.preventDefault()
+          key.stopPropagation()
+          void debugLog("fullscreen toggle")
+          try {
+            props.panel.toggleFullscreen()
+          } catch {
+            // ignore
+          }
+          return
+        }
+        if (name === "1" || seq === "1") {
+          key.preventDefault()
+          key.stopPropagation()
+          toggleChannel("hn")
+          return
+        }
+        if (name === "2" || seq === "2") {
+          key.preventDefault()
+          key.stopPropagation()
+          toggleChannel("devto")
+          return
+        }
+        if (name === "3" || seq === "3") {
+          key.preventDefault()
+          key.stopPropagation()
+          toggleChannel("github")
+          return
+        }
+        if (name === "4" || seq === "4") {
+          key.preventDefault()
+          key.stopPropagation()
+          toggleChannel("reddit")
+          return
+        }
+      }
+
+      context.renderer.keyInput.on("keypress", handleKey)
+      onCleanup(() => {
+        context.renderer.keyInput.off("keypress", handleKey)
+      })
+
+      // Secondary keymap layer registered with OpenCode host
       context.keymap.layer(() => ({
+        mode: "global",
+        priority: 100,
         commands: [
-          { id: "waitfeed.news.close", bind: "escape", run: () => props.panel.close() },
-          { id: "waitfeed.news.fullscreen", bind: "f", run: () => props.panel.toggleFullscreen() },
+          {
+            id: "waitfeed.news.close",
+            bind: "escape",
+            run: () => {
+              try {
+                props.panel.close()
+              } catch {
+                context.ui.panel.close()
+              }
+            },
+          },
+          {
+            id: "waitfeed.news.fullscreen",
+            bind: "f",
+            run: () => {
+              void debugLog("fullscreen toggle")
+              try {
+                props.panel.toggleFullscreen()
+              } catch {
+                // ignore
+              }
+            },
+          },
           { id: "waitfeed.news.up", bind: "up", run: () => move(-1) },
           { id: "waitfeed.news.vim-up", bind: "k", run: () => move(-1) },
           { id: "waitfeed.news.down", bind: "down", run: () => move(1) },
@@ -518,7 +667,26 @@ export default Plugin.define({
             run: () => toggleChannel(key),
           })),
         ],
+        bindings: [
+          "waitfeed.news.close",
+          "waitfeed.news.fullscreen",
+          "waitfeed.news.up",
+          "waitfeed.news.vim-up",
+          "waitfeed.news.down",
+          "waitfeed.news.vim-down",
+          "waitfeed.news.open",
+          ...CHANNEL_KEYS.map((key) => `waitfeed.news.ch-${key}`),
+        ],
       }))
+
+      createEffect(() => {
+        const rows = visible().length
+        const on = cfg().sources
+        void debugLog(
+          `panel state: rows=${rows} cursor=${cursor()} ` +
+            `hn=${on.hn ? 1 : 0} dev=${on.devto ? 1 : 0} gh=${on.github ? 1 : 0} r=${on.reddit ? 1 : 0}`,
+        )
+      })
       const header = (): string =>
         storyMode()
           ? `WAITFEED — AI digests · ${visible().length} ready`
@@ -536,6 +704,8 @@ export default Plugin.define({
         ).join(" · ")
       const controls = "enter open · up/down move · f fullscreen · esc close"
       const titleW = (): number => Math.max(30, columns() - 24)
+      const rows = () => visible().slice(0, PANEL_ITEMS)
+
       return (
         <box flexDirection="column">
           <text fg="#ff6600">{header()}</text>
@@ -546,9 +716,15 @@ export default Plugin.define({
               {"first run — switches above save to ~/.config/waitfeed/config.json"}
             </text>
           </Show>
-          <Show when={visible().length > 0} fallback={<text fg={MUTED}>{emptyMessage()}</text>}>
-            <For each={visible().slice(0, PANEL_ITEMS)}>
-              {(it, i) => <ReaderRow item={it} selected={i() === at()} titleW={titleW()} />}
+          <Show when={rows().length > 0} fallback={<text fg={MUTED}>{emptyMessage()}</text>}>
+            <For each={rows()}>
+              {(it, i) => (
+                <ReaderRow
+                  item={it}
+                  selected={i() === at()}
+                  titleW={titleW()}
+                />
+              )}
             </For>
           </Show>
         </box>
