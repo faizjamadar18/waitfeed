@@ -1,10 +1,13 @@
 {
   "name": "waitfeed",
-  "version": "1.0.3",
-  "description": "While your agent works: a slim news ticker above the input box + a /news fullscreen reader, with story-anchored AI digests. No ads, no keys, no server.",
+  "version": "1.1.0",
+  "description": "While your agent works: a slim news ticker above the input box (OpenCode) + statusline ticker (AGY), with story-anchored AI digests. No ads, no keys, no server.",
   "keywords": [
     "opencode",
     "opencode-plugin",
+    "antigravity",
+    "agy",
+    "claude-code",
     "news",
     "ticker",
     "reader",
@@ -41,6 +44,7 @@
     "index.ts",
     "tui.tsx",
     "core/",
+    "agy/",
     "tsconfig.json",
     "LICENSE",
     "README.md"

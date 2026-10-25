@@ -1,0 +1,11 @@
+{
+  "waitfeed-cycle": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node dist/scheduler.mjs --cycle",
+        "timeout": 20
+      }
+    ]
+  }
+}

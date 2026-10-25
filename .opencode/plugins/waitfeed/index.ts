@@ -1,46 +1,37 @@
-// WaitFeed — server-side plugin. Owns the data pipeline and writes the shared
-// cache file the TUI reads:
-//
-//   fetch channels → merge → enrich (meta descriptions, batches that stop
-//   the moment 60 usable items exist) → drop junk → write cache (headline
-//   data lands immediately) → LLM stories (strict rewrite of the description
-//   ONLY — items without a usable description never reach the model, and the
-//   model must answer NEEDS_MORE instead of inventing; binned replies leave
-//   the item invisible) → incremental cache write after each story
+// WaitFeed — server-side plugin. The data pipeline itself lives in
+// core/pipeline.ts (shared with the Antigravity CLI host); this file owns
+// only what is OpenCode-specific: the dedicated digest session, the story
+// generation path (strict rewrite of the description ONLY — items without a
+// usable description never reach the model, and the model must answer
+// NEEDS_MORE instead of inventing; binned replies leave the item invisible),
+// the health probe and the refresh timer.
 //
 // Story mode shows ONLY story-complete items; the whole-view headline
 // fallback stays reserved for when the LLM layer itself is unavailable.
 //
-// Refresh every 30 minutes; the TUI polls the file, so no cross-process
+// Refresh every 30 minutes; the TUI polls the cache file, so no cross-process
 // messaging is needed. Zero keys, zero cloud.
 import { Plugin } from "@opencode/plugin"
-import { appendFile, mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { loadConfig } from "./core/config"
 import { enrichMissing } from "./core/enrich"
 import { fetchAllFeeds } from "./core/feeds"
 import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable } from "./core/llm"
-import { dropJunk, mergeItems, retainMerge } from "./core/ticker"
+import {
+  emptyCache,
+  makeProbeLog,
+  readCacheDoc,
+  runPipeline,
+  storyReady,
+  STORY_TARGET,
+  writeCacheDoc,
+  type CacheFile,
+  type CacheIo,
+} from "./core/pipeline"
 import type { FeedItem } from "./core/types"
 
-interface CacheFile {
-  items: FeedItem[]
-  fetchedAt: number
-  /** LLM story per item URL, grown over refresh cycles. */
-  summaries: Record<string, { text: string; at: number }>
-  /** Set when the gate refuses generation; re-probed next cycle. */
-  llmUnavailable: boolean
-  /** Dedicated session reused for all story generations. */
-  digestSessionID?: string
-}
-
 const REFRESH_MS = 30 * 60 * 1000
-/** Runtime target: 60 story-complete cards visible (~20 minutes of unique
- * watching at the 20s default dwell). Enrichment page-visits stop the moment
- * this fills, so the look-through budget is only spent on items that can
- * actually appear on screen. */
-const TARGET_READY = 60
 /** Stories per refresh cycle — fresh headlines need coverage quickly, so
  * 24 land per cycle (newest first) while the whole phase stays comfortably
  * inside the cycle-lock TTL. */
@@ -51,14 +42,6 @@ const SUMMARY_TIME_BUDGET_MS = 8 * 60 * 1000
 const GENERATE_TIMEOUT_MS = 90_000
 /** Upstream generation is flaky ("Endpoint is unavailable") — bounded retries. */
 const GENERATE_RETRIES = 3
-/** Cache cap. With ~90 HN candidates + 25-30 per free channel per cycle, 90
- * carries over the story-phase backlog cycle to cycle (retainMerge) instead
- * of throwing it away. */
-const CACHE_ITEMS = 90
-/** How long previous items may survive a refresh: deep enough that a dead
- * channel, a rate limit or an LLM hiccup never empties the ticker, short
- * enough that the shelf stays fresh. */
-const RETAIN_TTL_MS = 36 * 60 * 60 * 1000
 /** Re-running setup in the same shared service process leaves old timers; a
  * module-level counter tells us how many times the host re-ran setup. */
 let ALIVE_SETUPS = 0
@@ -70,80 +53,38 @@ function cachePath(): string {
   return join(dataDir(), "cache.json")
 }
 
-const LOCK_TTL_MS = 10 * 60 * 1000
-/** Cross-callback mutex: the host may run setup once per session, so several
- * closures keep interval timers; the lock serializes expensive cycle work. */
-async function acquireLock(): Promise<boolean> {
-  const path = join(dataDir(), "cycle.lock")
+/** Best-effort read of the document's private keys (the digest session id is
+ * a host-private field — the cache is shared with the AGY scheduler and its
+ * unknown-key preservation must never be dropped by a rewrite). */
+async function readExtra(): Promise<Record<string, unknown>> {
   try {
-    const content = await readFile(path, "utf8").catch(() => "")
-    if (content) {
-      const ts = Number(content.trim())
-      if (Number.isFinite(ts) && Date.now() - ts < LOCK_TTL_MS) return false // someone is working
-      await writeFile(path, `${Date.now()}`, "utf8") // stale lock — steal it
-      return true
-    }
-    await writeFile(path, `${Date.now()}`, { encoding: "utf8", flag: "wx" })
-    return true
+    return (await readCacheDoc(cachePath())).extra
   } catch {
-    return false // exists → someone is working
-  }
-}
-async function releaseLock(): Promise<void> {
-  await unlink(join(dataDir(), "cycle.lock")).catch(() => {})
-}
-
-/** Diagnostics log for the generation path. */
-async function probeLog(line: string): Promise<void> {
-  try {
-    const file = join(dataDir(), "probe.log")
-    const size = await stat(file).then((s) => s.size).catch(() => 0)
-    if (size > 100_000) await writeFile(file, "", "utf8")
-    await appendFile(`${file}`, `${new Date().toISOString()} ${line}\n`, "utf8").catch(() => {})
-  } catch {
-    // diagnostics must never break the plugin
-  }
-}
-
-async function readCache(): Promise<CacheFile> {
-  try {
-    const parsed = JSON.parse(await readFile(cachePath(), "utf8")) as Partial<CacheFile>
-    return {
-      items: Array.isArray(parsed.items) ? parsed.items : [],
-      fetchedAt: typeof parsed.fetchedAt === "number" ? parsed.fetchedAt : 0,
-      summaries: parsed.summaries && typeof parsed.summaries === "object" ? parsed.summaries : {},
-      llmUnavailable: parsed.llmUnavailable === true,
-      digestSessionID: typeof parsed.digestSessionID === "string" ? parsed.digestSessionID : undefined,
-    }
-  } catch {
-    return { items: [], fetchedAt: 0, summaries: {}, llmUnavailable: false }
+    return {}
   }
 }
 
 export default Plugin.define({
   id: "waitfeed",
   async setup(ctx) {
+    const probeLog = makeProbeLog(dataDir())
     void probeLog(`SETUP START pid=${process.pid} slot=${++ALIVE_SETUPS}`)
-    let running = false
     /** The digest session ID, seeded from the cache file once per load. */
     let digestID: string | undefined
     let digestFlight: Promise<string | undefined> | null = null
 
-    /** Reads + merges the file, always carrying the session ID we know. */
-    const writeCache = async (cache: CacheFile): Promise<void> => {
-      await mkdir(dataDir(), { recursive: true })
-      // Unique tmp name: the setup probe and a cycle can write concurrently.
-      const tmp = `${cachePath()}.${Date.now()}.tmp`
-      await writeFile(tmp, JSON.stringify({ ...cache, digestSessionID: digestID }, null, 2), "utf8")
-      await rename(tmp, cachePath())
-    }
+    /** The host-private patch the writer carries into every incremental save
+     * once a digest session exists, so the id never drops out of the shared
+     * file mid-cycle. */
+    const digestExtra = (): Record<string, unknown> => (digestID ? { digestSessionID: digestID } : {})
 
     /** Single-flight digest session: the setup probe and refresh cycles share
      * one reuse-or-create path, never racing into duplicate sessions. */
     const getDigest = (): Promise<string | undefined> => {
       digestFlight ??= (async (): Promise<string | undefined> => {
         if (!digestID) {
-          digestID = (await readCache()).digestSessionID
+          const adopted = (await readExtra()).digestSessionID
+          digestID = typeof adopted === "string" ? adopted : undefined
           if (digestID) void probeLog(`digest adopted from cache: ${digestID}`)
         }
         if (digestID) {
@@ -165,8 +106,12 @@ export default Plugin.define({
             return undefined
           }
           digestID = id
-          const fresh = await readCache()
-          await writeCache(fresh)
+          try {
+            const { cache, extra } = await readCacheDoc(cachePath())
+            await writeCacheDoc(cachePath(), cache, { ...extra, digestSessionID: id })
+          } catch {
+            await writeCacheDoc(cachePath(), emptyCache(), { digestSessionID: id })
+          }
           await probeLog(`digest session created: ${id}`)
           return id
         } catch (err) {
@@ -199,15 +144,11 @@ export default Plugin.define({
     }
 
     /**
-     * How many on-screen-eligible items are story-complete right now: story
-     * mode shows ONLY items with a story, so this counts exactly what will
-     * be visible. Items without a usable description are permanently plain
-     * and never count toward — nor pad — the target.
+     * The OpenCode story phase, injected into the shared pipeline as the
+     * story writer. Stories trick into the cache incrementally after every
+     * generation so the TUI reveals items as they finish.
      */
-    const readyCount = (cache: CacheFile, items: FeedItem[]): number =>
-      items.filter((it) => isStoryable(it) && !!cache.summaries[it.url]?.text).length
-
-    const summarize = async (cache: CacheFile, items: FeedItem[]): Promise<void> => {
+    const writeStories = async (cache: CacheFile, items: FeedItem[], io: CacheIo): Promise<void> => {
       if (cache.llmUnavailable) return
       const digest = await getDigest()
       if (!digest) return
@@ -216,17 +157,17 @@ export default Plugin.define({
        * re-asked within the same cycle (the data will not change mid-cycle).
        * isStoryable already excluded permanently-plain items above. */
       const attempted = new Set<string>()
-      let ready = readyCount(cache, items)
+      let ready = storyReady(cache, items)
       let doneCount = 0
       for (const it of items) {
         // mergeItems already sorted newest-first: the freshest headlines are
         // what the ticker will show, so they get stories first.
         if (doneCount >= SUMMARY_BUDGET) {
-          await probeLog(`story budget spent (${doneCount}); ${ready}/${TARGET_READY} ready`)
+          await probeLog(`story budget spent (${doneCount}); ${ready}/${STORY_TARGET} ready`)
           break
         }
-        if (ready >= TARGET_READY) {
-          await probeLog(`story target reached: ${ready}/${TARGET_READY} ready`)
+        if (ready >= STORY_TARGET) {
+          await probeLog(`story target reached: ${ready}/${STORY_TARGET} ready`)
           break
         }
         if (cache.summaries[it.url]?.text) continue
@@ -234,7 +175,7 @@ export default Plugin.define({
         if (attempted.has(it.url)) continue
         if (doneCount > 0 && Date.now() - started > SUMMARY_TIME_BUDGET_MS) {
           await probeLog(
-            `story phase paused after ${Math.round((Date.now() - started) / 1000)}s (${ready}/${TARGET_READY} ready)`,
+            `story phase paused after ${Math.round((Date.now() - started) / 1000)}s (${ready}/${STORY_TARGET} ready)`,
           )
           break
         }
@@ -255,7 +196,7 @@ export default Plugin.define({
             if (result.text) {
               cache.summaries[it.url] = { text: result.text, at: Date.now() }
               ready++
-              await writeCache(cache) // incremental: stories trickle to the TUI
+              await io.saveCache(digestExtra()) // incremental: stories trickle to the TUI
               await probeLog(`story ok: ${it.url} -> ${result.text.slice(0, 80)}...`)
             }
             done = true
@@ -264,7 +205,7 @@ export default Plugin.define({
           }
           if (result.gate) {
             cache.llmUnavailable = true
-            await writeCache(cache)
+            await io.saveCache(digestExtra())
             await probeLog("gate refused generation; layer disabled until next cycle")
             return
           }
@@ -276,65 +217,25 @@ export default Plugin.define({
           // Upstream is down this cycle. Switch the whole view to headline mode
           // (never a mixed look); the next cycle resets the flag and re-probes.
           cache.llmUnavailable = true
-          await writeCache(cache)
+          await io.saveCache(digestExtra())
           await probeLog("generation failing repeatedly; headline display mode until next cycle")
           break
         }
       }
     }
 
-    const cycle = async (): Promise<void> => {
-      if (running) return
-      running = true
-      let held = false
-      try {
-        held = await acquireLock()
-        if (!held) return
-        const cache = await readCache()
-        // Config is re-read every cycle — toggles in the reader apply on the
-        // next fetch without any restart. Disabled channels are never contacted.
-        const cfg = await loadConfig()
-        if (cache.items.length > 0 && Date.now() - cache.fetchedAt < REFRESH_MS) {
-          void probeLog(`cycle: fresh skip (age ${Math.round((Date.now() - cache.fetchedAt) / 1000)}s)`)
-          return
-        }
-        // Self-healing probe: a fresh cycle may have a working model now.
-        cache.llmUnavailable = false
-
-        const { groups, status } = await fetchAllFeeds(cfg.sources, cfg.rssUrls)
-        const beforeCount = cache.items.length
-        // Retention merge: the fresh fetch is deduped and capped on its own,
-        // then previous items that are still inside the retention window are
-        // carried underneath it — a dead channel leaves the shelf standing.
-        const fetched = mergeItems(groups, CACHE_ITEMS)
-        const merged = retainMerge(cache.items, fetched, { ttlMs: RETAIN_TTL_MS, cap: CACHE_ITEMS })
-        // Story mode shows ONLY story-complete items, so enrichment opens
-        // pages in batches and stops the moment 60 usable items exist.
-        // Reddit/HN-discussion URLs are skipped inside enrichMissing.
-        await enrichMissing(merged, {
-          slotsLeft: () => TARGET_READY - readyCount(cache, merged),
-        })
-        const items = dropJunk(merged)
-        const prevKeys = new Set(cache.items.map((it) => (it.url || it.id).trim().toLowerCase()))
-        const kept = items.filter((it) => prevKeys.has((it.url || it.id).trim().toLowerCase())).length
-        const channelLine = status
-          .map((s) => `${s.name} ${s.count}${s.error ? ` (FAILED: ${s.error})` : ""}`)
-          .join(" · ")
-        await probeLog(
-          `pipeline: ${items.length} in play · ${channelLine} · carried ${kept}/${beforeCount} previous · ${readyCount(cache, items)} stories ready of ${TARGET_READY} target`,
-        )
-        cache.items = items
-        cache.fetchedAt = Date.now()
-        await writeCache(cache) // headline data lands now; the TUI reveals items as stories arrive
-
-        await summarize(cache, items)
-      } catch (err) {
-        await probeLog(`cycle FAILED: ${(err as Error)?.message ?? String(err)}`)
-      } finally {
-        if (held) await releaseLock()
-        running = false
-      }
-    }
+    // The whole fetch/lock/cache cycle is the shared pipeline now — this
+    // host just supplies its story writer. Result: lock and cycling behavior
+    // remain identical for OpenCode and stay exercised by pipeline tests.
+    const cycle = (): Promise<void> =>
+      runPipeline({
+        cachePath: cachePath(),
+        loadConfig,
+        fetchFeeds: fetchAllFeeds,
+        enrich: enrichMissing,
+        writeStories,
+        log: (line) => void probeLog(`cycle: ${line}`),
+      })
 
     // First cycle in the background: fresh cache → no-op, stale/missing → fetch.
     void cycle()

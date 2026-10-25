@@ -6,6 +6,8 @@
   "description": "Dev harness for the WaitFeed plugin — typecheck and tests. The published npm package lives in .opencode/plugins/waitfeed.",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build:agy": "esbuild .opencode/plugins/waitfeed/agy/src/scheduler.ts .opencode/plugins/waitfeed/agy/src/statusline.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outdir=.opencode/plugins/waitfeed/agy/dist --out-extension:.js=.mjs --log-level=warning",
+    "pretest": "npm run -s build:agy",
     "test": "vitest run",
     "preview": "cd .opencode/plugins/waitfeed && npm pack --dry-run",
     "frontend:dev": "npm --prefix frontend run dev",
@@ -13,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "esbuild": "^0.25.12",
     "typescript": "^5.6.0",
     "vitest": "^4.1.12"
   }

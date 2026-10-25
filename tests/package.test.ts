@@ -9,7 +9,7 @@
 // self-describing.
 import { describe, expect, it } from "vitest"
 import { readdir, readFile } from "node:fs/promises"
-import { join } from "node:path"
+import { join, sep } from "node:path"
 
 const PKG = join(import.meta.dirname, "..", ".opencode", "plugins", "waitfeed")
 
@@ -117,5 +117,23 @@ describe("ticker card layout (field-bug guard from 1.0.1, narrow terminal)", () 
     // than the terminal — the oversize row overflowed and clipped. The card
     // must use fixed compact pieces and the box's own width instead.
     expect(card, "NewsParagraph must not size from columns()").not.toContain("columns()")
+  })
+})
+
+describe("AGY plugin bundle packaging (Antigravity CLI port)", () => {
+  it("the published package ships the agy/ directory", async () => {
+    const pkg = JSON.parse(await readFile(join(PKG, "package.json"), "utf8")) as { files: string[] }
+    expect(pkg.files).toContain("agy/")
+  })
+
+  it("every AGY source file obeys the consumer-machine safety rules too", async () => {
+    for (const file of await shippedCodeFiles()) {
+      if (!file.includes(`${sep}agy${sep}src${sep}`)) continue
+      const content = await readFile(file, "utf8")
+      expect(content, `${file} has context-dependent code`).not.toMatch(CONTEXT_DEPENDENT)
+      expect(content, `${file} imports react`).not.toMatch(REACT_IMPORT)
+      // And every file access anchors to the user's home directory.
+      expect(content, `${file} lost its homedir anchor`).toMatch(/homedir\(\)/)
+    }
   })
 })

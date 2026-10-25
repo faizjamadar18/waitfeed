@@ -11,6 +11,40 @@ import { join } from "node:path"
 export const CHANNEL_KEYS = ["hn", "devto", "github", "reddit"] as const
 export type ChannelKey = (typeof CHANNEL_KEYS)[number]
 
+/** The badge each channel renders as on ticker cards and reader rows. */
+export const CHANNEL_BADGES: Record<ChannelKey, string> = {
+  hn: "HN",
+  devto: "DEV",
+  github: "GH",
+  reddit: "REDDIT",
+}
+
+/** Full channel names for the reader UI. */
+export const CHANNEL_NAMES: Record<ChannelKey, string> = {
+  hn: "Hacker News",
+  devto: "Dev.to",
+  github: "GitHub Trending",
+  reddit: "Reddit",
+}
+
+/** Legacy/alternate source strings that belong to a channel: the Reddit
+ * Atom channel stores items with source "R/PROG" while its badge is
+ * "REDDIT" — the reader and the statusline filters must treat them as the
+ * same switch. */
+const SOURCE_ALIASES: Partial<Record<string, ChannelKey>> = {
+  "R/PROG": "reddit",
+  REDDIT: "reddit",
+}
+
+/** Which channel a cached item's stored source belongs to (or undefined
+ * for the always-on "RSS" pseudo-channel and anything unknown). */
+export function channelForSource(source: string): ChannelKey | undefined {
+  for (const key of CHANNEL_KEYS) {
+    if (CHANNEL_BADGES[key] === source) return key
+  }
+  return SOURCE_ALIASES[source]
+}
+
 export interface WaitFeedConfig {
   /** False until the user's first keypress inside /news marks setup complete. */
   setupDone: boolean
@@ -75,9 +109,12 @@ export async function configExists(): Promise<boolean> {
   }
 }
 
-export async function loadConfig(): Promise<WaitFeedConfig> {
+export async function loadConfig(dir?: string): Promise<WaitFeedConfig> {
+  // Default is the shared home anchor; an explicit dir exists so hosts that
+  // stage data elsewhere (tests, --data-dir) read the config beside it.
+  const base = dir ?? join(homedir(), ".config", "waitfeed")
   try {
-    return normalizeConfig(JSON.parse(await readFile(configPath(), "utf8")))
+    return normalizeConfig(JSON.parse(await readFile(join(base, "config.json"), "utf8")))
   } catch {
     return { ...DEFAULT_CONFIG, sources: { ...DEFAULT_CONFIG.sources }, rssUrls: [] }
   }

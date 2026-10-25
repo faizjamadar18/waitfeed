@@ -27,8 +27,11 @@ import { Plugin } from "@opencode/plugin/tui"
 import type { PanelInput } from "@opencode/plugin/tui/context"
 import type { KeyEvent } from "@opentui/core"
 import {
+  CHANNEL_BADGES,
   CHANNEL_KEYS,
+  CHANNEL_NAMES,
   DEFAULT_CONFIG,
+  channelForSource,
   configExists,
   loadConfig,
   saveConfig,
@@ -57,21 +60,6 @@ const BADGE_STYLE: Record<string, string> = {
   RSS: "#d29922",
 }
 const badgeColor = (source: string): string => BADGE_STYLE[source] ?? MUTED
-
-/** Channel badges displayed in reader and ticker. */
-const CHANNEL_BADGES: Record<ChannelKey, string> = {
-  hn: "HN",
-  devto: "DEV",
-  github: "GH",
-  reddit: "REDDIT",
-}
-
-const CHANNEL_NAMES: Record<ChannelKey, string> = {
-  hn: "Hacker News",
-  devto: "Dev.to",
-  github: "GitHub Trending",
-  reddit: "Reddit",
-}
 
 function columns(): number {
   try {
@@ -142,12 +130,16 @@ export default Plugin.define({
 
     /** The single source of the display rule: story-ready items in story
      * mode, every item in headline mode — and in both cases never a channel
-     * the user switched off (RSS subscriptions always show). */
+     * the user switched off (RSS subscriptions always show). Filtering goes
+     * through channelForSource, so the Reddit channel's stored "R/PROG"
+     * alias answers to the same switch as its "REDDIT" badge. */
     const visible = (): FeedItem[] => {
-      const on = new Set(CHANNEL_KEYS.filter((k) => cfg().sources[k]).map((k) => CHANNEL_BADGES[k]))
-      return (storyMode() ? items().filter(hasStory) : items()).filter(
-        (it) => it.source === "RSS" || on.has(it.source),
-      )
+      const on = new Set(CHANNEL_KEYS.filter((k) => cfg().sources[k]))
+      return (storyMode() ? items().filter(hasStory) : items()).filter((it) => {
+        if (it.source === "RSS") return true
+        const key = channelForSource(it.source)
+        return key !== undefined && on.has(key)
+      })
     }
 
     /** No-repeat rotation. An unseen card is always the first choice

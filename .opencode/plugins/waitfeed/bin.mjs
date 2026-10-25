@@ -3,27 +3,17 @@
 /**
  * WaitFeed CLI Onboarding Wizard (npx waitfeed init)
  *
- * 100% local, zero-backend, keyless setup for OpenCode.
- * Configures ~/.config/waitfeed/config.json and registers the plugin
- * in ~/.config/opencode/opencode.jsonc.
+ * 100% local, zero-backend, keyless setup for AI coding agents.
+ * Supports OpenCode, Google Antigravity (AGY), and Claude Code (extensible provider architecture).
  */
 
 import { execSync } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import readline from "node:readline"
-
-function isOpenCodeInPath() {
-  try {
-    const cmd = process.platform === "win32" ? "where.exe opencode" : "which opencode"
-    execSync(cmd, { stdio: ["pipe", "pipe", "ignore"] })
-    return true
-  } catch {
-    return false
-  }
-}
+import { fileURLToPath } from "node:url"
 
 // --- Terminal Styling & Formatting Helpers ---
 const isTTY = Boolean(process.stdout.isTTY)
@@ -45,10 +35,10 @@ function stripAnsi(str) {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "")
 }
 
-function countPhysicalRows(text) {
+function countLinesRows(lines) {
   const cols = Math.max(20, process.stdout.columns || 80)
   let total = 0
-  for (const line of text.split("\n")) {
+  for (const line of lines) {
     const len = stripAnsi(line).length
     total += Math.max(1, Math.ceil(len / cols))
   }
@@ -62,7 +52,51 @@ function eraseBlock(rowCount) {
     readline.moveCursor(process.stdout, 0, -1)
     readline.clearLine(process.stdout, 0)
   }
-  readline.clearScreenDown(process.stdout)
+}
+
+function isBinaryInPath(bin) {
+  try {
+    const cmd = process.platform === "win32" ? `where.exe ${bin}` : `which ${bin}`
+    execSync(cmd, { stdio: ["pipe", "pipe", "ignore"] })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// --- Environment Detection ---
+function detectOpenCode() {
+  const binary = isBinaryInPath("opencode")
+  const configDir = join(homedir(), ".config", "opencode")
+  const configExists = existsSync(configDir)
+  return {
+    installed: binary || configExists,
+    binary,
+    configExists,
+  }
+}
+
+function detectAgy() {
+  const binary = isBinaryInPath("agy")
+  const geminiDir = join(homedir(), ".gemini")
+  const cliDir = join(geminiDir, "antigravity-cli")
+  const exists = existsSync(cliDir) || existsSync(geminiDir)
+  return {
+    installed: binary || exists,
+    binary,
+    exists,
+  }
+}
+
+function detectClaude() {
+  const binary = isBinaryInPath("claude")
+  const claudeDir = join(homedir(), ".claude")
+  const exists = existsSync(claudeDir)
+  return {
+    installed: binary || exists,
+    binary,
+    exists,
+  }
 }
 
 // --- OpenCode Config Utilities ---
@@ -73,8 +107,8 @@ function stripJsoncComments(text) {
     .trim()
 }
 
-function resolveOpenCodeConfigPath() {
-  const opencodeDir = join(homedir(), ".config", "opencode")
+function resolveOpenCodeConfigPath(baseDir) {
+  const opencodeDir = baseDir || join(homedir(), ".config", "opencode")
   const jsoncPath = join(opencodeDir, "opencode.jsonc")
   const jsonPath = join(opencodeDir, "opencode.json")
 
@@ -83,10 +117,10 @@ function resolveOpenCodeConfigPath() {
   return jsoncPath
 }
 
-async function registerOpenCodePlugin() {
-  const configPath = resolveOpenCodeConfigPath()
-  const dir = join(homedir(), ".config", "opencode")
-  await mkdir(dir, { recursive: true })
+async function registerOpenCodePlugin(customDir) {
+  const opencodeDir = customDir || join(homedir(), ".config", "opencode")
+  const configPath = resolveOpenCodeConfigPath(opencodeDir)
+  await mkdir(opencodeDir, { recursive: true })
 
   let currentConfig = {}
   let exists = false
@@ -122,9 +156,76 @@ async function registerOpenCodePlugin() {
   return { configPath, alreadyRegistered, exists }
 }
 
-// --- WaitFeed Config Utilities ---
-async function saveWaitFeedUserConfig(sources, rssUrls) {
-  const dir = join(homedir(), ".config", "waitfeed")
+// --- Antigravity (AGY) Config Utilities ---
+async function registerAgyPlugin(customHome) {
+  const home = customHome || homedir()
+  const pluginDir = join(home, ".gemini", "config", "plugins", "waitfeed")
+  const distDir = join(pluginDir, "dist")
+  const cliDir = join(home, ".gemini", "antigravity-cli")
+  const settingsPath = join(cliDir, "settings.json")
+
+  await mkdir(distDir, { recursive: true })
+  await mkdir(cliDir, { recursive: true })
+
+  // 1. Stage shipped plugin assets into ~/.gemini/config/plugins/waitfeed
+  const sourceAgyDir = fileURLToPath(new URL("./agy", import.meta.url))
+  const filesToStage = [
+    { src: join(sourceAgyDir, "plugin.json"), dest: join(pluginDir, "plugin.json") },
+    { src: join(sourceAgyDir, "hooks.json"), dest: join(pluginDir, "hooks.json") },
+    { src: join(sourceAgyDir, "dist", "scheduler.mjs"), dest: join(distDir, "scheduler.mjs") },
+    { src: join(sourceAgyDir, "dist", "statusline.mjs"), dest: join(distDir, "statusline.mjs") },
+  ]
+
+  let stagedCount = 0
+  for (const { src, dest } of filesToStage) {
+    if (existsSync(src)) {
+      await copyFile(src, dest)
+      stagedCount++
+    }
+  }
+
+  // 2. Configure statusLine in ~/.gemini/antigravity-cli/settings.json
+  let settings = {}
+  let settingsExisted = false
+  if (existsSync(settingsPath)) {
+    try {
+      const raw = await readFile(settingsPath, "utf8")
+      const clean = stripJsoncComments(raw)
+      if (clean) settings = JSON.parse(clean)
+      settingsExisted = true
+    } catch {
+      settings = {}
+    }
+  }
+
+  const targetStatuslinePath = join(distDir, "statusline.mjs").replace(/\\/g, "/")
+  const desiredCommand = `node "${targetStatuslinePath}"`
+  const alreadyConfigured =
+    settings.statusLine &&
+    typeof settings.statusLine === "object" &&
+    settings.statusLine.command === desiredCommand
+
+  if (!alreadyConfigured) {
+    settings.statusLine = {
+      type: "command",
+      command: desiredCommand,
+      stack_with_default: true,
+    }
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
+  }
+
+  return {
+    pluginDir,
+    settingsPath,
+    stagedCount,
+    alreadyConfigured,
+    settingsExisted,
+  }
+}
+
+// --- WaitFeed Shared Config Utilities ---
+async function saveWaitFeedUserConfig(sources, rssUrls, customDir) {
+  const dir = customDir || join(homedir(), ".config", "waitfeed")
   await mkdir(dir, { recursive: true })
   const configPath = join(dir, "config.json")
 
@@ -139,47 +240,67 @@ async function saveWaitFeedUserConfig(sources, rssUrls) {
   return configPath
 }
 
-// --- Interactive Channel Multi-Select ---
-const CHANNELS = [
-  { key: "hn", name: "Hacker News", desc: "Tech & startups", enabled: true },
-  { key: "devto", name: "Dev.to", desc: "Articles & tutorials", enabled: true },
-  { key: "github", name: "GitHub Trending", desc: "Open source projects", enabled: true },
-  { key: "reddit", name: "Reddit", desc: "r/programming discussions", enabled: true },
-]
-
-async function promptChannels() {
+// --- Generic Interactive Multi-Select Helper ---
+async function promptMultiSelect({ hint, items }) {
   if (!isTTY) {
-    // Non-interactive fallback: all channels enabled by default
-    return { hn: true, devto: true, github: true, reddit: true }
+    const result = {}
+    for (const item of items) {
+      if (!item.disabled) {
+        result[item.key] = Boolean(item.enabled)
+      }
+    }
+    return result
   }
 
   let cursorIndex = 0
-  const state = [...CHANNELS]
+  const state = items.map((it) => ({ ...it }))
   let renderedRowCount = 0
 
   function renderList() {
     const lines = []
-    lines.push(`  ${c.dim}(Use ↑/↓ to navigate • Space to select/unselect • Enter to confirm)${c.reset}`)
-    lines.push(`  ${c.dim}│${c.reset}`)
+    if (hint) {
+      lines.push(`  ${c.dim}${hint}${c.reset}`)
+      lines.push(`  ${c.dim}│${c.reset}`)
+    }
 
     for (let i = 0; i < state.length; i++) {
       const item = state[i]
       const isSelected = i === cursorIndex
       const pointer = isSelected ? `${c.orange}▸${c.reset}` : " "
-      const checkbox = item.enabled ? `${c.green}[●]${c.reset}` : `${c.dim}[○]${c.reset}`
-      const name = isSelected ? `${c.bold}${c.white}${item.name}${c.reset}` : `${c.white}${item.name}${c.reset}`
-      const desc = `${c.dim}(${item.desc})${c.reset}`
 
-      lines.push(`  ${pointer} ${checkbox} ${name.padEnd(18)} ${desc}`)
+      let checkbox = ""
+      if (item.disabled) {
+        checkbox = `${c.dim}[ ]${c.reset}`
+      } else if (item.enabled) {
+        checkbox = `${c.green}[●]${c.reset}`
+      } else {
+        checkbox = `${c.dim}[○]${c.reset}`
+      }
+
+      // Format padding on raw unstyled name so ANSI escape codes don't shift columns
+      const rawName = item.name.padEnd(20)
+      let styledName = ""
+      if (item.disabled) {
+        styledName = `${c.dim}${rawName}${c.reset}`
+      } else if (isSelected) {
+        styledName = `${c.bold}${c.white}${rawName}${c.reset}`
+      } else {
+        styledName = `${c.white}${rawName}${c.reset}`
+      }
+
+      const desc = item.desc ? ` ${c.dim}(${item.desc})${c.reset}` : ""
+      const badge = item.badge ? ` ${c.cyan}${item.badge}${c.reset}` : ""
+
+      lines.push(`  ${pointer} ${checkbox} ${styledName}${desc}${badge}`)
     }
-    return lines.join("\n") + "\n"
+    return lines
   }
 
   function draw() {
     eraseBlock(renderedRowCount)
-    const text = renderList()
-    process.stdout.write(text)
-    renderedRowCount = countPhysicalRows(text)
+    const lines = renderList()
+    process.stdout.write(lines.join("\n") + "\n")
+    renderedRowCount = countLinesRows(lines)
   }
 
   process.stdout.write(HIDE_CURSOR)
@@ -187,50 +308,69 @@ async function promptChannels() {
 
   return new Promise((resolve) => {
     readline.emitKeypressEvents(process.stdin)
-    if (process.stdin.isTTY) process.stdin.setRawMode(true)
-
-    const onResize = () => {
-      draw()
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true)
+      process.stdin.resume()
     }
+
+    const mountedAt = Date.now()
+    const onResize = () => draw()
     process.stdout.on("resize", onResize)
 
     function cleanup() {
       process.stdout.removeListener("resize", onResize)
-      process.stdin.setRawMode(false)
+      if (process.stdin.isTTY) process.stdin.setRawMode(false)
       process.stdin.removeListener("keypress", onKeyPress)
       eraseBlock(renderedRowCount)
       process.stdout.write(SHOW_CURSOR)
     }
 
     function onKeyPress(str, key) {
-      if (key && (key.ctrl && key.name === "c")) {
+      if (key && key.ctrl && key.name === "c") {
         cleanup()
         process.exit(0)
       }
 
-      if (key.name === "up" || key.name === "k") {
-        cursorIndex = cursorIndex > 0 ? cursorIndex - 1 : state.length - 1
-        draw()
-      } else if (key.name === "down" || key.name === "j") {
-        cursorIndex = cursorIndex < state.length - 1 ? cursorIndex + 1 : 0
-        draw()
-      } else if (key.name === "space") {
-        state[cursorIndex].enabled = !state[cursorIndex].enabled
-        draw()
-      } else if (key.name === "return" || key.name === "enter") {
+      if (key && (key.name === "return" || key.name === "enter")) {
+        // Prevent accidental double-submit or key bounce across sequential prompts
+        if (Date.now() - mountedAt < 150) return
+
         cleanup()
         const result = {}
         for (const item of state) {
-          result[item.key] = item.enabled
+          if (!item.disabled) {
+            result[item.key] = Boolean(item.enabled)
+          }
         }
         resolve(result)
         return
+      }
+
+      if (key && (key.name === "up" || key.name === "k")) {
+        cursorIndex = cursorIndex > 0 ? cursorIndex - 1 : state.length - 1
+        draw()
+      } else if (key && (key.name === "down" || key.name === "j")) {
+        cursorIndex = cursorIndex < state.length - 1 ? cursorIndex + 1 : 0
+        draw()
+      } else if (key && key.name === "space") {
+        if (!state[cursorIndex].disabled) {
+          state[cursorIndex].enabled = !state[cursorIndex].enabled
+          draw()
+        }
       }
     }
 
     process.stdin.on("keypress", onKeyPress)
   })
 }
+
+// --- Interactive Channel List ---
+const CHANNELS = [
+  { key: "hn", name: "Hacker News", desc: "Tech & startups", enabled: true },
+  { key: "devto", name: "Dev.to", desc: "Articles & tutorials", enabled: true },
+  { key: "github", name: "GitHub Trending", desc: "Open source projects", enabled: true },
+  { key: "reddit", name: "Reddit", desc: "r/programming discussions", enabled: true },
+]
 
 async function promptRss() {
   if (!isTTY) return []
@@ -259,39 +399,93 @@ async function runInit() {
   console.log(`  ${c.dim}• WAITFEED INIT ────────────────────────────────────────────── 01${c.reset}`)
   console.log(`  ${c.orange}${c.bold}█ █ █  ▄▀█  █  ▀█▀  █▀▀  █▀▀  █▀▀  █▀▄${c.reset}`)
   console.log(`  ${c.orange}${c.bold}▀▄█▄▀  █▀█  █   █   █▀   ██▄  ██▄  █▄▀${c.reset}`)
-  console.log(`  ${c.white}Real-time news ticker inside OpenCode agent wait time${c.reset}`)
+  console.log(`  ${c.white}Real-time news ticker inside your AI coding agent wait time${c.reset}`)
   console.log(`  ${c.dim}100% local · no ads · no accounts · zero API keys${c.reset}`)
   console.log(`  ${c.dim}─────────────────────────────────────────────────────────────${c.reset}`)
   console.log()
 
-  // 1. Detect OpenCode Environment & Register Plugin
-  const hasBinary = isOpenCodeInPath()
-  const { configPath, alreadyRegistered } = await registerOpenCodePlugin()
-  const displayConfigPath = configPath.replace(homedir(), "~")
+  // 1. Detect Agent Environments
+  console.log(`  ${c.dim}Scanning system for AI coding agent environments...${c.reset}`)
+  const opencodeStatus = detectOpenCode()
+  const agyStatus = detectAgy()
+  const claudeStatus = detectClaude()
 
-  if (hasBinary) {
-    console.log(`  ${c.green}◆${c.reset} OpenCode detected on system`)
+  if (opencodeStatus.installed) {
+    console.log(`  ${c.green}◆${c.reset} OpenCode: ${c.white}detected${c.reset}`)
   } else {
-    console.log(`  ${c.yellow}◇${c.reset} OpenCode binary not found in PATH`)
-    console.log(`  ${c.dim}  ↳ Install OpenCode: ${c.white}npm i -g opencode${c.reset} ${c.dim}(https://opencode.ai)${c.reset}`)
+    console.log(`  ${c.dim}◇ OpenCode: not detected${c.reset}`)
   }
 
-  console.log(`  ${c.green}◆${c.reset} OpenCode config: ${c.bold}${displayConfigPath}${c.reset}`)
-  if (alreadyRegistered) {
-    console.log(`  ${c.dim}  ↳ Plugin "waitfeed" already active in plugins list${c.reset}`)
+  if (agyStatus.installed) {
+    console.log(`  ${c.green}◆${c.reset} Google Antigravity (AGY): ${c.white}detected${c.reset}`)
   } else {
-    console.log(`  ${c.dim}  ↳ Added "waitfeed" to OpenCode plugins (ready on next launch)${c.reset}`)
+    console.log(`  ${c.dim}◇ Google Antigravity (AGY): not detected${c.reset}`)
+  }
+
+  if (claudeStatus.installed) {
+    console.log(`  ${c.yellow}◇${c.reset} Claude Code: ${c.dim}detected (adapter releases in v1.2)${c.reset}`)
+  } else {
+    console.log(`  ${c.dim}◇ Claude Code: adapter coming soon in v1.2${c.reset}`)
   }
   console.log(`  ${c.dim}│${c.reset}`)
 
-  // 2. Interactive Channel Multi-Select
+  // 2. Interactive Agent Provider Selection
+  // If neither detected, enable OpenCode and AGY by default for user discovery.
+  const hasAnyDetected = opencodeStatus.installed || agyStatus.installed
+  const defaultOpenCode = hasAnyDetected ? opencodeStatus.installed : true
+  const defaultAgy = hasAnyDetected ? agyStatus.installed : true
+
+  const agentItems = [
+    {
+      key: "opencode",
+      name: "OpenCode",
+      desc: "Prompt-line card & /news reader",
+      enabled: defaultOpenCode,
+    },
+    {
+      key: "agy",
+      name: "Google Antigravity",
+      desc: "Statusline hook & dwell-clock",
+      enabled: defaultAgy,
+    },
+    {
+      key: "claude",
+      name: "Claude Code",
+      desc: "Wait-state hook (coming soon)",
+      enabled: false,
+      disabled: true,
+      badge: "[v1.2]",
+    },
+  ]
+
+  console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Which AI coding agent(s) would you like to configure?${c.reset}`)
+  const selectedAgents = await promptMultiSelect({
+    hint: "(Use ↑/↓ to navigate • Space to select/unselect • Enter to confirm)",
+    items: agentItems,
+  })
+
+  const enabledAgentNames = agentItems
+    .filter((a) => selectedAgents[a.key])
+    .map((a) => a.name)
+
+  console.log(
+    `  ${c.green}◆${c.reset} Configured agents: ${c.white}${enabledAgentNames.join(", ") || "None (shared preferences only)"}${c.reset}`
+  )
+  console.log(`  ${c.dim}│${c.reset}`)
+
+  // 3. Interactive Channel Selection
   console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Which news channels would you like in your rotation?${c.reset}`)
-  const sources = await promptChannels()
-  const enabledNames = CHANNELS.filter((ch) => sources[ch.key]).map((ch) => ch.name)
-  console.log(`  ${c.green}◆${c.reset} Active channels: ${c.white}${enabledNames.join(", ") || "None (RSS only)"}${c.reset}`)
+  const sources = await promptMultiSelect({
+    hint: "(Use ↑/↓ to navigate • Space to select/unselect • Enter to confirm)",
+    items: CHANNELS,
+  })
+  const enabledChannelNames = CHANNELS.filter((ch) => sources[ch.key]).map((ch) => ch.name)
+  console.log(
+    `  ${c.green}◆${c.reset} Active channels: ${c.white}${enabledChannelNames.join(", ") || "None (RSS only)"}${c.reset}`
+  )
   console.log(`  ${c.dim}│${c.reset}`)
 
-  // 3. Optional Custom RSS Feed URL
+  // 4. Optional Custom RSS Feed URL
   console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Add a custom RSS feed URL?${c.reset} ${c.dim}(press Enter to skip)${c.reset}`)
   const rssUrls = await promptRss()
   if (rssUrls.length > 0) {
@@ -301,14 +495,23 @@ async function runInit() {
   }
   console.log(`  ${c.dim}│${c.reset}`)
 
-  // 4. Save Config
-  const savedPath = await saveWaitFeedUserConfig(sources, rssUrls)
-  const displaySavedPath = savedPath.replace(homedir(), "~")
-  console.log(`  ${c.green}◆${c.reset} Preferences saved: ${c.bold}${displaySavedPath}${c.reset}`)
+  // 5. Save Shared User Preferences & Register Integrations
+  await saveWaitFeedUserConfig(sources, rssUrls)
+  console.log(`  ${c.green}✓${c.reset} Preferences saved`)
+
+  if (selectedAgents.opencode) {
+    await registerOpenCodePlugin()
+    console.log(`  ${c.green}✓${c.reset} OpenCode integration active`)
+  }
+
+  if (selectedAgents.agy) {
+    await registerAgyPlugin()
+    console.log(`  ${c.green}✓${c.reset} Google Antigravity (AGY) integration active`)
+  }
   console.log(`  ${c.dim}│${c.reset}`)
 
-  // 5. Live Slot Card Preview
-  console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Live ticker card preview (renders above OpenCode input box):${c.reset}`)
+  // 6. Single Unified Live Card Preview
+  console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Live Ticker Preview (what you will see while your agent works):${c.reset}`)
   console.log(`  ${c.dim}│${c.reset}`)
   console.log(`  ${c.dim}│  ┌───────────────────────────────────────────────────────────────┐${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset} ${c.orange}${c.bold}▍ [HN]${c.reset}  ${c.bold}${c.white}SWE-bench: Evaluating AI coding agents${c.reset}    ${c.orange}▲ 1.2k${c.reset}${c.dim} · 2h${c.reset} ${c.dim}│${c.reset}`)
@@ -316,30 +519,33 @@ async function runInit() {
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}full test suites without human intervention.               │${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}> ${c.cyan}swebench.com${c.reset}${c.dim}                                             │${c.reset}`)
   console.log(`  ${c.dim}│  └───────────────────────────────────────────────────────────────┘${c.reset}`)
+  console.log(`  ${c.dim}│  ↳ Renders above prompt in OpenCode and in the AGY statusline${c.reset}`)
   console.log(`  ${c.dim}│${c.reset}`)
 
-  // 6. Completion Box & Instructions
+  // 7. Completion Box & Tailored Instructions
   console.log(`  ${c.cyan}◇ What to do next ─────────────────────────────────────────────────┐${c.reset}`)
-  if (hasBinary) {
-    console.log(`  ${c.dim}│${c.reset} 1. Start OpenCode in your project terminal.                      ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset} 2. When the agent is thinking, your news ticker will appear.     ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset} 3. Type ${c.bold}/news${c.reset} anytime to open the fullscreen reader.             ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset} 4. Start typing your message anytime — the ticker vanishes!      ${c.dim}│${c.reset}`)
-  } else {
-    console.log(`  ${c.dim}│${c.reset} 1. Install OpenCode: ${c.bold}npm i -g opencode${c.reset} (https://opencode.ai)     ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset} 2. Open your project terminal and run OpenCode.                  ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset} 3. While the agent works, your news ticker will appear!          ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset} 4. Type ${c.bold}/news${c.reset} anytime to open the fullscreen reader.             ${c.dim}│${c.reset}`)
+  if (selectedAgents.opencode) {
+    console.log(`  ${c.dim}│${c.reset} • ${c.bold}OpenCode:${c.reset} Start ${c.white}opencode${c.reset} — ticker appears when agent works.  ${c.dim}│${c.reset}`)
+    console.log(`  ${c.dim}│${c.reset}   Type ${c.bold}/news${c.reset} anytime to open the fullscreen reader.             ${c.dim}│${c.reset}`)
   }
+  if (selectedAgents.agy) {
+    console.log(`  ${c.dim}│${c.reset} • ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} — statusline ticker rotates.    ${c.dim}│${c.reset}`)
+    console.log(`  ${c.dim}│${c.reset}   Ctrl+Click origin links to open stories in your browser.        ${c.dim}│${c.reset}`)
+  }
+  console.log(`  ${c.dim}│${c.reset} • Start typing your prompt anytime — the ticker vanishes!         ${c.dim}│${c.reset}`)
   console.log(`  ${c.cyan}└──────────────────────────────────────────────────────────────────┘${c.reset}`)
   console.log()
   console.log(`  ${c.green}✓ WaitFeed setup complete! Happy coding.${c.reset}`)
   console.log()
+  if (process.stdin.isTTY) {
+    process.stdin.pause()
+  }
 }
 
 function printHelp() {
   console.log(`
-  ${c.bold}WaitFeed${c.reset} - OpenCode agent wait time news ticker
+  ${c.bold}WaitFeed${c.reset} - Real-time news ticker for AI coding agents
+  Supports: OpenCode, Google Antigravity (AGY), Claude Code (coming soon)
 
   ${c.bold}Usage:${c.reset}
     npx waitfeed init      Run the interactive setup wizard
@@ -362,7 +568,7 @@ async function main() {
       const pkg = JSON.parse(await readFile(pkgPath, "utf8"))
       console.log(`waitfeed v${pkg.version}`)
     } catch {
-      console.log("waitfeed v1.0.3")
+      console.log("waitfeed v1.1.0")
     }
     return
   }
@@ -371,7 +577,24 @@ async function main() {
   await runInit()
 }
 
-main().catch((err) => {
-  console.error(`\n  ${c.orange}Error during WaitFeed setup:${c.reset}`, err.message)
-  process.exit(1)
-})
+// Export for programmatic testing
+export {
+  detectOpenCode,
+  detectAgy,
+  detectClaude,
+  registerOpenCodePlugin,
+  registerAgyPlugin,
+  saveWaitFeedUserConfig,
+  resolveOpenCodeConfigPath,
+  stripJsoncComments,
+  countLinesRows,
+  eraseBlock,
+}
+
+// If invoked as CLI entry
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((err) => {
+    console.error(`\n  ${c.orange}Error during WaitFeed setup:${c.reset}`, err.message)
+    process.exit(1)
+  })
+}

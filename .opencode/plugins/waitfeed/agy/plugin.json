@@ -1,0 +1,5 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "waitfeed",
+  "description": "While your agent works: a one-line news ticker in the statusline, fed from local keyless feeds. No ads, no keys, no server."
+}
