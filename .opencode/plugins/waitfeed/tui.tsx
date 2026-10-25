@@ -38,8 +38,7 @@ import {
 import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel, truncate } from "./core/ticker"
 import type { FeedItem } from "./core/types"
 
-/** Bump on every edit — the debug log reports which build actually ran. */
-const BUILD = "2026-10-24-v11-safe-guards"
+const BUILD = "2026-10-24-v17-no-category-ghosts"
 
 const CACHE_POLL_MS = 5_000
 const SUMMARY_MS = 6_000
@@ -53,18 +52,25 @@ const BADGE_STYLE: Record<string, string> = {
   HN: "#ff6600",
   DEV: "#8a63f4",
   GH: "#3fb950",
+  REDDIT: "#e36ba0",
   "R/PROG": "#e36ba0",
   RSS: "#d29922",
 }
 const badgeColor = (source: string): string => BADGE_STYLE[source] ?? MUTED
 
-/** Reader number keys (1-4) map to config channel keys; badges are what the
- * items themselves carry. */
+/** Channel badges displayed in reader and ticker. */
 const CHANNEL_BADGES: Record<ChannelKey, string> = {
   hn: "HN",
   devto: "DEV",
   github: "GH",
-  reddit: "R/PROG",
+  reddit: "REDDIT",
+}
+
+const CHANNEL_NAMES: Record<ChannelKey, string> = {
+  hn: "Hacker News",
+  devto: "Dev.to",
+  github: "GitHub Trending",
+  reddit: "Reddit",
 }
 
 function columns(): number {
@@ -151,6 +157,7 @@ export default Plugin.define({
      * The chosen card is pinned for its whole dwell, so a mid-dwell cache
      * poll can never swap the headline mid-read. */
     const shownAt = new Map<string, number>() // id -> presentation number
+    const shownTimestamps = new Map<string, number>() // id -> timestamp ms
     let presentationNo = 0
     let pinnedId: string | undefined
 
@@ -183,6 +190,9 @@ export default Plugin.define({
         chosen = bestId ? list.find((it) => it.id === bestId) : list[0]
       }
       pinnedId = chosen?.id
+      if (pinnedId && !shownTimestamps.has(pinnedId)) {
+        shownTimestamps.set(pinnedId, Date.now())
+      }
       return chosen
     }
 
@@ -232,7 +242,10 @@ export default Plugin.define({
           seen++
         }
       }
-      if (shownId) shownAt.set(shownId, ++presentationNo)
+      if (shownId) {
+        shownAt.set(shownId, ++presentationNo)
+        shownTimestamps.set(shownId, Date.now())
+      }
       pinnedId = undefined
       bumpRotation((n) => n + 1)
     }
@@ -356,48 +369,49 @@ export default Plugin.define({
       )
     }
 
-    /** Reader row (SNAPSHOT variant): one line per item — marker + badge +
-     * truncated title + score + age; only the selected row expands to its
-     * story. Renders ONCE per reader repaint with plain values — the whole
-     * row is painted on mount, so nothing here may depend on later
-     * reactivity (reader state changes remount instead). Plain-safe glyphs
-     * only; long URLs never render as text (enter opens them). */
+    /** Reader row: one line per item (marker + badge + truncated title + score + age);
+     * when selected, an inline drawer expands beneath it displaying the summary (↳ ...)
+     * and source link (> ...). Inactive rows stay compact and clean. */
     const ReaderRow = (props: { item?: FeedItem; selected: boolean; titleW: number }) => {
-      const it = () => props.item
-      const ago = () => (it() ? formatAgo(it()!.time) : "")
-      const score = (): string | undefined => {
-        const item = it()
-        return item && typeof item.score === "number" && item.score > 0
-          ? `▲ ${item.score > 999 ? `${(item.score / 1000).toFixed(1)}k` : item.score}`
+      const it = props.item
+      if (!it) return null
+      const ago = () => formatAgo(it.time)
+      const score = (): string | undefined =>
+        typeof it.score === "number" && it.score > 0
+          ? `▲ ${it.score > 999 ? `${(it.score / 1000).toFixed(1)}k` : it.score}`
           : undefined
-      }
-      const body = () => (it() ? bodyOf(it()!) : "")
+      const body = () => bodyOf(it)
       return (
-        <Show when={it()}>
-          {(item) => (
-            <box>
-              <box flexDirection="row" gap={1}>
-                <text fg={props.selected ? SELECT_COLOR : MUTED}>{props.selected ? "▸" : " "}</text>
-                <text fg={badgeColor(item().source)}>{`[${item().source}]`}</text>
-                <text width={props.titleW}>{truncate(item().title, props.titleW)}</text>
-                <Show when={score()}>
-                  <text fg={MUTED}>{score()}</text>
-                </Show>
-                <Show when={ago()}>
-                  <text fg={MUTED}>{`· ${ago()}`}</text>
-                </Show>
-              </box>
-              <Show when={props.selected}>
-                <Show when={body()}>
-                  <box flexDirection="row">
-                    <text fg={MUTED}>{"  "}</text>
-                    <text fg={MUTED} width={Math.max(40, columns() - 9)}>{body()}</text>
-                  </box>
-                </Show>
+        <box flexDirection="column">
+          <box flexDirection="row" gap={1}>
+            <Show when={props.selected} fallback={<text fg={MUTED}>{" "}</text>}>
+              <text fg={SELECT_COLOR}>{"▸"}</text>
+            </Show>
+            <text fg={badgeColor(it.source)}>{`[${it.source}]`}</text>
+            <text width={props.titleW}>{truncate(it.title, props.titleW)}</text>
+            <Show when={score()}>
+              <text fg={MUTED}>{score()}</text>
+            </Show>
+            <Show when={ago()}>
+              <text fg={MUTED}>{`· ${ago()}`}</text>
+            </Show>
+          </box>
+          <Show when={props.selected}>
+            <box flexDirection="column" paddingLeft={2}>
+              <Show when={body()}>
+                <text fg={MUTED} width={Math.max(40, columns() - 9)}>
+                  {`↳ ${body()}`}
+                </text>
+              </Show>
+              <Show when={it.url}>
+                <text fg={MUTED}>
+                  {`  > `}
+                  <a href={it.url}>{linkLabel(it.url, 60)}</a>
+                </text>
               </Show>
             </box>
-          )}
-        </Show>
+          </Show>
+        </box>
       )
     }
 
@@ -440,7 +454,215 @@ export default Plugin.define({
       ),
     })
 
-    // --- /news command + fullscreen reader panel ---
+    /** Cross-platform open in the user's browser. No shell strings —
+     * arguments only; the detached child dies on its own. */
+    const openUrl = (url: string): void => {
+      try {
+        const child =
+          process.platform === "win32"
+            ? spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" })
+            : process.platform === "darwin"
+              ? spawn("open", [url], { detached: true, stdio: "ignore" })
+              : spawn("xdg-open", [url], { detached: true, stdio: "ignore" })
+        child.unref()
+        void debugLog(`open: ${url}`)
+      } catch (err) {
+        void debugLog(`open FAILED: ${(err as Error)?.message ?? String(err)}`)
+      }
+    }
+
+    const toggleChannel = (key: ChannelKey): void => {
+      const current = cfg()
+      const next: WaitFeedConfig = {
+        ...current,
+        sources: { ...current.sources, [key]: !current.sources[key] },
+        setupDone: true,
+      }
+      setCfg(next)
+      try {
+        context.renderer.requestRender()
+      } catch {
+        // ignore
+      }
+      void saveConfig(next)
+        .then(() => debugLog(`config: ${key} -> ${next.sources[key] ? "on" : "off"}`))
+        .catch((err) =>
+          debugLog(`config save FAILED for ${key}: ${(err as Error)?.message ?? ""}`),
+        )
+    }
+
+    const openFeedToggleMenu = async (): Promise<void> => {
+      const toggleOptions: { title: string; value: string; description: string }[] = CHANNEL_KEYS.map((key, i) => {
+        const isEnabled = cfg().sources[key]
+        return {
+          title: `${i + 1}. [${CHANNEL_BADGES[key]}] ${CHANNEL_NAMES[key]} — currently ${isEnabled ? "ON (click to turn OFF)" : "OFF (click to turn ON)"}`,
+          value: key,
+          description: isEnabled
+            ? `Feeds from ${CHANNEL_NAMES[key]} will be hidden from the ticker and reader.`
+            : `Feeds from ${CHANNEL_NAMES[key]} will be fetched and shown on the ticker.`,
+        }
+      })
+      toggleOptions.push({
+        title: "← Back to News Reader",
+        value: "__back__",
+        description: "Return to the news reader.",
+      })
+
+      const selectPromise = context.ui.dialog.select<string>({
+        title: "WaitFeed — Sources (Toggle On/Off)",
+        placeholder: "Select a source to toggle ON/OFF...",
+        options: toggleOptions,
+        ...({ size: "large" } as Record<string, unknown>),
+      })
+      setTimeout(() => {
+        try {
+          context.ui.dialog.set({ size: "large" })
+        } catch {
+          // ignore
+        }
+      }, 10)
+      const chosenKey = await selectPromise
+
+      if (chosenKey && chosenKey !== "__back__") {
+        toggleChannel(chosenKey as ChannelKey)
+        await openNewsDialog()
+      } else if (chosenKey === "__back__") {
+        await openNewsDialog()
+      }
+    }
+
+    const openNewsDialog = async (): Promise<void> => {
+      void debugLog("open /news dialog")
+      const currentItems = visible()
+      if (currentItems.length === 0) {
+        context.ui.toast.show({
+          message:
+            items().length === 0
+              ? "WaitFeed: waiting for first feed fetch…"
+              : "WaitFeed: writing digests — check back in a few seconds",
+          variant: "info",
+        })
+        return
+      }
+
+      // Group into:
+      // 1) Recently on Ticker (items shown on the ticker during this run),
+      //    sorted in REVERSE order of appearance (most recently seen at the top!)
+      // 2) Unseen / Other stories, sorted chronologically.
+      const tickerItems: FeedItem[] = []
+      const otherItems: FeedItem[] = []
+
+      for (const it of currentItems) {
+        if (shownTimestamps.has(it.id) || it.id === pinnedId) {
+          tickerItems.push(it)
+        } else {
+          otherItems.push(it)
+        }
+      }
+
+      // Sort ticker items: newest presentation first (most recently on screen)
+      tickerItems.sort((a, b) => {
+        const timeA = shownTimestamps.get(a.id) ?? 0
+        const timeB = shownTimestamps.get(b.id) ?? 0
+        return timeB - timeA
+      })
+
+      const formatSourceBadge = (source: string): string => {
+        const upper = source.toUpperCase()
+        if (upper === "R/PROG" || upper === "REDDIT") return "REDDIT"
+        return upper
+      }
+
+      const options: {
+        title: string
+        value: string
+        description?: string
+        footer?: string
+      }[] = []
+
+      const channelStatus = CHANNEL_KEYS.map(
+        (k) => `${CHANNEL_BADGES[k]}: ${cfg().sources[k] ? "ON" : "OFF"}`,
+      ).join(" · ")
+
+      // 1. Channel Filter Option at top:
+      options.push({
+        title: `[Sources] ${channelStatus}`,
+        value: "__toggle_feeds__",
+        description: "Select to turn Hacker News, Dev.to, GitHub, or Reddit ON/OFF.",
+      })
+
+      // 2. Recently on Ticker (Skipped & Seen)
+      for (const it of tickerItems) {
+        const b = bodyOf(it)
+        const seenTime = shownTimestamps.get(it.id)
+        const seenDiff = seenTime ? Date.now() - seenTime : 0
+        const seenStr = seenDiff < 45_000 ? "Just on ticker" : `Seen ${formatAgo(seenTime!)}`
+        const score = typeof it.score === "number" && it.score > 0 ? `▲ ${it.score}` : ""
+        const footerParts = [seenStr, score].filter(Boolean).join(" · ")
+        options.push({
+          title: `[${formatSourceBadge(it.source)}] ${it.title}`,
+          value: it.url,
+          description: b.length > 0 ? b : undefined,
+          footer: footerParts.length > 0 ? footerParts : undefined,
+        })
+      }
+
+      // 3. Other Stories
+      for (const it of otherItems) {
+        const b = bodyOf(it)
+        const ago = it.time ? formatAgo(it.time) : ""
+        const score = typeof it.score === "number" && it.score > 0 ? `▲ ${it.score}` : ""
+        const footerParts = [score, ago].filter(Boolean).join(" · ")
+        options.push({
+          title: `[${formatSourceBadge(it.source)}] ${it.title}`,
+          value: it.url,
+          description: b.length > 0 ? b : undefined,
+          footer: footerParts.length > 0 ? footerParts : undefined,
+        })
+      }
+
+      const selectPromise = context.ui.dialog.select<string>({
+        title: storyMode()
+          ? `WaitFeed — News Reader (${currentItems.length} stories ready)`
+          : `WaitFeed — Tech Headlines (${currentItems.length} items)`,
+        placeholder: "Type to search headlines or sources (hn, gh, dev, reddit)...",
+        options,
+        ...({ size: "xlarge" } as Record<string, unknown>),
+      })
+
+      // Apply xlarge size to the active dialog
+      try {
+        context.ui.dialog.set({ size: "xlarge" })
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        try {
+          context.ui.dialog.set({ size: "xlarge" })
+        } catch {
+          // ignore
+        }
+      }, 10)
+      setTimeout(() => {
+        try {
+          context.ui.dialog.set({ size: "xlarge" })
+        } catch {
+          // ignore
+        }
+      }, 50)
+
+      const chosen = await selectPromise
+
+      if (!chosen) return
+
+      if (chosen === "__toggle_feeds__") {
+        await openFeedToggleMenu()
+      } else {
+        openUrl(chosen)
+      }
+    }
+
+    // --- /news command + native OpenCode reader dialog ---
     context.keymap.layer(() => ({
       mode: "global",
       priority: 10,
@@ -454,8 +676,7 @@ export default Plugin.define({
           enabled: () => true,
           suggested: true,
           run: () => {
-            void debugLog("open /news panel")
-            context.ui.panel.open("waitfeed.news", { presentation: "fullscreen" })
+            void openNewsDialog()
           },
         },
       ],
@@ -472,6 +693,22 @@ export default Plugin.define({
         // focus is best-effort on some host presentations
       }
 
+      // Isolate keyboard input: push "waitfeed.reader" mode so OpenCode host
+      // prompt/composer does not intercept arrow keys or number keys.
+      const popMode = context.keymap.mode.push("waitfeed.reader")
+      onCleanup(() => {
+        popMode()
+      })
+
+      const closePanel = (): void => {
+        void debugLog("close panel via escape")
+        try {
+          props.panel.close()
+        } catch {
+          context.ui.panel.close()
+        }
+      }
+
       // First run: materialize config.json on first open so setup has a real
       // file from day one; the key presses below then persist instantly.
       void (async () => {
@@ -483,7 +720,12 @@ export default Plugin.define({
       /** Cursor bounds clamp to what is actually on screen. */
       const shownMax = (): number => Math.max(0, Math.min(readerList().length, PANEL_ITEMS) - 1)
       const at = (): number => Math.min(cursor(), shownMax())
+
+      let lastMove = 0
       const move = (delta: number): void => {
+        const now = Date.now()
+        if (now - lastMove < 30) return
+        lastMove = now
         const max = shownMax()
         const next = Math.min(max, Math.max(0, cursor() + delta))
         void debugLog(`cursor -> ${next}/${max}`)
@@ -495,45 +737,7 @@ export default Plugin.define({
         }
       }
 
-      /** Cross-platform open in the user's browser. No shell strings —
-       * arguments only; the detached child dies on its own. */
-      const openUrl = (url: string): void => {
-        try {
-          const child =
-            process.platform === "win32"
-              ? spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" })
-              : process.platform === "darwin"
-                ? spawn("open", [url], { detached: true, stdio: "ignore" })
-                : spawn("xdg-open", [url], { detached: true, stdio: "ignore" })
-          child.unref()
-          void debugLog(`open: ${url}`)
-        } catch (err) {
-          void debugLog(`open FAILED: ${(err as Error)?.message ?? String(err)}`)
-        }
-      }
 
-      /** 1-4 in the reader: flips the channel switch AND persists it — the
-       * next fetch cycle stops even contacting that source, and the card
-       * disappears from the ticker immediately. */
-      const toggleChannel = (key: ChannelKey): void => {
-        const current = cfg()
-        const next: WaitFeedConfig = {
-          ...current,
-          sources: { ...current.sources, [key]: !current.sources[key] },
-          setupDone: true,
-        }
-        setCfg(next)
-        try {
-          context.renderer.requestRender()
-        } catch {
-          // ignore
-        }
-        void saveConfig(next)
-          .then(() => debugLog(`config: ${key} -> ${next.sources[key] ? "on" : "off"}`))
-          .catch((err) =>
-            debugLog(`config save FAILED for ${key}: ${(err as Error)?.message ?? ""}`),
-          )
-      }
 
       // Direct OpenTUI renderer keyboard listener.
       // Active for the lifetime of NewsPanel (onCleanup cleanly removes it).
@@ -551,12 +755,7 @@ export default Plugin.define({
         if (name === "escape" || seq === "\x1B") {
           key.preventDefault()
           key.stopPropagation()
-          void debugLog("close panel via escape")
-          try {
-            props.panel.close()
-          } catch {
-            context.ui.panel.close()
-          }
+          closePanel()
           return
         }
         if (name === "up" || name === "k" || seq === "k" || seq === "\x1B[A" || seq === "\x1BOA") {
@@ -589,30 +788,6 @@ export default Plugin.define({
           }
           return
         }
-        if (name === "1" || seq === "1") {
-          key.preventDefault()
-          key.stopPropagation()
-          toggleChannel("hn")
-          return
-        }
-        if (name === "2" || seq === "2") {
-          key.preventDefault()
-          key.stopPropagation()
-          toggleChannel("devto")
-          return
-        }
-        if (name === "3" || seq === "3") {
-          key.preventDefault()
-          key.stopPropagation()
-          toggleChannel("github")
-          return
-        }
-        if (name === "4" || seq === "4") {
-          key.preventDefault()
-          key.stopPropagation()
-          toggleChannel("reddit")
-          return
-        }
       }
 
       context.renderer.keyInput.on("keypress", handleKey)
@@ -620,21 +795,15 @@ export default Plugin.define({
         context.renderer.keyInput.off("keypress", handleKey)
       })
 
-      // Secondary keymap layer registered with OpenCode host
+      // Secondary keymap layer registered with OpenCode host in "waitfeed.reader" mode
       context.keymap.layer(() => ({
-        mode: "global",
+        mode: "waitfeed.reader",
         priority: 100,
         commands: [
           {
             id: "waitfeed.news.close",
             bind: "escape",
-            run: () => {
-              try {
-                props.panel.close()
-              } catch {
-                context.ui.panel.close()
-              }
-            },
+            run: () => closePanel(),
           },
           {
             id: "waitfeed.news.fullscreen",
@@ -660,12 +829,6 @@ export default Plugin.define({
               if (it && it.url && it.url.length > 0) openUrl(it.url)
             },
           },
-          ...CHANNEL_KEYS.map((key, i) => ({
-            id: `waitfeed.news.ch-${key}`,
-            bind: `${i + 1}`,
-            title: `${CHANNEL_BADGES[key]} on/off`,
-            run: () => toggleChannel(key),
-          })),
         ],
         bindings: [
           "waitfeed.news.close",
@@ -675,7 +838,6 @@ export default Plugin.define({
           "waitfeed.news.down",
           "waitfeed.news.vim-down",
           "waitfeed.news.open",
-          ...CHANNEL_KEYS.map((key) => `waitfeed.news.ch-${key}`),
         ],
       }))
 
@@ -695,21 +857,22 @@ export default Plugin.define({
         items().length === 0
           ? "waiting for the first feed fetch…"
           : "writing stories for fresh headlines — the first ones land in seconds…"
-      /** Header zone lines are ALL single strings with one color each: a
-       * multi-node colored chips row once painted over the line below it on
-       * some terminals. One string per line can never overlap. */
       const chips = (): string =>
         CHANNEL_KEYS.map(
           (k) => `${CHANNEL_KEYS.indexOf(k) + 1} ${CHANNEL_BADGES[k]} ${cfg().sources[k] ? "on" : "off"}`,
         ).join(" · ")
-      const controls = "enter open · up/down move · f fullscreen · esc close"
+      const controls = "enter open · up/down (j/k) move · f fullscreen · esc close"
       const titleW = (): number => Math.max(30, columns() - 24)
       const rows = () => visible().slice(0, PANEL_ITEMS)
 
       return (
         <box flexDirection="column">
-          <text fg="#ff6600">{header()}</text>
-          <text fg={MUTED}>{chips()}</text>
+          <Show when={header()}>
+            {(h) => <text fg="#ff6600">{h()}</text>}
+          </Show>
+          <Show when={chips()}>
+            {(c) => <text fg={MUTED}>{c()}</text>}
+          </Show>
           <text fg={MUTED}>{controls}</text>
           <Show when={!cfg().setupDone}>
             <text fg={MUTED}>

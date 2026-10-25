@@ -1,103 +1,66 @@
-"use client";
-
-import { useState } from "react";
-import { TerminalDemo } from "./TerminalDemo";
+import Link from "next/link";
+import Image from "next/image";
 
 export function Hero() {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText('{\n  "plugins": ["waitfeed"]\n}');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <section className="relative overflow-hidden">
-      {/* 16px Radial Dot-Grid Matrix Texture */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, var(--dot-grid-color) 1px, transparent 1px)",
-          backgroundSize: "16px 16px",
-          opacity: 0.65,
-        }}
-      />
+    <section id="hero" className="w-full pt-32 sm:pt-36 pb-12 sm:pb-16">
+      <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col items-center text-center">
+        {/* Main Heading */}
+        <h1 className="text-4xl sm:text-5xl md:text-[52px] font-parabole font-normal leading-[1.1] tracking-tighter text-[#191918] max-w-200">
+          Models <strong className="font-display font-bold">built</strong> for coding{" "}
+          <strong className="font-display font-bold">agents</strong>
+        </h1>
 
-      <div className="relative mx-auto max-w-300 px-6 py-14 md:py-24">
-        <div className="grid md:grid-cols-[1.05fr_1fr] gap-8 md:gap-12 items-start">
-          {/* Left Column: Editorial Positioning & Primary CTA */}
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 px-2 py-0.5 border border-[#27AD75]/30 bg-[#27AD75]/10 text-(--accent-color) font-data text-[11px] mb-4">
-              <span className="h-1.5 w-1.5 rounded-full bg-(--accent-color)"></span>
-              <span>OPENCODE TUI PLUGIN</span>
-              <span className="text-[#5C5C66]">·</span>
-              <span className="text-(--ink-secondary)">ZERO BACKEND</span>
-            </div>
+        {/* Subtitle */}
+        <p className="mt-4 sm:mt-5 text-base sm:text-lg text-[#191918]/60 font-parabole max-w-160 leading-relaxed">
+          Source control with out-of-the box codebase retrieval, fast utility SLMs, and task-specific agents you can run on&nbsp;any repo.
+        </p>
 
-            <h1
-              className="font-display text-[34px] sm:text-[42px] md:text-[48px] leading-[1.05] tracking-tight text-(--ink-primary) mb-5 max-w-[17ch]"
-              style={{ fontWeight: 400 }}
-            >
-              The ambient news ticker for AI agent surfaces.
-            </h1>
+        {/* CTA Buttons */}
+        <div className="mt-6 sm:mt-7 flex items-center justify-center gap-3">
+          <Link
+            href="https://cal.com/team/relace/30min"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs sm:text-sm font-medium px-4 py-2 rounded-xs border border-[#e3e2d8] bg-[#f3f2e7] hover:bg-[#eae9de] text-[#191918] transition-colors"
+          >
+            Get a Demo
+          </Link>
+          <Link
+            href="https://app.relace.ai/sign-up"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs sm:text-sm font-medium px-4 py-2 rounded-xs bg-[#191918] text-white hover:bg-black transition-colors"
+          >
+            Sign Up for Free
+          </Link>
+        </div>
 
-            <p className="font-body text-[15px] sm:text-[16px] leading-[1.65] text-(--ink-secondary) mb-8 max-w-[50ch]">
-              While your OpenCode agent works, a slim news ticker appears in the line above the input box.
-              You start typing — it vanishes. <strong className="text-(--ink-primary)">100% local</strong>,
-              no ads, no accounts, no server, no API keys.
-            </p>
-
-            <p className="font-data text-[11px] text-(--ink-secondary) mb-2">
-              Add to your OpenCode configuration:
-            </p>
-
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="font-data text-[13px] font-medium bg-(--accent-color) text-black px-5 py-3.5 inline-flex max-w-full items-center gap-3 hover:bg-(--accent-hover) transition-all cursor-pointer shadow-[0_0_0_4px_var(--accent-glow)] select-none"
-                aria-label="copy plugin snippet"
-              >
-                <span className="text-black/60 font-bold">$</span>
-                <span className="min-w-0 truncate font-semibold">
-                  {copied ? "Copied snippet to clipboard!" : 'plugins: ["waitfeed"]'}
+        {/* Hero Visual */}
+        <div className="w-full mt-10 sm:mt-14 relative rounded-xs overflow-hidden border border-[#e3e2d8] shadow-xs">
+          <div className="relative aspect-video w-full overflow-hidden bg-[#e3e2d8]">
+            <Image
+              src="https://framerusercontent.com/images/IpHIdqVoOMzhY8zkGb0SKdPFg0.webp?width=1596&height=900"
+              alt="Wide mountain range beneath a cloudy sky with subtle geometric overlay graphics."
+              fill
+              priority
+              sizes="(min-width: 1200px) 1064px, (max-width: 809.98px) calc(100vw - 40px), 920px"
+              className="w-full h-full object-cover select-none"
+            />
+            {/* Frosted HUD overlay */}
+            <div className="absolute inset-0 backdrop-blur-[1px] bg-white/5 pointer-events-none flex flex-col justify-between p-4 sm:p-6 text-[10px] font-decima text-[#191918]/40 uppercase tracking-widest z-10">
+              <div className="flex items-center justify-between">
+                <span>relace.mesh // v1.0</span>
+                <span>lat: 37.7749 // lon: -122.4194</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#fcaa2d] animate-pulse" />
+                  active agent cluster
                 </span>
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="0"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-              </button>
+                <span>50,000 tok/s</span>
+              </div>
             </div>
-
-            <div className="flex items-center gap-4 text-[12px] font-data">
-              <a
-                className="text-(--ink-primary) no-underline border-b border-(--rule-strong) pb-0.5 transition-colors hover:border-(--ink-primary)"
-                href="#install"
-              >
-                Explore the setup ↓
-              </a>
-              <span className="text-(--ink-tertiary)">·</span>
-              <a
-                className="text-(--ink-secondary) hover:text-(--ink-primary) no-underline transition-colors"
-                href="#why"
-              >
-                Read the lineage
-              </a>
-            </div>
-          </div>
-
-          {/* Right Column: Live Interactive Terminal Simulator */}
-          <div className="min-w-0">
-            <TerminalDemo />
           </div>
         </div>
       </div>
