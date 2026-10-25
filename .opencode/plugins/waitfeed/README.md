@@ -12,16 +12,19 @@ recent items are carried over for 36 hours.
 
 ## Install
 
-Add the package to `plugins` in your `opencode.json(c)` and restart OpenCode:
+Run the interactive setup wizard:
+
+```bash
+npx waitfeed init
+```
+
+Or manually add `waitfeed` to `plugins` in your `opencode.json(c)`:
 
 ```jsonc
 {
   "plugins": ["waitfeed"]
 }
 ```
-
-That is the whole setup — the reader itself is the onboarding: the first
-`/news` open creates your config file.
 
 ## Use
 

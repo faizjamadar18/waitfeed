@@ -6,7 +6,13 @@
 
 ## Install
 
-Add to `plugins` in your `opencode.json(c)` and restart OpenCode:
+Run the interactive setup wizard:
+
+```bash
+npx waitfeed init
+```
+
+Or manually add `waitfeed` to `plugins` in your `opencode.json(c)`:
 
 ```jsonc
 {

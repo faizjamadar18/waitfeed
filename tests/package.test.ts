@@ -83,12 +83,16 @@ describe("package integrity (consumer-machine safety)", () => {
     }
   })
 
-  it("package.json exports and files all exist on disk", async () => {
+  it("package.json exports, bin, and files all exist on disk", async () => {
     const pkg = JSON.parse(await readFile(join(PKG, "package.json"), "utf8"))
     for (const [key, target] of Object.entries(pkg.exports as Record<string, string>)) {
       expect(key).toMatch(/^\.$|^\.\/tui$/)
       await expect(readFile(join(PKG, target), "utf8"), `export target missing: ${key}`).resolves.toBeTruthy()
     }
+    expect(pkg.bin).toBeDefined()
+    expect(pkg.bin.waitfeed).toBe("./bin.mjs")
+    const binContent = await readFile(join(PKG, pkg.bin.waitfeed), "utf8")
+    expect(binContent.startsWith("#!/usr/bin/env node")).toBe(true)
     for (const listed of pkg.files as string[]) {
       if (listed.endsWith("/")) {
         const entries = await readdir(join(PKG, listed.slice(0, -1)))
