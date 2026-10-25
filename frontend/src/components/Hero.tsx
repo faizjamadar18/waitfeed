@@ -1,44 +1,51 @@
-import Link from "next/link";
 import Image from "next/image";
+import { CtaButton } from "./CtaButton";
+import { HeroTerminal } from "./HeroTerminal";
 
 export function Hero() {
   return (
-    <section id="hero" className="w-full pt-32 sm:pt-36 pb-12 sm:pb-16">
-      <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col items-center text-center">
-        {/* Main Heading */}
-        <h1 className="text-4xl sm:text-5xl md:text-[52px] font-parabole font-normal leading-[1.1] tracking-tighter text-[#191918] max-w-200">
-          Models <strong className="font-display font-bold">built</strong> for coding{" "}
-          <strong className="font-display font-bold">agents</strong>
-        </h1>
+    <section id="hero" className="w-full pt-28 sm:pt-36 lg:pt-40 pb-12 sm:pb-20">
+      <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col gap-10 sm:gap-14">
+        {/* Header Row: Left Title & Right Paragraph with Action Buttons */}
+        <div className="flex flex-col lg:flex-row items-start justify-between gap-8 lg:gap-12 w-full text-left">
+          {/* Left Column: Heading */}
+          <div className="flex-1">
+            <h1 className="text-4xl sm:text-5xl md:text-[54px] lg:text-[64px] font-parabole font-normal leading-[1.08] tracking-[-0.045em] text-[#191918]">
+              Tech updates <strong className="font-display font-normal text-black">inside</strong>
+              <br className="hidden sm:inline" />{" "}
+              agent <strong className="font-display font-normal text-black">wait time</strong>
+            </h1>
+          </div>
 
-        {/* Subtitle */}
-        <p className="mt-4 sm:mt-5 text-base sm:text-lg text-[#191918]/60 font-parabole max-w-160 leading-relaxed">
-          Source control with out-of-the box codebase retrieval, fast utility SLMs, and task-specific agents you can run on&nbsp;any repo.
-        </p>
+          {/* Right Column: Paragraph and Action CTAs */}
+          <div className="flex-1 max-w-115 flex flex-col gap-6">
+            <p className="text-base sm:text-[17px] text-[#191918]/60 font-parabole leading-normal">
+              While your AI coding agent executes, a slim terminal ticker streams trending open-source repositories, engineering deep-dives, and technical breakdowns right above your prompt line. You start typing — it vanishes. 100% local, no ads, zero keys.
+            </p>
 
-        {/* CTA Buttons */}
-        <div className="mt-6 sm:mt-7 flex items-center justify-center gap-3">
-          <Link
-            href="https://cal.com/team/relace/30min"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs sm:text-sm font-medium px-4 py-2 rounded-xs border border-[#e3e2d8] bg-[#f3f2e7] hover:bg-[#eae9de] text-[#191918] transition-colors"
-          >
-            Get a Demo
-          </Link>
-          <Link
-            href="https://app.relace.ai/sign-up"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs sm:text-sm font-medium px-4 py-2 rounded-xs bg-[#191918] text-white hover:bg-black transition-colors"
-          >
-            Sign Up for Free
-          </Link>
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+              <CtaButton
+                href="#install"
+                variant="accent"
+                className="px-5 py-3 text-xs uppercase tracking-wider font-medium font-parabole"
+              >
+                NPX WAITFEED INIT
+              </CtaButton>
+              <CtaButton
+                href="https://github.com/faizjamadar18/waitfeed"
+                target="_blank"
+                variant="beige"
+                className="px-5 py-3 text-xs uppercase tracking-wider font-medium font-parabole"
+              >
+                EXPLORE ON GITHUB
+              </CtaButton>
+            </div>
+          </div>
         </div>
 
-        {/* Hero Visual */}
-        <div className="w-full mt-10 sm:mt-14 relative rounded-xs overflow-hidden border border-[#e3e2d8] shadow-xs">
-          <div className="relative aspect-video w-full overflow-hidden bg-[#e3e2d8]">
+        {/* Hero Visual Image with Floating Interactive Code Editor Overlay */}
+        <div className="w-full relative rounded-xs overflow-hidden border border-[#e3e2d8] shadow-xs">
+          <div className="relative min-h-[460px] sm:min-h-[520px] md:aspect-1596/900 w-full overflow-hidden bg-[#e3e2d8] flex items-center justify-center p-3 sm:p-6 lg:p-10">
             <Image
               src="https://framerusercontent.com/images/IpHIdqVoOMzhY8zkGb0SKdPFg0.webp?width=1596&height=900"
               alt="Wide mountain range beneath a cloudy sky with subtle geometric overlay graphics."
@@ -47,19 +54,10 @@ export function Hero() {
               sizes="(min-width: 1200px) 1064px, (max-width: 809.98px) calc(100vw - 40px), 920px"
               className="w-full h-full object-cover select-none"
             />
-            {/* Frosted HUD overlay */}
-            <div className="absolute inset-0 backdrop-blur-[1px] bg-white/5 pointer-events-none flex flex-col justify-between p-4 sm:p-6 text-[10px] font-decima text-[#191918]/40 uppercase tracking-widest z-10">
-              <div className="flex items-center justify-between">
-                <span>relace.mesh // v1.0</span>
-                <span>lat: 37.7749 // lon: -122.4194</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#fcaa2d] animate-pulse" />
-                  active agent cluster
-                </span>
-                <span>50,000 tok/s</span>
-              </div>
+
+            {/* Centered Floating Animated & Interactive Code Editor Window */}
+            <div className="relative z-10 w-full max-w-[560px]">
+              <HeroTerminal />
             </div>
           </div>
         </div>

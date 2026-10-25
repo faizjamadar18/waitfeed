@@ -10,40 +10,40 @@ interface FaqItem {
 
 const FAQS: FaqItem[] = [
   {
-    id: "why-relace",
-    question: "Why Relace?",
+    id: "what-updates",
+    question: "What kind of updates does WaitFeed show?",
     answer:
-      "Relace is purpose-built for coding workflows. Instead of relying on general-purpose LLMs, our in-house models specialize in retrieval, merging, and code generation — making them faster, more reliable, and easier to integrate into engineering pipelines. Teams use Relace to cut down errors, accelerate development, and gain a real competitive edge.",
+      "Strictly technical content: trending open-source repositories, software releases, systems architecture breakdowns, and engineering discussions from Hacker News, GitHub Trending, Dev.to, and Reddit r/programming. There are zero mainstream news, political stories, or clickbait.",
   },
   {
-    id: "soc2",
-    question: "Is Relace SOC 2 compliant?",
+    id: "hide-on-type",
+    question: "How does the zero-latency hide mechanism work?",
     answer:
-      "Yes. Relace is built with enterprise security in mind, and our systems are SOC 2 compliant. This ensures your data is handled with the highest standards of confidentiality and integrity.",
+      "WaitFeed is completely observational. It renders in the line above your prompt input only while the agent is actively executing. The moment you press any key to type, the ticker unmounts in 0ms without intercepting, buffering, or delaying your keystrokes.",
   },
   {
-    id: "self-host",
-    question: "Can I self-host Relace models?",
+    id: "supported-agents",
+    question: "Which coding agents are supported?",
     answer:
-      "Absolutely. For teams with stricter compliance or latency requirements, we offer on-premise and VPC-isolated deployments. You get full control of your environment while still benefiting from Relace's optimized inference stack.",
+      "WaitFeed natively supports OpenCode (via @opencode/plugin and OpenTUI Solid components), AGY / Google Antigravity (via CLI statusline hooks with wall-clock dwell timing), and Claude Code (via wait-state integration). All three share a single configuration.",
   },
   {
-    id: "sensitive-code",
-    question: "How does Relace handle sensitive code?",
+    id: "keys-and-backend",
+    question: "Does WaitFeed require API keys, accounts, or a server?",
     answer:
-      "Your code never leaves your controlled environment when using self-hosted or VPC deployments. Even on our hosted tier, all data is encrypted in transit and at rest.",
+      "None. WaitFeed is 100% local. All feed queries hit public keyless endpoints once every 30 minutes. Brief generation utilizes your existing agent's local session pipeline. No data ever leaves your computer.",
   },
   {
-    id: "source-control-advantage",
-    question: "What’s the main advantage for source control workflows?",
+    id: "custom-feeds",
+    question: "Can I add my own tech blogs and RSS feeds?",
     answer:
-      "Relace outperforms frontier LLMs at code retrieval and merging. Our models can search a codebase in under a second and merge at 10,000 tokens per second — speeding up PR reviews, automated fixes, and CI/CD processes.",
+      "Yes. You can add up to 10 custom RSS/Atom URLs directly in ~/.config/waitfeed/config.json or during the npx waitfeed init setup. They render with a dedicated [RSS] badge.",
   },
   {
-    id: "onboarding-speed",
-    question: "How fast in onboarding?",
+    id: "offline-behavior",
+    question: "What happens if I'm offline or an upstream feed fails?",
     answer:
-      "You can start experimenting within minutes using our hosted API. For enterprise and self-hosted setups, our team provides guided onboarding to help you deploy Relace quickly and securely in your stack.",
+      "WaitFeed maintains a 60-card rolling pool in ~/.config/waitfeed/cache.json. Verified cards are retained for up to 36 hours. If you go offline or an upstream API is unreachable, the ticker quietly draws from cached briefs without failing your coding session.",
   },
 ];
 
@@ -68,7 +68,7 @@ export function FaqSection() {
               FAQs
             </span>
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.15] tracking-[-0.04em] text-[#191918]">
+          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918]">
             Frequently asked questions
           </h2>
         </div>
@@ -83,7 +83,7 @@ export function FaqSection() {
                   type="button"
                   onClick={() => toggle(item.id)}
                   aria-expanded={isOpen}
-                  className="w-full py-6 flex items-center justify-between gap-6 text-left group cursor-pointer focus:outline-none"
+                  className="w-full py-6 sm:py-7 flex items-center justify-between gap-6 text-left group cursor-pointer focus:outline-none"
                 >
                   <span className="text-lg sm:text-xl font-medium text-[#191918] font-parabole tracking-tight">
                     {item.question}
@@ -92,10 +92,10 @@ export function FaqSection() {
                   {/* Plus / Minus icon */}
                   <span className="relative w-4 h-4 flex items-center justify-center text-[#191918] shrink-0">
                     {/* Horizontal bar */}
-                    <span className="absolute w-3 h-[1.5px] bg-[#191918]" />
+                    <span className="absolute w-3.5 h-[1.5px] bg-[#191918]" />
                     {/* Vertical bar */}
                     <span
-                      className={`absolute w-3 h-[1.5px] bg-[#191918] transition-transform duration-300 ${
+                      className={`absolute w-3.5 h-[1.5px] bg-[#191918] transition-transform duration-300 ease-out ${
                         isOpen ? "rotate-0 opacity-0" : "rotate-90 opacity-100"
                       }`}
                     />
@@ -105,7 +105,7 @@ export function FaqSection() {
                 {/* Animated Answer Body */}
                 <div
                   className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    isOpen ? "max-h-96 opacity-100 pb-6" : "max-h-0 opacity-0 pb-0"
+                    isOpen ? "max-h-96 opacity-100 pb-7" : "max-h-0 opacity-0 pb-0"
                   }`}
                 >
                   <p className="text-sm sm:text-base text-[#191918]/70 font-parabole leading-relaxed max-w-200">

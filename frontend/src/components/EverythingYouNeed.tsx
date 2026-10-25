@@ -1,156 +1,547 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 
-interface TabItem {
+interface AgentTab {
   id: string;
-  title: string;
+  name: string;
+  badge: string;
+  badgeBg: string;
+  badgeColor: string;
+  tagline: string;
   description: string;
-  image: string;
-  alt: string;
 }
 
-const TABS: TabItem[] = [
+const TABS: AgentTab[] = [
   {
-    id: "repos",
-    title: "Repos",
+    id: "claude",
+    name: "Claude Code",
+    badge: "Anthropic",
+    badgeBg: "bg-[#D97757]/15",
+    badgeColor: "text-[#D97757]",
+    tagline: "Ambient wait-state companion",
     description:
-      "Source control designed for agents with light weight push/pull operations and no rate limits.",
-    image:
-      "https://framerusercontent.com/images/NdOBYD2jhpW5VmMwQGZpgXFqXw.svg?width=532&height=494",
-    alt: "Branch centric",
+      "Streams verified developer updates and trending repositories during multi-turn reasoning, file edits, and bash latency. Clears the exact millisecond you start typing.",
   },
   {
-    id: "retrieval",
-    title: "Code Retrieval",
+    id: "agy",
+    name: "Antigravity CLI (AGY)",
+    badge: "Google DeepMind",
+    badgeBg: "bg-[#4285F4]/15",
+    badgeColor: "text-[#4285F4]",
+    tagline: "Live statusline hook with dwell timing",
     description:
-      "Agentic search that explores large codebases in parallel and answers in seconds.",
-    image:
-      "https://framerusercontent.com/images/CBYsFC0H5g0uprMiCJ7gFeJLoNY.svg?width=532&height=494",
-    alt: "Fast agentic search F1 vs latency",
+      "Hooks directly into AGY's statusline pipeline. Uses wall-clock dwell timing to rotate high-signal briefs without polluting your prompt history or tool outputs.",
   },
   {
-    id: "compact",
-    title: "Compact",
+    id: "opencode",
+    name: "OpenCode",
+    badge: "Open Source",
+    badgeBg: "bg-[#27AD75]/15",
+    badgeColor: "text-[#27AD75]",
+    tagline: "Reactive OpenTUI Solid slot",
     description:
-      "Rewrites agent context at 50k+ tok/s, cutting token costs in half on long sessions.",
-    image:
-      "https://framerusercontent.com/images/759CqpnbHLpGTZQYja2sDmOIsdM.svg?width=532&height=494",
-    alt: "Relace Compact token savings",
+      "Mounted natively in composer.top via OpenTUI Solid components. Sits silently above the input box and unmounts in 0ms on keypress with zero keystroke lag.",
   },
 ];
 
+const AGY_PIXELS = [
+  { r: 0, c: 5, color: "#F2922E" }, { r: 0, c: 6, color: "#F07236" },
+  { r: 1, c: 4, color: "#DBB131" }, { r: 1, c: 5, color: "#F6912E" }, { r: 1, c: 6, color: "#F37337" }, { r: 1, c: 7, color: "#F0583B" },
+  { r: 2, c: 3, color: "#9EC345" }, { r: 2, c: 4, color: "#B5B43E" }, { r: 2, c: 5, color: "#E2993D" }, { r: 2, c: 6, color: "#F67A34" }, { r: 2, c: 7, color: "#F86A35" }, { r: 2, c: 8, color: "#EF5442" },
+  { r: 3, c: 3, color: "#86C64E" }, { r: 3, c: 4, color: "#75B45E" }, { r: 3, c: 5, color: "#CC954D" }, { r: 3, c: 6, color: "#EF7947" }, { r: 3, c: 7, color: "#E16652" }, { r: 3, c: 8, color: "#E14F59" },
+  { r: 4, c: 2, color: "#7CC251" }, { r: 4, c: 3, color: "#71C25C" }, { r: 4, c: 4, color: "#5CA98F" }, { r: 4, c: 5, color: "#5C91B3" }, { r: 4, c: 6, color: "#8373B0" }, { r: 4, c: 7, color: "#746FC3" }, { r: 4, c: 8, color: "#995DA8" }, { r: 4, c: 9, color: "#9C5B97" },
+  { r: 5, c: 2, color: "#80C654" }, { r: 5, c: 3, color: "#54B881" }, { r: 5, c: 4, color: "#4097DE" }, { r: 5, c: 7, color: "#4A7EE4" }, { r: 5, c: 8, color: "#706ECE" }, { r: 5, c: 9, color: "#8F64B4" },
+  { r: 6, c: 2, color: "#61C37D" }, { r: 6, c: 3, color: "#43AEAB" }, { r: 6, c: 8, color: "#4A80EA" }, { r: 6, c: 9, color: "#6C73D8" },
+  { r: 7, c: 1, color: "#6DC694" }, { r: 7, c: 2, color: "#62BAD5" }, { r: 7, c: 3, color: "#47A8DC" }, { r: 7, c: 8, color: "#3D89FB" }, { r: 7, c: 9, color: "#4A81F0" }, { r: 7, c: 10, color: "#6579E1" },
+  { r: 8, c: 1, color: "#6BC7A3" }, { r: 8, c: 2, color: "#64B6F6" }, { r: 8, c: 9, color: "#3886FB" }, { r: 8, c: 10, color: "#4881F4" },
+  { r: 9, c: 0, color: "#67B9F4" }, { r: 9, c: 1, color: "#64B6F6" }, { r: 9, c: 10, color: "#3883F9" }, { r: 9, c: 11, color: "#3D85FC" },
+];
+
+const CLAUDE_ASCII = [
+  " ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗",
+  "██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝",
+  "██║     ██║     ███████║██║   ██║██║  ██║█████╗  ",
+  "██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝  ",
+  "╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗",
+  " ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝",
+  " ██████╗  ██████╗  ██████╗  ███████╗             ",
+  "██╔════╝ ██╔═══██╗ ██╔══██╗ ██╔════╝             ",
+  "██║      ██║   ██║ ██║  ██║ █████╗               ",
+  "██║      ██║   ██║ ██║  ██║ ██╔══╝               ",
+  "╚██████╗ ╚██████╔╝ ██████╔╝ ███████╗             ",
+  " ╚═════╝  ╚═════╝  ╚═════╝  ╚══════╝             ",
+];
+
+const OPENCODE_PIXELS = [
+  { r: 0, c: 33, color: "#EEEEEE" },
+  { r: 1, c: 0, color: "#808080" }, { r: 1, c: 1, color: "#808080" }, { r: 1, c: 2, color: "#808080" }, { r: 1, c: 3, color: "#808080" }, { r: 1, c: 5, color: "#808080" }, { r: 1, c: 6, color: "#808080" }, { r: 1, c: 7, color: "#808080" }, { r: 1, c: 8, color: "#808080" }, { r: 1, c: 10, color: "#808080" }, { r: 1, c: 11, color: "#808080" }, { r: 1, c: 12, color: "#808080" }, { r: 1, c: 13, color: "#808080" }, { r: 1, c: 15, color: "#808080" }, { r: 1, c: 16, color: "#808080" }, { r: 1, c: 17, color: "#808080" }, { r: 1, c: 20, color: "#EEEEEE" }, { r: 1, c: 21, color: "#EEEEEE" }, { r: 1, c: 22, color: "#EEEEEE" }, { r: 1, c: 23, color: "#EEEEEE" }, { r: 1, c: 25, color: "#EEEEEE" }, { r: 1, c: 26, color: "#EEEEEE" }, { r: 1, c: 27, color: "#EEEEEE" }, { r: 1, c: 28, color: "#EEEEEE" }, { r: 1, c: 30, color: "#EEEEEE" }, { r: 1, c: 31, color: "#EEEEEE" }, { r: 1, c: 32, color: "#EEEEEE" }, { r: 1, c: 33, color: "#EEEEEE" }, { r: 1, c: 35, color: "#EEEEEE" }, { r: 1, c: 36, color: "#EEEEEE" }, { r: 1, c: 37, color: "#EEEEEE" }, { r: 1, c: 38, color: "#EEEEEE" },
+  { r: 2, c: 0, color: "#808080" }, { r: 2, c: 3, color: "#808080" }, { r: 2, c: 5, color: "#808080" }, { r: 2, c: 8, color: "#808080" }, { r: 2, c: 10, color: "#808080" }, { r: 2, c: 13, color: "#808080" }, { r: 2, c: 15, color: "#808080" }, { r: 2, c: 18, color: "#808080" }, { r: 2, c: 20, color: "#EEEEEE" }, { r: 2, c: 25, color: "#EEEEEE" }, { r: 2, c: 28, color: "#EEEEEE" }, { r: 2, c: 30, color: "#EEEEEE" }, { r: 2, c: 33, color: "#EEEEEE" }, { r: 2, c: 35, color: "#EEEEEE" }, { r: 2, c: 38, color: "#EEEEEE" },
+  { r: 3, c: 0, color: "#808080" }, { r: 3, c: 1, color: "#282828" }, { r: 3, c: 2, color: "#282828" }, { r: 3, c: 3, color: "#808080" }, { r: 3, c: 5, color: "#808080" }, { r: 3, c: 6, color: "#282828" }, { r: 3, c: 7, color: "#282828" }, { r: 3, c: 8, color: "#808080" }, { r: 3, c: 10, color: "#808080" }, { r: 3, c: 11, color: "#808080" }, { r: 3, c: 12, color: "#808080" }, { r: 3, c: 13, color: "#808080" }, { r: 3, c: 15, color: "#808080" }, { r: 3, c: 16, color: "#282828" }, { r: 3, c: 17, color: "#282828" }, { r: 3, c: 18, color: "#808080" }, { r: 3, c: 20, color: "#EEEEEE" }, { r: 3, c: 21, color: "#434343" }, { r: 3, c: 22, color: "#434343" }, { r: 3, c: 23, color: "#434343" }, { r: 3, c: 25, color: "#EEEEEE" }, { r: 3, c: 26, color: "#434343" }, { r: 3, c: 27, color: "#434343" }, { r: 3, c: 28, color: "#EEEEEE" }, { r: 3, c: 30, color: "#EEEEEE" }, { r: 3, c: 31, color: "#434343" }, { r: 3, c: 32, color: "#434343" }, { r: 3, c: 33, color: "#EEEEEE" }, { r: 3, c: 35, color: "#EEEEEE" }, { r: 3, c: 36, color: "#EEEEEE" }, { r: 3, c: 37, color: "#EEEEEE" }, { r: 3, c: 38, color: "#EEEEEE" },
+  { r: 4, c: 0, color: "#808080" }, { r: 4, c: 1, color: "#282828" }, { r: 4, c: 2, color: "#282828" }, { r: 4, c: 3, color: "#808080" }, { r: 4, c: 5, color: "#808080" }, { r: 4, c: 6, color: "#282828" }, { r: 4, c: 7, color: "#282828" }, { r: 4, c: 8, color: "#808080" }, { r: 4, c: 10, color: "#808080" }, { r: 4, c: 11, color: "#282828" }, { r: 4, c: 12, color: "#282828" }, { r: 4, c: 13, color: "#282828" }, { r: 4, c: 15, color: "#808080" }, { r: 4, c: 16, color: "#282828" }, { r: 4, c: 17, color: "#282828" }, { r: 4, c: 18, color: "#808080" }, { r: 4, c: 20, color: "#EEEEEE" }, { r: 4, c: 21, color: "#434343" }, { r: 4, c: 22, color: "#434343" }, { r: 4, c: 23, color: "#434343" }, { r: 4, c: 25, color: "#EEEEEE" }, { r: 4, c: 26, color: "#434343" }, { r: 4, c: 27, color: "#434343" }, { r: 4, c: 28, color: "#EEEEEE" }, { r: 4, c: 30, color: "#EEEEEE" }, { r: 4, c: 31, color: "#434343" }, { r: 4, c: 32, color: "#434343" }, { r: 4, c: 33, color: "#EEEEEE" }, { r: 4, c: 35, color: "#EEEEEE" }, { r: 4, c: 36, color: "#434343" }, { r: 4, c: 37, color: "#434343" }, { r: 4, c: 38, color: "#434343" },
+  { r: 5, c: 0, color: "#808080" }, { r: 5, c: 1, color: "#808080" }, { r: 5, c: 2, color: "#808080" }, { r: 5, c: 3, color: "#808080" }, { r: 5, c: 5, color: "#808080" }, { r: 5, c: 6, color: "#808080" }, { r: 5, c: 7, color: "#808080" }, { r: 5, c: 8, color: "#808080" }, { r: 5, c: 10, color: "#808080" }, { r: 5, c: 11, color: "#808080" }, { r: 5, c: 12, color: "#808080" }, { r: 5, c: 13, color: "#808080" }, { r: 5, c: 15, color: "#808080" }, { r: 5, c: 16, color: "#282828" }, { r: 5, c: 17, color: "#282828" }, { r: 5, c: 18, color: "#808080" }, { r: 5, c: 20, color: "#EEEEEE" }, { r: 5, c: 21, color: "#EEEEEE" }, { r: 5, c: 22, color: "#EEEEEE" }, { r: 5, c: 23, color: "#EEEEEE" }, { r: 5, c: 25, color: "#EEEEEE" }, { r: 5, c: 26, color: "#EEEEEE" }, { r: 5, c: 27, color: "#EEEEEE" }, { r: 5, c: 28, color: "#EEEEEE" }, { r: 5, c: 30, color: "#EEEEEE" }, { r: 5, c: 31, color: "#EEEEEE" }, { r: 5, c: 32, color: "#EEEEEE" }, { r: 5, c: 33, color: "#EEEEEE" }, { r: 5, c: 35, color: "#EEEEEE" }, { r: 5, c: 36, color: "#EEEEEE" }, { r: 5, c: 37, color: "#EEEEEE" }, { r: 5, c: 38, color: "#EEEEEE" },
+  { r: 6, c: 5, color: "#808080" },
+];
+
 export function EverythingYouNeed() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [scrollProgress, setScrollProgress] = useState<number>(0);
+  const isClickingRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    let animationFrameId: number;
+
+    function handleScroll() {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const totalScrollable = containerRef.current.offsetHeight - window.innerHeight;
+      if (totalScrollable <= 0) return;
+
+      const currentScroll = -rect.top;
+      const progress = Math.min(Math.max(currentScroll / totalScrollable, 0), 1);
+      setScrollProgress(progress);
+
+      if (!isClickingRef.current) {
+        if (progress < 0.33) {
+          setActiveTab(0);
+        } else if (progress < 0.66) {
+          setActiveTab(1);
+        } else {
+          setActiveTab(2);
+        }
+      }
+    }
+
+    function onScrollThrottled() {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(handleScroll);
+    }
+
+    window.addEventListener("scroll", onScrollThrottled, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScrollThrottled);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  function handleTabClick(index: number) {
+    setActiveTab(index);
+    if (!containerRef.current) return;
+
+    isClickingRef.current = true;
+    const rect = containerRef.current.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const containerTop = rect.top + scrollTop;
+    const totalScrollable = containerRef.current.offsetHeight - window.innerHeight;
+
+    const targetFraction = index === 0 ? 0.05 : index === 1 ? 0.48 : 0.88;
+    const targetScrollY = containerTop + totalScrollable * targetFraction;
+
+    window.scrollTo({
+      top: targetScrollY,
+      behavior: "smooth",
+    });
+
+    setTimeout(() => {
+      isClickingRef.current = false;
+    }, 700);
+  }
+
+  const indicatorTop =
+    activeTab === 0
+      ? "0px"
+      : activeTab === 1
+        ? "calc(50% - 42.5px)"
+        : "calc(100% - 85px)";
 
   return (
-    <section id="how-it-works" className="w-full py-16 sm:py-24 border-t border-[#e3e2d8]">
-      <div className="max-w-266 mx-auto px-5 sm:px-10">
-        {/* Top Decorative Border line */}
-        <div className="w-full mb-10 overflow-hidden opacity-60">
-          <Image
-            src="https://framerusercontent.com/images/zrSbXqC7vlV7qMXli6g1lo7kbk.svg?width=1018&height=32"
-            alt=""
-            width={1018}
-            height={32}
-            className="w-full h-auto object-cover select-none"
-            unoptimized
-          />
-        </div>
-
-        {/* Section Heading */}
-        <div className="mb-12 sm:mb-16">
-          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-black">
-            Everything you need for{" "}
-            <strong className="font-display font-bold">autonomous</strong> codegen
-          </h2>
-        </div>
-
-        {/* Interactive Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-14 items-center">
-          {/* Left: Tab list with timeline indicator */}
-          <div className="relative pl-8 sm:pl-10">
-            {/* Vertical timeline rule */}
-            <div className="absolute left-2.5 top-2 bottom-2 w-px bg-[#191918]/15 border-dashed" />
-            <div className="absolute left-1.5 top-0 w-2.5 h-2.5 rounded-full bg-[#191918]/25" />
-            <div className="absolute left-1.5 bottom-0 w-2.5 h-2.5 rounded-full bg-[#191918]/25" />
-
-            <div className="flex flex-col gap-8 sm:gap-10">
-              {TABS.map((tab, idx) => {
-                const isActive = activeTab === idx;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(idx)}
-                    className="relative text-left group cursor-pointer transition-all focus:outline-none"
-                  >
-                    {/* Active yellow dot / stroke indicator */}
-                    {isActive && (
-                      <span className="absolute -left-8 sm:-left-10 top-1.5 w-1.5 h-5 bg-[#fcaa2d] rounded-r-xs transition-all duration-300" />
-                    )}
-
-                    <h3
-                      className={`text-lg sm:text-xl font-medium tracking-tight transition-colors ${
-                        isActive
-                          ? "text-[#191918]"
-                          : "text-[#191918]/40 group-hover:text-[#191918]/70"
-                      }`}
-                    >
-                      {tab.title}
-                    </h3>
-
-                    {/* Expandable description */}
-                    <div
-                      className={`overflow-hidden transition-all duration-300 ${
-                        isActive
-                          ? "max-h-24 opacity-100 mt-2"
-                          : "max-h-0 opacity-0"
-                      }`}
-                    >
-                      <p className="text-sm sm:text-base text-[#191918]/70 font-parabole leading-relaxed">
-                        {tab.description}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+    <section
+      id="how-it-works"
+      ref={containerRef}
+      className="relative w-full border-t border-[#e3e2d8]"
+      style={{ height: "260vh" }}
+    >
+      {/* Pinned Sticky Viewport Window */}
+      <div className="sticky top-0 h-screen w-full flex flex-col justify-center items-center overflow-hidden">
+        <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-between py-6 h-full max-h-205">
+          {/* Top Decorative Border track */}
+          <div className="w-full flex flex-col gap-2">
+            <div className="flex items-center justify-between text-[10px] font-decima text-[#191918]/60 uppercase tracking-widest px-1">
+              <span>fig 001 · claude-code</span>
+              <span>fig 002 · agy-cli</span>
+              <span>fig 003 · opencode</span>
             </div>
-          </div>
-
-          {/* Right: Active Diagram SVG */}
-          <div className="relative aspect-532/494 w-full max-w-133 mx-auto rounded-xs overflow-hidden border border-[#e3e2d8] bg-[#f3f2e7]/50 p-4 sm:p-6 flex items-center justify-center">
-            {TABS.map((tab, idx) => (
+            <div className="w-full h-8 overflow-hidden relative opacity-70 border-b border-[#e3e2d8]">
               <div
-                key={tab.id}
-                className={`absolute inset-4 sm:inset-6 transition-opacity duration-500 flex items-center justify-center ${
-                  activeTab === idx ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-                }`}
+                className="absolute inset-y-0 flex items-center will-change-transform transition-transform duration-100 ease-out"
+                style={{
+                  transform: `translateX(${-scrollProgress * 120}px)`,
+                }}
               >
                 <Image
-                  src={tab.image}
-                  alt={tab.alt}
-                  width={532}
-                  height={494}
-                  className="w-full h-full object-contain select-none"
+                  src="https://framerusercontent.com/images/zrSbXqC7vlV7qMXli6g1lo7kbk.svg?width=1018&height=32"
+                  alt=""
+                  width={1018}
+                  height={32}
+                  className="h-8 w-auto object-cover select-none shrink-0"
+                  unoptimized
+                />
+                <Image
+                  src="https://framerusercontent.com/images/TB2DGULOnFPG9zuBavFwyqWZ2hw.svg?width=1024&height=32"
+                  alt=""
+                  width={1024}
+                  height={32}
+                  className="h-8 w-auto object-cover select-none shrink-0"
                   unoptimized
                 />
               </div>
-            ))}
+            </div>
           </div>
-        </div>
 
-        {/* Bottom Decorative Border line */}
-        <div className="w-full mt-14 sm:mt-20 overflow-hidden opacity-60">
-          <Image
-            src="https://framerusercontent.com/images/TB2DGULOnFPG9zuBavFwyqWZ2hw.svg?width=1024&height=32"
-            alt=""
-            width={1024}
-            height={32}
-            className="w-full h-auto object-cover select-none"
-            unoptimized
-          />
+          {/* Main Content Area */}
+          <div className="my-auto py-6 sm:py-8 flex flex-col gap-6 sm:gap-10">
+            {/* Section Heading */}
+            <div>
+              <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918]">
+                Native integration across your{" "}
+                <strong className="font-display font-normal text-black">agent of choice</strong>
+              </h2>
+            </div>
+
+            {/* Two Column Layout: Tabs Left, Terminal Preview Right */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-center">
+              {/* Left Column: Interactive Agent Tabs */}
+              <div className="relative pl-7 sm:pl-9 py-2">
+                {/* Vertical timeline track */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#191918]/10 rounded-full" />
+                <div className="absolute -left-0.5 -top-1 w-2 h-2 rounded-full bg-[#191918]/30" />
+                <div className="absolute -left-0.5 -bottom-1 w-2 h-2 rounded-full bg-[#191918]/30" />
+
+                {/* Sliding indicator pill */}
+                <div
+                  className="absolute left-0 w-1 h-21 bg-[#fcaa2d] rounded-full transition-all duration-300 ease-out"
+                  style={{ top: indicatorTop }}
+                />
+
+                <div className="flex flex-col gap-6 sm:gap-8">
+                  {TABS.map((tab, idx) => {
+                    const isActive = activeTab === idx;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleTabClick(idx)}
+                        className="text-left group cursor-pointer focus:outline-none transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 mb-1">
+                          <span
+                            className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[2px] ${tab.badgeBg} ${tab.badgeColor}`}
+                          >
+                            {tab.badge}
+                          </span>
+                          <span className="text-[10px] text-[#191918]/50 font-decima uppercase tracking-wider">
+                            {tab.tagline}
+                          </span>
+                        </div>
+
+                        <h3
+                          className={`text-lg sm:text-xl font-medium tracking-tight transition-colors duration-200 ${isActive
+                              ? "text-[#191918]"
+                              : "text-[#191918]/40 group-hover:text-[#191918]/70"
+                            }`}
+                        >
+                          {tab.name}
+                        </h3>
+
+                        {/* Expandable description */}
+                        <div
+                          className={`overflow-hidden transition-all duration-300 ease-out ${isActive
+                              ? "max-h-28 opacity-100 mt-2"
+                              : "max-h-0 opacity-0 mt-0"
+                            }`}
+                        >
+                          <p className="text-sm sm:text-base text-[#191918]/70 font-parabole leading-relaxed max-w-105">
+                            {tab.description}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Column: High-Definition Vector Terminal Window */}
+              <div className="relative aspect-532/494 w-full max-w-133 mx-auto rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-4 sm:p-5 flex flex-col justify-between text-white font-mono shadow-2xl select-none">
+                {/* Top Window Bar */}
+                <div className="flex items-center justify-between pb-3 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
+                    <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
+                    <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
+                    <span className="ml-2 text-[#8A8A94]">
+                      {activeTab === 0
+                        ? "claude · ~/projects/waitfeed"
+                        : activeTab === 1
+                          ? "PS C:\\Projects\\waitfeed> agy"
+                          : "opencode · waitfeed-workspace"}
+                    </span>
+                  </div>
+                  <span className="flex items-center gap-1.5 text-[#8A8A94]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />
+                    live
+                  </span>
+                </div>
+
+                {/* TAB 0: CLAUDE CODE */}
+                {activeTab === 0 && (
+                  <div className="flex-1 flex flex-col justify-between pt-1 text-xs leading-relaxed animate-fade-in">
+                    <div className="flex flex-col gap-2.5">
+                      {/* Welcome Box */}
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-[#D97757]/40 bg-[#D97757]/10 text-[#D97757] text-[10px]">
+                          <span>✳</span> Welcome to Claude Code
+                        </span>
+                      </div>
+
+                      {/* Authentic ANSI Shadow ASCII Art for CLAUDE CODE */}
+                      <div className="py-0.5 overflow-hidden">
+                        <pre className="font-mono text-[#D97757] text-[8px] sm:text-[9.5px] leading-[1.08] font-bold select-none tracking-tight">
+                          {CLAUDE_ASCII.join("\n")}
+                        </pre>
+                      </div>
+
+                      {/* Active wait-state indicator */}
+                      <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
+                        <span className="inline-block animate-spin text-[#D97757]">⠋</span>
+                        <span>thinking &amp; analyzing codebase…</span>
+                        <span className="ml-auto font-mono text-[9px] text-[#27AD75]">wait-state active</span>
+                      </div>
+
+                      {/* WaitFeed Wait-State Slot */}
+                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 sm:p-3 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="bg-[#27AD75] text-[#0A0A0C] px-1 text-[9px] font-bold">
+                              GH
+                            </span>
+                            <span className="text-[#EDEDF0] truncate">vllm-project/vllm</span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
+                            ▲ 31.2k · 2h
+                          </span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+                          Fast LLM serving engine. PagedAttention memory management achieves 24x higher throughput.
+                        </p>
+                        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+                          <span className="text-[#818CF8]">↗ github.com/vllm-project/vllm</span>
+                          <span>wait-state stream</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Claude Prompt Line */}
+                    <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+                      <span className="text-[#D97757] font-bold text-sm">&gt;</span>
+                      <span className="text-white/40">type anything to prompt Claude Code...</span>
+                      <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse ml-auto" />
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 1: ANTIGRAVITY CLI */}
+                {activeTab === 1 && (
+                  <div className="flex-1 flex flex-col justify-between pt-1 text-xs leading-relaxed animate-fade-in">
+                    <div className="flex flex-col gap-2.5">
+                      {/* Antigravity Rainbow Pixel "A" Logo Banner */}
+                      <div className="py-1">
+                        <svg
+                          viewBox="0 0 108 110"
+                          className="w-24 h-24 sm:w-28 sm:h-28"
+                          shapeRendering="crispEdges"
+                          aria-label="Antigravity Rainbow Logo"
+                        >
+                          {AGY_PIXELS.map((p, idx) => (
+                            <rect
+                              key={idx}
+                              x={p.c * 9}
+                              y={p.r * 11}
+                              width={9}
+                              height={11}
+                              fill={p.color}
+                            />
+                          ))}
+                        </svg>
+                      </div>
+
+                      {/* Welcome to Antigravity CLI! */}
+                      <div className="text-xs sm:text-sm font-bold tracking-tight font-mono">
+                        <span className="text-[#EDEDF0]">Welcome to </span>
+                        <span className="text-[#58A6FF]">Antigravity CLI!</span>
+                      </div>
+
+                      {/* Active wait-state indicator */}
+                      <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
+                        <span className="inline-block animate-spin text-[#58A6FF]">⠋</span>
+                        <span>running tool calls &amp; reasoning…</span>
+                        <span className="ml-auto font-mono text-[9px] text-[#fcaa2d]">statusline hook active</span>
+                      </div>
+
+                      {/* WaitFeed Statusline Hook Card */}
+                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 sm:p-3 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="bg-[#fcaa2d] text-[#0A0A0C] px-1 text-[9px] font-bold">
+                              HN
+                            </span>
+                            <span className="text-[#EDEDF0] truncate">
+                              SQLite with WebAssembly &amp; OPFS
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
+                            ▲ 1.4k · 3h
+                          </span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+                          Official SQLite Wasm release brings ACID-compliant local database storage via OPFS.
+                        </p>
+                        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+                          <span className="text-[#818CF8]">↗ sqlite.org/wasm</span>
+                          <span>dwell clock: 20s</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AGY Prompt Line */}
+                    <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+                      <span className="text-[#58A6FF] font-bold text-sm">&gt;</span>
+                      <span className="text-white/40">type prompt...</span>
+                      <span className="w-1.5 h-3.5 bg-white animate-pulse ml-auto" />
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: OPENCODE */}
+                {activeTab === 2 && (
+                  <div className="flex-1 flex flex-col justify-between pt-1 text-xs leading-relaxed animate-fade-in">
+                    <div className="flex flex-col gap-2.5">
+                      {/* Official OpenCode Wordmark Banner */}
+                      <div className="py-1">
+                        <svg
+                          viewBox="0 0 351 77"
+                          className="w-full max-w-[280px] sm:max-w-[320px] h-auto"
+                          shapeRendering="crispEdges"
+                          aria-label="OpenCode Logo"
+                        >
+                          {OPENCODE_PIXELS.map((p, idx) => (
+                            <rect
+                              key={idx}
+                              x={p.c * 9}
+                              y={p.r * 11}
+                              width={9}
+                              height={11}
+                              fill={p.color}
+                            />
+                          ))}
+                        </svg>
+                      </div>
+
+                      {/* Active wait-state indicator */}
+                      <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
+                        <span className="inline-block animate-spin text-[#3fb950]">⠋</span>
+                        <span>generating code in background…</span>
+                        <span className="ml-auto font-mono text-[9px] text-[#3fb950]">composer.top slot active</span>
+                      </div>
+
+                      {/* WaitFeed Reactive OpenTUI Slot */}
+                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 sm:p-3 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="bg-[#8A63F4] text-white px-1 text-[9px] font-bold">
+                              DEV
+                            </span>
+                            <span className="text-[#EDEDF0] truncate">
+                              Zero-copy AST parser in Rust
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
+                            ▲ 420 · 5h
+                          </span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+                          Memory-efficient parsing patterns utilizing Rust string slices, lifetimes, and zero-allocation token trees.
+                        </p>
+                        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+                          <span className="text-[#818CF8]">↗ dev.to/rust-ast</span>
+                          <span>OpenTUI Solid reactive</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* OpenCode Prompt Line */}
+                    <div className="flex items-center justify-between text-xs text-white/40 pt-1.5 border-t border-[#1E1E22]">
+                      <span className="flex items-center gap-2">
+                        <span className="text-white font-bold text-sm">&gt;</span>
+                        <span>Type your prompt...</span>
+                      </span>
+                      <span className="text-[#27AD75] font-decima text-[9px]">
+                        vanishes in 0ms
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bottom Statusbar */}
+                <div className="pt-2 border-t border-[#1E1E22] flex items-center justify-between text-[9px] text-white/40 font-decima uppercase tracking-wider">
+                  <span>
+                    {activeTab === 0
+                      ? "Claude Opus 5.5 · $0.04"
+                      : activeTab === 1
+                        ? "? for shortcuts"
+                        : "OpenTUI Solid v2.4"}
+                  </span>
+                  <span>
+                    {activeTab === 0
+                      ? "82% context"
+                      : activeTab === 1
+                        ? "Gemini Argon 4 · high"
+                        : "53 tests passed"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Decorative Border track */}
+          <div className="w-full h-8 overflow-hidden relative opacity-70 border-t border-[#e3e2d8]">
+            <div
+              className="absolute inset-y-0 flex items-center will-change-transform transition-transform duration-100 ease-out"
+              style={{
+                transform: `translateX(${scrollProgress * 100 - 100}px)`,
+              }}
+            >
+              <Image
+                src="https://framerusercontent.com/images/TB2DGULOnFPG9zuBavFwyqWZ2hw.svg?width=1024&height=32"
+                alt=""
+                width={1024}
+                height={32}
+                className="h-8 w-auto object-cover select-none shrink-0"
+                unoptimized
+              />
+              <Image
+                src="https://framerusercontent.com/images/zrSbXqC7vlV7qMXli6g1lo7kbk.svg?width=1018&height=32"
+                alt=""
+                width={1018}
+                height={32}
+                className="h-8 w-auto object-cover select-none shrink-0"
+                unoptimized
+              />
+            </div>
+          </div>
         </div>
       </div>
     </section>

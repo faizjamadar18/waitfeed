@@ -17,39 +17,39 @@ interface FeatureCardItem {
 const FEATURES: FeatureCardItem[] = [
   {
     id: "f1",
-    title: "specialized models",
+    title: "100% local & keyless",
     number: "No. 1",
-    icon: BrainIcon,
+    icon: ShieldIcon,
   },
   {
     id: "f2",
-    title: "fast retrieval",
+    title: "zero-latency hide",
     number: "No. 2",
-    icon: RadarIcon,
-  },
-  {
-    id: "f3",
-    title: "Source COntrol",
-    number: "No. 3",
-    icon: BranchIcon,
-  },
-  {
-    id: "f4",
-    title: "low latency",
-    number: "No. 4",
     icon: GaugeIcon,
   },
   {
-    id: "f5",
-    title: "simple integration",
-    number: "No. 5",
+    id: "f3",
+    title: "tri-agent support",
+    number: "No. 3",
     icon: PlugIcon,
   },
   {
+    id: "f4",
+    title: "pure tech radar",
+    number: "No. 4",
+    icon: RadarIcon,
+  },
+  {
+    id: "f5",
+    title: "36h persistent pool",
+    number: "No. 5",
+    icon: BranchIcon,
+  },
+  {
     id: "f6",
-    title: "built for reliability",
+    title: "honest limits contract",
     number: "No. 6",
-    icon: ShieldIcon,
+    icon: BrainIcon,
   },
 ];
 
@@ -65,12 +65,12 @@ export function FeaturesGrid() {
               Features
             </span>
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.15] tracking-[-0.04em] text-[#191918] max-w-175">
-            Building blocks for{" "}
-            <strong className="font-display font-bold">reliability and scale</strong>
+          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918] max-w-180">
+            Engineered for{" "}
+            <strong className="font-display font-normal text-black">terminal focus</strong>
           </h2>
           <p className="text-sm sm:text-base text-[#191918]/60 font-parabole leading-relaxed max-w-160">
-            Source control with out-of-the box codebase retrieval, fast utility SLMs, and task-specific agents you can run on any repo.
+            Zero ads, zero accounts, zero cloud backends. A local-first developer intelligence layer built specifically for the latency windows of autonomous coding agents.
           </p>
         </div>
 
@@ -81,13 +81,13 @@ export function FeaturesGrid() {
             return (
               <div
                 key={feat.id}
-                className="group p-6 rounded-xs border border-[#e3e2d8] bg-[#f3f2e7]/60 hover:bg-[#f3f2e7] hover:border-[#191918]/20 flex flex-col justify-between min-h-35 sm:min-h-40 transition-colors"
+                className="group p-6 rounded-xs border border-[#e3e2d8] bg-[#f3f2e7]/60 hover:bg-[#f3f2e7] hover:border-[#191918]/20 flex flex-col justify-between min-h-36 sm:min-h-40 transition-all duration-200"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-[#191918] group-hover:scale-105 transition-transform">
                     <Icon className="w-4 h-4" />
                   </span>
-                  <span className="font-decima text-sm uppercase tracking-wide text-[#191918]">
+                  <span className="font-decima text-base uppercase tracking-wider text-[#191918]">
                     {feat.title}
                   </span>
                 </div>

@@ -1,6 +1,35 @@
 import type { SVGProps } from "react";
 
-export function RelaceLogo({ className = "w-6 h-6", ...props }: SVGProps<SVGSVGElement>) {
+export function WaitFeedLogo({ className = "h-6 w-auto", ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      role="presentation"
+      viewBox="0 0 148 28"
+      fill="none"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <rect x="0" y="3" width="6" height="22" rx="1.5" fill="#fcaa2d" />
+      <text
+        x="15"
+        y="19"
+        fill="currentColor"
+        fontFamily="var(--font-decima), monospace"
+        fontSize="17"
+        fontWeight="700"
+        letterSpacing="0.08em"
+      >
+        WAITFEED
+      </text>
+    </svg>
+  );
+}
+
+export const RelaceLogo = WaitFeedLogo;
+
+
+export function RelaceEmblem({ className = "w-6 h-6", ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
       role="presentation"

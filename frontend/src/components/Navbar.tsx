@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { RelaceLogo, HamburgerIcon, CloseIcon } from "./Icons";
+import { CtaButton } from "./CtaButton";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,66 +30,68 @@ export function Navbar() {
   }, [isOpen]);
 
   return (
-    <header className="fixed top-10 left-0 right-0 z-40 h-16 bg-[#fffef2]/95 backdrop-blur-md border-b border-[#e3e2d8]/60 transition-colors">
+    <header className="fixed top-10 left-0 right-0 z-40 h-14 bg-[#fffef2]/95 backdrop-blur-md border-b border-[#e3e2d8] transition-colors">
       <div className="max-w-266 mx-auto px-5 sm:px-10 h-full flex items-center justify-between">
         {/* Left: Logo & Nav items */}
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-8 sm:gap-10">
           <Link
             href="/"
-            aria-label="Relace home"
+            aria-label="WaitFeed home"
             className="flex items-center text-[#191918] hover:opacity-80 transition-opacity"
           >
-            <RelaceLogo className="w-6 h-6 text-[#191918]" />
+            <RelaceLogo className="h-6 w-auto text-[#191918]" />
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm text-[#191918]/60 font-parabole">
+          <nav className="hidden md:flex items-center gap-7 text-xs text-[#191918] font-parabole tracking-wider uppercase">
             <Link
-              href="https://docs.relace.ai/docs/introduction"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-[#191918] transition-colors"
+              href="#how-it-works"
+              className="relative py-1 text-[#191918] hover:text-[#191918] transition-colors group"
             >
-              docs
+              HOW IT WORKS
+              <span className="absolute bottom-0 left-0 w-0 h-px bg-[#191918] transition-all duration-200 group-hover:w-full" />
             </Link>
             <Link
-              href="/blog"
-              className="hover:text-[#191918] transition-colors"
+              href="#sources"
+              className="relative py-1 text-[#191918] hover:text-[#191918] transition-colors group"
             >
-              Blog
+              TECH SOURCES
+              <span className="absolute bottom-0 left-0 w-0 h-px bg-[#191918] transition-all duration-200 group-hover:w-full" />
             </Link>
             <Link
-              href="/pricing"
-              className="hover:text-[#191918] transition-colors"
+              href="#features"
+              className="relative py-1 text-[#191918] hover:text-[#191918] transition-colors group"
             >
-              Pricing
+              FEATURES
+              <span className="absolute bottom-0 left-0 w-0 h-px bg-[#191918] transition-all duration-200 group-hover:w-full" />
             </Link>
             <Link
-              href="/about-us"
-              className="hover:text-[#191918] transition-colors"
+              href="#faq"
+              className="relative py-1 text-[#191918] hover:text-[#191918] transition-colors group"
             >
-              about us
+              FAQS
+              <span className="absolute bottom-0 left-0 w-0 h-px bg-[#191918] transition-all duration-200 group-hover:w-full" />
             </Link>
           </nav>
         </div>
 
         {/* Right: Actions */}
-        <div className="hidden sm:flex items-center gap-2.5">
+        <div className="hidden sm:flex items-center gap-3">
           <Link
-            href="https://app.relace.ai/sign-up"
+            href="https://github.com/faizjamadar18/waitfeed"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-medium px-3.5 py-1.5 rounded-xs border border-[#e3e2d8] bg-[#f3f2e7]/80 hover:bg-[#f3f2e7] text-[#191918] transition-colors"
+            className="px-2.5 py-1.5 text-xs font-parabole font-medium text-[#191918] uppercase tracking-wider hover:opacity-80 transition-opacity"
           >
-            app
+            GITHUB
           </Link>
-          <Link
-            href="https://cal.com/team/relace/30min"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium px-3.5 py-1.5 rounded-xs bg-[#191918] text-white hover:bg-[#2c2c2a] transition-colors"
+          <CtaButton
+            href="#install"
+            variant="accent"
+            showArrow={false}
+            className="py-1.5! px-3.5! text-xs! font-medium! uppercase tracking-wider text-[#191918]!"
           >
-            Get a Demo
-          </Link>
+            INSTALL CLI
+          </CtaButton>
         </div>
 
         {/* Mobile menu trigger */}
@@ -97,67 +100,66 @@ export function Navbar() {
             type="button"
             onClick={() => setIsOpen(!isOpen)}
             aria-label={isOpen ? "Close menu" : "Open menu"}
-            className="p-2 text-[#191918] hover:opacity-75 transition-opacity"
+            className="p-2 text-[#191918] hover:opacity-75 transition-opacity cursor-pointer"
           >
-            {isOpen ? <CloseIcon className="w-4 h-4" /> : <HamburgerIcon className="w-4 h-4" />}
+            {isOpen ? <CloseIcon className="w-5 h-5" /> : <HamburgerIcon className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
       {/* Mobile drawer */}
       {isOpen && (
-        <div className="md:hidden fixed inset-x-0 top-16 bg-[#fffef2] border-b border-[#e3e2d8] px-6 py-8 shadow-lg flex flex-col gap-6">
-          <nav className="flex flex-col gap-4 text-base font-parabole text-[#191918]">
+        <div className="md:hidden fixed inset-x-0 top-14 bg-[#fffef2] border-b border-[#e3e2d8] px-6 py-8 shadow-lg flex flex-col gap-6">
+          <nav className="flex flex-col gap-4 text-xs font-parabole text-[#191918] tracking-wider uppercase">
             <Link
-              href="https://docs.relace.ai/docs/introduction"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#how-it-works"
               onClick={() => setIsOpen(false)}
-              className="text-[#191918]/70 hover:text-[#191918] transition-colors"
+              className="text-[#191918] hover:opacity-80 transition-opacity"
             >
-              docs
+              HOW IT WORKS
             </Link>
             <Link
-              href="/blog"
+              href="#sources"
               onClick={() => setIsOpen(false)}
-              className="text-[#191918]/70 hover:text-[#191918] transition-colors"
+              className="text-[#191918] hover:opacity-80 transition-opacity"
             >
-              Blog
+              TECH SOURCES
             </Link>
             <Link
-              href="/pricing"
+              href="#features"
               onClick={() => setIsOpen(false)}
-              className="text-[#191918]/70 hover:text-[#191918] transition-colors"
+              className="text-[#191918] hover:opacity-80 transition-opacity"
             >
-              Pricing
+              FEATURES
             </Link>
             <Link
-              href="/about-us"
+              href="#faq"
               onClick={() => setIsOpen(false)}
-              className="text-[#191918]/70 hover:text-[#191918] transition-colors"
+              className="text-[#191918] hover:opacity-80 transition-opacity"
             >
-              about us
+              FAQS
             </Link>
           </nav>
           <div className="flex flex-col gap-2.5 pt-4 border-t border-[#e3e2d8]">
-            <Link
-              href="https://app.relace.ai/sign-up"
+            <CtaButton
+              href="https://github.com/faizjamadar18/waitfeed"
               target="_blank"
-              rel="noopener noreferrer"
+              variant="beige"
+              showArrow={false}
               onClick={() => setIsOpen(false)}
-              className="w-full text-center text-xs font-medium py-2 rounded-xs border border-[#e3e2d8] bg-[#f3f2e7] text-[#191918]"
+              className="w-full text-center uppercase tracking-wider text-xs py-2.5!"
             >
-              app
-            </Link>
-            <Link
-              href="https://cal.com/team/relace/30min"
-              target="_blank"
-              rel="noopener noreferrer"
+              GITHUB
+            </CtaButton>
+            <CtaButton
+              href="#install"
+              variant="accent"
+              showArrow={false}
               onClick={() => setIsOpen(false)}
-              className="w-full text-center text-xs font-medium py-2 rounded-xs bg-[#191918] text-white"
+              className="w-full text-center uppercase tracking-wider text-xs py-2.5!"
             >
-              Get a Demo
-            </Link>
+              INSTALL CLI
+            </CtaButton>
           </div>
         </div>
       )}
