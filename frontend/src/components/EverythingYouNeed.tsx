@@ -263,7 +263,7 @@ export function EverythingYouNeed() {
               </div>
 
               {/* Right Column: High-Definition Vector Terminal Window */}
-              <div className="relative w-full max-w-133 mx-auto min-h-115 sm:min-h-121.25 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-3.5 sm:p-4.5 flex flex-col justify-between text-white font-mono shadow-2xl select-none">
+              <div className="relative w-full max-w-133 mx-auto min-h-98 sm:min-h-102 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-3.5 sm:p-4 flex flex-col justify-between text-white font-mono shadow-2xl select-none">
                 {/* Top Window Bar */}
                 <div className="flex items-center justify-between pb-2.5 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
                   <div className="flex items-center gap-1.5">
@@ -295,7 +295,7 @@ export function EverythingYouNeed() {
                 </div>
 
                 {/* Terminal Views Layered Stack (Smooth Crossfade & Slide Transition) */}
-                <div className="relative flex-1 w-full my-1 min-h-85 sm:min-h-90 overflow-hidden">
+                <div className="relative flex-1 w-full my-1 min-h-75 sm:min-h-78 overflow-hidden">
                   {/* TAB 0: CLAUDE CODE */}
                   <div
                     className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 0
@@ -303,7 +303,7 @@ export function EverythingYouNeed() {
                         : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
                       }`}
                   >
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                       {/* Welcome Box */}
                       <div>
                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border border-[#D97757]/40 bg-[#D97757]/10 text-[#D97757] text-[10px]">
@@ -320,7 +320,7 @@ export function EverythingYouNeed() {
                     </div>
 
                     {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
-                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5">
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
                       {/* Active wait-state indicator */}
                       <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
                         <span className="inline-block animate-spin text-[#D97757]">⠋</span>
@@ -396,7 +396,7 @@ export function EverythingYouNeed() {
                     </div>
 
                     {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
-                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5">
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
                       {/* Active wait-state indicator */}
                       <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
                         <span className="inline-block animate-spin text-[#58A6FF]">⠋</span>
@@ -444,7 +444,7 @@ export function EverythingYouNeed() {
                         : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
                       }`}
                   >
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col">
                       {/* Official OpenCode Wordmark Banner */}
                       <div className="py-1">
                         <svg
@@ -465,10 +465,38 @@ export function EverythingYouNeed() {
                           ))}
                         </svg>
                       </div>
+
+                      {/* OpenCode Slogan / Subtitle */}
+                      <p className="font-mono text-[9px] sm:text-[10px] text-[#7A7A85] tracking-wider uppercase select-none">
+                        THE AI CODING AGENT BUILT FOR THE TERMINAL
+                      </p>
+
+                      {/* OpenCode Execution Logs */}
+                      <div className="flex flex-col gap-1.5 pt-6 font-mono text-[11px] select-none">
+                        <div className="flex items-center gap-2 text-[#8A8A94]">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[#3fb950]">✓</span>
+                            <span className="text-[#EDEDF0]">Read</span>
+                            <span className="text-[#8A8A94]">core/parser.rs</span>
+                          </span>
+                          <span className="text-[10px] text-[#5C5C66]">142 lines</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[#8A8A94]">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[#3fb950]">✓</span>
+                            <span className="text-[#EDEDF0]">Edit</span>
+                            <span className="text-[#8A8A94]">core/parser.rs</span>
+                          </span>
+                          <span className="text-[10px] font-mono">
+                            <span className="text-[#3fb950]">+38</span>{" "}
+                            <span className="text-[#F85149]">−12</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
-                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5">
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
                       {/* Active wait-state indicator */}
                       <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
                         <span className="inline-block animate-spin text-[#3fb950]">⠋</span>

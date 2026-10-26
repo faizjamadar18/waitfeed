@@ -150,8 +150,8 @@ export function ModelsAndInfra() {
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
               borderRadius: 0,
-              padding: "14px 19px 19px 19px",
-              height: "248px",
+              padding: "16px 19px 16px 19px",
+              height: "auto",
               boxShadow: "none",
               overflow: "hidden",
               scrollbarWidth: "none",
@@ -161,15 +161,15 @@ export function ModelsAndInfra() {
             {/* Table container with zero scrollbars */}
             <div className="w-full overflow-hidden scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <div className="w-full">
-                {/* 1) Header Row (46px tall, Inter 15px, weight 400, left-aligned) */}
+                {/* 1) Header Row (Compact h-7 matching data rows, perfectly aligned) */}
                 <div
-                  className="grid w-full h-11.5 items-center text-[12px] sm:text-[15px] font-sans font-normal text-[#1a1a1a]"
-                  style={{ gridTemplateColumns: "29% 29% 29% 13%" }}
+                  className="grid w-full h-7 items-center text-[12px] sm:text-sm font-sans font-medium text-[#1a1a1a]"
+                  style={{ gridTemplateColumns: "28% 34% 22% 16%" }}
                 >
-                  <div className="pl-1 sm:pl-2.75 pr-1 sm:pr-2 truncate">Source</div>
-                  <div className="pl-1 sm:pl-2.75 pr-1 sm:pr-2 truncate">Content</div>
-                  <div className="pl-1 sm:pl-2.75 pr-1 sm:pr-2 truncate">Refresh</div>
-                  <div className="pl-1 sm:pl-2.5 pr-1 sm:pr-2 min-w-max">Status</div>
+                  <div className="pl-2 sm:pl-2.75 pr-1 sm:pr-2 truncate">Source</div>
+                  <div className="pl-2 sm:pl-2.75 pr-1 sm:pr-2 truncate">Content</div>
+                  <div className="pl-2 sm:pl-2.75 pr-1 sm:pr-2 truncate">Refresh</div>
+                  <div className="pl-2.5 sm:pl-2.5 pr-1 sm:pr-2 min-w-max">Status</div>
                 </div>
 
                 {/* Animated Top Border of the Table (scaleX 0 -> 1) */}
@@ -224,7 +224,7 @@ export function ModelsAndInfra() {
                         key={row.source}
                         className="grid w-full h-7 items-stretch border-l border-r border-b border-solid transition-[background-color,border-color] duration-280 ease-out relative"
                         style={{
-                          gridTemplateColumns: "29% 29% 29% 13%",
+                          gridTemplateColumns: "28% 34% 22% 16%",
                           borderColor: isActive ? "#FBA92C" : "rgba(26, 26, 26, 0.85)",
                           backgroundColor: isActive
                             ? "rgba(251, 169, 44, 0.28)"
