@@ -420,7 +420,7 @@ export function HeroTerminal() {
             autoCapitalize="off"
             spellCheck={false}
             maxLength={80}
-            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#EDEDF0] caret-[#D97757] outline-none placeholder-white/40"
+            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#EDEDF0] caret-[#D97757] outline-none terminal-prompt-input"
           />
           {!inputValue && (
             <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse shrink-0" aria-hidden="true" />

@@ -101,3 +101,7 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+.terminal-prompt-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
