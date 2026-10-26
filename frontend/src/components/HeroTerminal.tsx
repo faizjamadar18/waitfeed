@@ -304,9 +304,9 @@ export function HeroTerminal() {
       <div className="border border-[#1E1E22] bg-[#0A0A0C] font-mono text-[12px] leading-normal text-[#EDEDF0] shadow-2xl">
         {/* Top Header Bar */}
         <div className="flex items-center gap-1.5 border-b border-[#1E1E22] px-3 py-2 text-[10px] text-[#5C5C66]">
-          <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
-          <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
-          <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
+          <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+          <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+          <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
           <span className="ml-2 text-[#8A8A94]">surface 01 — terminal</span>
           <span className="ml-auto flex items-center gap-1.5 text-[#8A8A94]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />

@@ -6,10 +6,6 @@ import Image from "next/image";
 interface AgentTab {
   id: string;
   name: string;
-  badge: string;
-  badgeBg: string;
-  badgeColor: string;
-  tagline: string;
   description: string;
 }
 
@@ -17,32 +13,20 @@ const TABS: AgentTab[] = [
   {
     id: "claude",
     name: "Claude Code",
-    badge: "Anthropic",
-    badgeBg: "bg-[#D97757]/15",
-    badgeColor: "text-[#D97757]",
-    tagline: "Ambient wait-state companion",
     description:
-      "Streams verified developer updates and trending repositories during multi-turn reasoning, file edits, and bash latency. Clears the exact millisecond you start typing.",
+      "Ambient developer stream during reasoning and tool runs. Clears instantly the millisecond you type.",
   },
   {
     id: "agy",
-    name: "Antigravity CLI (AGY)",
-    badge: "Google DeepMind",
-    badgeBg: "bg-[#4285F4]/15",
-    badgeColor: "text-[#4285F4]",
-    tagline: "Live statusline hook with dwell timing",
+    name: "Antigravity",
     description:
-      "Hooks directly into AGY's statusline pipeline. Uses wall-clock dwell timing to rotate high-signal briefs without polluting your prompt history or tool outputs.",
+      "Native statusline integration delivering high-signal briefs directly inside your agent loop.",
   },
   {
     id: "opencode",
     name: "OpenCode",
-    badge: "Open Source",
-    badgeBg: "bg-[#27AD75]/15",
-    badgeColor: "text-[#27AD75]",
-    tagline: "Reactive OpenTUI Solid slot",
     description:
-      "Mounted natively in composer.top via OpenTUI Solid components. Sits silently above the input box and unmounts in 0ms on keypress with zero keystroke lag.",
+      "Reactive wait-state ticker docked right above the input prompt with zero keystroke latency.",
   },
 ];
 
@@ -89,6 +73,12 @@ export function EverythingYouNeed() {
   const [activeTab, setActiveTab] = useState<number>(0);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const isClickingRef = useRef<boolean>(false);
+  const indicatorTop =
+    activeTab === 0
+      ? "14px"
+      : activeTab === 1
+        ? "65px"
+        : "116px";
 
   useEffect(() => {
     let animationFrameId: number;
@@ -104,9 +94,9 @@ export function EverythingYouNeed() {
       setScrollProgress(progress);
 
       if (!isClickingRef.current) {
-        if (progress < 0.33) {
+        if (progress < 0.35) {
           setActiveTab(0);
-        } else if (progress < 0.66) {
+        } else if (progress < 0.68) {
           setActiveTab(1);
         } else {
           setActiveTab(2);
@@ -138,7 +128,7 @@ export function EverythingYouNeed() {
     const containerTop = rect.top + scrollTop;
     const totalScrollable = containerRef.current.offsetHeight - window.innerHeight;
 
-    const targetFraction = index === 0 ? 0.05 : index === 1 ? 0.48 : 0.88;
+    const targetFraction = index === 0 ? 0.05 : index === 1 ? 0.5 : 0.9;
     const targetScrollY = containerTop + totalScrollable * targetFraction;
 
     window.scrollTo({
@@ -151,13 +141,6 @@ export function EverythingYouNeed() {
     }, 700);
   }
 
-  const indicatorTop =
-    activeTab === 0
-      ? "0px"
-      : activeTab === 1
-        ? "calc(50% - 42.5px)"
-        : "calc(100% - 85px)";
-
   return (
     <section
       id="how-it-works"
@@ -169,11 +152,16 @@ export function EverythingYouNeed() {
       <div className="sticky top-0 h-screen w-full flex flex-col justify-center items-center overflow-hidden">
         <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-between py-6 h-full max-h-205">
           {/* Top Decorative Border track */}
-          <div className="w-full flex flex-col gap-2">
-            <div className="flex items-center justify-between text-[10px] font-decima text-[#191918]/60 uppercase tracking-widest px-1">
-              <span>fig 001 · claude-code</span>
-              <span>fig 002 · agy-cli</span>
-              <span>fig 003 · opencode</span>
+          <div className="w-full flex flex-col gap-2 flex-none">
+            <div className="flex items-center justify-between text-[10px] font-decima text-[#191918]/50 uppercase tracking-widest px-1">
+              <span>
+                {activeTab === 0
+                  ? "FIG. 001 · CLAUDE CODE INTEGRATION"
+                  : activeTab === 1
+                    ? "FIG. 002 · ANTIGRAVITY STATUSLINE"
+                    : "FIG. 003 · OPENCODE COMPOSER"}
+              </span>
+              <span>RUNTIME ADAPTERS</span>
             </div>
             <div className="w-full h-8 overflow-hidden relative opacity-70 border-b border-[#e3e2d8]">
               <div
@@ -203,92 +191,102 @@ export function EverythingYouNeed() {
           </div>
 
           {/* Main Content Area */}
-          <div className="my-auto py-6 sm:py-8 flex flex-col gap-6 sm:gap-10">
-            {/* Section Heading */}
-            <div>
-              <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918]">
-                Native integration across your{" "}
-                <strong className="font-display font-normal text-black">agent of choice</strong>
-              </h2>
-            </div>
+          <div className="flex-1 flex flex-col justify-center py-4 sm:py-6">
+            {/* Two Column Layout: Left Column (Heading + Rail Tabs), Right Column (Terminal Preview) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14 items-start">
+              {/* Left Column: Heading + Interactive Agent Tabs (Strictly anchored at top) */}
+              <div className="flex flex-col justify-start items-start">
+                <h2 className="text-2xl sm:text-3xl md:text-[34px] lg:text-[38px] font-parabole font-normal leading-[1.12] tracking-[-0.035em] text-[#191918] mb-8 sm:mb-10 shrink-0">
+                  Native integration across your <br className="hidden sm:inline" />
+                  <strong className="font-display font-normal text-black">agent of choice</strong>
+                </h2>
 
-            {/* Two Column Layout: Tabs Left, Terminal Preview Right */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-center">
-              {/* Left Column: Interactive Agent Tabs */}
-              <div className="relative pl-7 sm:pl-9 py-2">
-                {/* Vertical timeline track */}
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#191918]/10 rounded-full" />
-                <div className="absolute -left-0.5 -top-1 w-2 h-2 rounded-full bg-[#191918]/30" />
-                <div className="absolute -left-0.5 -bottom-1 w-2 h-2 rounded-full bg-[#191918]/30" />
+                {/* Interactive Agent Tabs with Vertical Rail */}
+                <div className="relative pl-7 sm:pl-9 py-1 w-full min-h-48.75">
+                  {/* Background Vertical Dotted Rail Track (Constant fixed height, never stretches/shrinks) */}
+                  <div className="absolute left-0.75 -translate-x-1/2 top-3.5 h-41.5 w-px border-l-2 border-dotted border-[#191918]/25 pointer-events-none" />
 
-                {/* Sliding indicator pill */}
-                <div
-                  className="absolute left-0 w-1 h-21 bg-[#fcaa2d] rounded-full transition-all duration-300 ease-out"
-                  style={{ top: indicatorTop }}
-                />
+                  {/* Top Terminal Dot */}
+                  <div
+                    className={`absolute left-0.75 top-3.5 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-colors duration-300 pointer-events-none ${activeTab === 0 ? "bg-[#fcaa2d]" : "bg-[#BDBDB6]"
+                      }`}
+                  />
 
-                <div className="flex flex-col gap-6 sm:gap-8">
-                  {TABS.map((tab, idx) => {
-                    const isActive = activeTab === idx;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => handleTabClick(idx)}
-                        className="text-left group cursor-pointer focus:outline-none transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5 mb-1">
-                          <span
-                            className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-xs ${tab.badgeBg} ${tab.badgeColor}`}
+                  {/* Bottom Terminal Dot */}
+                  <div
+                    className={`absolute left-0.75 top-45 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-colors duration-300 pointer-events-none ${activeTab === 2 ? "bg-[#fcaa2d]" : "bg-[#BDBDB6]"
+                      }`}
+                  />
+
+                  {/* Sliding Active Amber Indicator Segment (Constant 64px height, glides smoothly) */}
+                  <div
+                    className="absolute left-0.75 -translate-x-1/2 w-0.5 h-16 bg-[#fcaa2d] rounded-full transition-all duration-400 ease-out pointer-events-none"
+                    style={{ top: indicatorTop }}
+                  />
+
+                  {/* Tabs List */}
+                  <div className="flex flex-col gap-6 sm:gap-7">
+                    {TABS.map((tab, idx) => {
+                      const isActive = activeTab === idx;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => handleTabClick(idx)}
+                          className="text-left group cursor-pointer focus:outline-none"
+                        >
+                          <h3
+                            className={`text-lg sm:text-xl font-medium tracking-tight transition-colors duration-200 ${isActive
+                                ? "text-[#191918]"
+                                : "text-[#191918]/45 group-hover:text-[#191918]/80"
+                              }`}
                           >
-                            {tab.badge}
-                          </span>
-                          <span className="text-[10px] text-[#191918]/50 font-decima uppercase tracking-wider">
-                            {tab.tagline}
-                          </span>
-                        </div>
+                            {tab.name}
+                          </h3>
 
-                        <h3
-                          className={`text-lg sm:text-xl font-medium tracking-tight transition-colors duration-200 ${isActive
-                              ? "text-[#191918]"
-                              : "text-[#191918]/40 group-hover:text-[#191918]/70"
-                            }`}
-                        >
-                          {tab.name}
-                        </h3>
-
-                        {/* Expandable description */}
-                        <div
-                          className={`overflow-hidden transition-all duration-300 ease-out ${isActive
-                              ? "max-h-28 opacity-100 mt-2"
-                              : "max-h-0 opacity-0 mt-0"
-                            }`}
-                        >
-                          <p className="text-sm sm:text-base text-[#191918]/70 font-parabole leading-relaxed max-w-105">
-                            {tab.description}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                          {/* Expandable description */}
+                          <div
+                            className={`overflow-hidden transition-all duration-300 ease-out ${isActive
+                                ? "max-h-24 opacity-100 mt-2 sm:mt-2.5"
+                                : "max-h-0 opacity-0 mt-0"
+                              }`}
+                          >
+                            <p className="text-sm sm:text-[15px] text-[#191918]/65 font-parabole leading-relaxed max-w-md">
+                              {tab.description}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
               {/* Right Column: High-Definition Vector Terminal Window */}
-              <div className="relative aspect-532/494 w-full max-w-133 mx-auto rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-4 sm:p-5 flex flex-col justify-between text-white font-mono shadow-2xl select-none">
+              <div className="relative w-full max-w-133 mx-auto min-h-115 sm:min-h-121.25 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-3.5 sm:p-4.5 flex flex-col justify-between text-white font-mono shadow-2xl select-none">
                 {/* Top Window Bar */}
-                <div className="flex items-center justify-between pb-3 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
+                <div className="flex items-center justify-between pb-2.5 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
-                    <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
-                    <span className="h-2 w-2 rounded-full border border-[#3A3A40]" />
-                    <span className="ml-2 text-[#8A8A94]">
-                      {activeTab === 0
-                        ? "claude · ~/projects/waitfeed"
-                        : activeTab === 1
-                          ? "PS C:\\Projects\\waitfeed> agy"
-                          : "opencode · waitfeed-workspace"}
-                    </span>
+                    <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+                    <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+                    <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+                    <div className="relative h-4 overflow-hidden ml-2 flex-1 w-48">
+                      {TABS.map((tab, idx) => (
+                        <span
+                          key={tab.id}
+                          className={`absolute left-0 top-0 text-[#8A8A94] transition-all duration-300 ease-out ${activeTab === idx
+                              ? "opacity-100 translate-y-0"
+                              : "opacity-0 -translate-y-2 pointer-events-none"
+                            }`}
+                        >
+                          {idx === 0
+                            ? "claude · ~/projects/waitfeed"
+                            : idx === 1
+                              ? "antigravity · ~/projects/waitfeed"
+                              : "opencode · ~/projects/waitfeed"}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <span className="flex items-center gap-1.5 text-[#8A8A94]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />
@@ -296,33 +294,42 @@ export function EverythingYouNeed() {
                   </span>
                 </div>
 
-                {/* TAB 0: CLAUDE CODE */}
-                {activeTab === 0 && (
-                  <div className="flex-1 flex flex-col justify-between pt-1 text-xs leading-relaxed animate-fade-in">
-                    <div className="flex flex-col gap-2.5">
+                {/* Terminal Views Layered Stack (Smooth Crossfade & Slide Transition) */}
+                <div className="relative flex-1 w-full my-1 min-h-85 sm:min-h-90 overflow-hidden">
+                  {/* TAB 0: CLAUDE CODE */}
+                  <div
+                    className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 0
+                        ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                        : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
+                      }`}
+                  >
+                    <div className="flex flex-col gap-2">
                       {/* Welcome Box */}
                       <div>
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[3px] border border-[#D97757]/40 bg-[#D97757]/10 text-[#D97757] text-[10px]">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border border-[#D97757]/40 bg-[#D97757]/10 text-[#D97757] text-[10px]">
                           <span>✳</span> Welcome to Claude Code
                         </span>
                       </div>
 
                       {/* Authentic ANSI Shadow ASCII Art for CLAUDE CODE */}
                       <div className="py-0.5 overflow-hidden">
-                        <pre className="font-mono text-[#D97757] text-[8px] sm:text-[9.5px] leading-[1.08] font-bold select-none tracking-tight">
+                        <pre className="font-mono text-[#D97757] text-[7.5px] sm:text-[8.5px] leading-[1.05] font-bold select-none tracking-tight">
                           {CLAUDE_ASCII.join("\n")}
                         </pre>
                       </div>
+                    </div>
 
+                    {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5">
                       {/* Active wait-state indicator */}
                       <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
                         <span className="inline-block animate-spin text-[#D97757]">⠋</span>
                         <span>thinking &amp; analyzing codebase…</span>
-                        <span className="ml-auto font-mono text-[9px] text-[#27AD75]">wait-state active</span>
+                        <span className="ml-auto font-mono text-[9px] text-[#D97757]">wait-state active</span>
                       </div>
 
                       {/* WaitFeed Wait-State Slot */}
-                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 sm:p-3 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
+                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
                         <div className="flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1.5 font-bold">
                             <span className="bg-[#27AD75] text-[#0A0A0C] px-1 text-[9px] font-bold">
@@ -342,26 +349,29 @@ export function EverythingYouNeed() {
                           <span>wait-state stream</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Claude Prompt Line */}
-                    <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-                      <span className="text-[#D97757] font-bold text-sm">&gt;</span>
-                      <span className="text-white/40">type anything to prompt Claude Code...</span>
-                      <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse ml-auto" />
+                      {/* Claude Prompt Line */}
+                      <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+                        <span className="text-[#D97757] font-bold text-sm">&gt;</span>
+                        <span className="text-white/40">type anything to prompt Claude Code...</span>
+                        <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse ml-auto" />
+                      </div>
                     </div>
                   </div>
-                )}
 
-                {/* TAB 1: ANTIGRAVITY CLI */}
-                {activeTab === 1 && (
-                  <div className="flex-1 flex flex-col justify-between pt-1 text-xs leading-relaxed animate-fade-in">
-                    <div className="flex flex-col gap-2.5">
+                  {/* TAB 1: ANTIGRAVITY */}
+                  <div
+                    className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 1
+                        ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                        : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
+                      }`}
+                  >
+                    <div className="flex flex-col gap-2">
                       {/* Antigravity Rainbow Pixel "A" Logo Banner */}
                       <div className="py-1">
                         <svg
                           viewBox="0 0 108 110"
-                          className="w-24 h-24 sm:w-28 sm:h-28"
+                          className="w-20 h-20 sm:w-24 sm:h-24"
                           shapeRendering="crispEdges"
                           aria-label="Antigravity Rainbow Logo"
                         >
@@ -378,21 +388,24 @@ export function EverythingYouNeed() {
                         </svg>
                       </div>
 
-                      {/* Welcome to Antigravity CLI! */}
+                      {/* Welcome to Antigravity! */}
                       <div className="text-xs sm:text-sm font-bold tracking-tight font-mono">
                         <span className="text-[#EDEDF0]">Welcome to </span>
-                        <span className="text-[#58A6FF]">Antigravity CLI!</span>
+                        <span className="text-[#58A6FF]">Antigravity!</span>
                       </div>
+                    </div>
 
+                    {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5">
                       {/* Active wait-state indicator */}
                       <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
                         <span className="inline-block animate-spin text-[#58A6FF]">⠋</span>
                         <span>running tool calls &amp; reasoning…</span>
-                        <span className="ml-auto font-mono text-[9px] text-[#fcaa2d]">statusline hook active</span>
+                        <span className="ml-auto font-mono text-[9px] text-[#58A6FF]">wait-state active</span>
                       </div>
 
                       {/* WaitFeed Statusline Hook Card */}
-                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 sm:p-3 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
+                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
                         <div className="flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1.5 font-bold">
                             <span className="bg-[#fcaa2d] text-[#0A0A0C] px-1 text-[9px] font-bold">
@@ -414,26 +427,29 @@ export function EverythingYouNeed() {
                           <span>dwell clock: 20s</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* AGY Prompt Line */}
-                    <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-                      <span className="text-[#58A6FF] font-bold text-sm">&gt;</span>
-                      <span className="text-white/40">type prompt...</span>
-                      <span className="w-1.5 h-3.5 bg-white animate-pulse ml-auto" />
+                      {/* AGY Prompt Line */}
+                      <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+                        <span className="text-[#58A6FF] font-bold text-sm">&gt;</span>
+                        <span className="text-white/40">type prompt...</span>
+                        <span className="w-1.5 h-3.5 bg-[#58A6FF] animate-pulse ml-auto" />
+                      </div>
                     </div>
                   </div>
-                )}
 
-                {/* TAB 2: OPENCODE */}
-                {activeTab === 2 && (
-                  <div className="flex-1 flex flex-col justify-between pt-1 text-xs leading-relaxed animate-fade-in">
-                    <div className="flex flex-col gap-2.5">
+                  {/* TAB 2: OPENCODE */}
+                  <div
+                    className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 2
+                        ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
+                        : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
+                      }`}
+                  >
+                    <div className="flex flex-col gap-2">
                       {/* Official OpenCode Wordmark Banner */}
                       <div className="py-1">
                         <svg
                           viewBox="0 0 351 77"
-                          className="w-full max-w-70 sm:max-w-80 h-auto"
+                          className="w-full max-w-60 sm:max-w-68 h-auto"
                           shapeRendering="crispEdges"
                           aria-label="OpenCode Logo"
                         >
@@ -449,16 +465,19 @@ export function EverythingYouNeed() {
                           ))}
                         </svg>
                       </div>
+                    </div>
 
+                    {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5">
                       {/* Active wait-state indicator */}
                       <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
                         <span className="inline-block animate-spin text-[#3fb950]">⠋</span>
-                        <span>generating code in background…</span>
-                        <span className="ml-auto font-mono text-[9px] text-[#3fb950]">composer.top slot active</span>
+                        <span>thinking &amp; analyzing codebase…</span>
+                        <span className="ml-auto font-mono text-[9px] text-[#3fb950]">wait-state active</span>
                       </div>
 
                       {/* WaitFeed Reactive OpenTUI Slot */}
-                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 sm:p-3 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
+                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
                         <div className="flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1.5 font-bold">
                             <span className="bg-[#8A63F4] text-white px-1 text-[9px] font-bold">
@@ -480,44 +499,50 @@ export function EverythingYouNeed() {
                           <span>OpenTUI Solid reactive</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* OpenCode Prompt Line */}
-                    <div className="flex items-center justify-between text-xs text-white/40 pt-1.5 border-t border-[#1E1E22]">
-                      <span className="flex items-center gap-2">
-                        <span className="text-white font-bold text-sm">&gt;</span>
-                        <span>Type your prompt...</span>
-                      </span>
-                      <span className="text-[#27AD75] font-decima text-[9px]">
-                        vanishes in 0ms
-                      </span>
+                      {/* OpenCode Prompt Line */}
+                      <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+                        <span className="text-[#3fb950] font-bold text-sm">&gt;</span>
+                        <span className="text-white/40">Type your prompt...</span>
+                        <span className="w-1.5 h-3.5 bg-[#3fb950] animate-pulse ml-auto" />
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Bottom Statusbar */}
-                <div className="pt-2 border-t border-[#1E1E22] flex items-center justify-between text-[9px] text-white/40 font-decima uppercase tracking-wider">
-                  <span>
-                    {activeTab === 0
-                      ? "Claude Opus 5.5 · $0.04"
-                      : activeTab === 1
-                        ? "? for shortcuts"
-                        : "OpenTUI Solid v2.4"}
-                  </span>
-                  <span>
-                    {activeTab === 0
-                      ? "82% context"
-                      : activeTab === 1
-                        ? "Gemini Argon 4 · high"
-                        : "53 tests passed"}
-                  </span>
+                <div className="pt-2 border-t border-[#1E1E22] flex items-center justify-between text-[9px] text-white/40 font-decima uppercase tracking-wider relative h-6">
+                  {TABS.map((tab, idx) => (
+                    <div
+                      key={tab.id}
+                      className={`absolute inset-x-0 top-1.5 flex items-center justify-between transition-all duration-300 ease-out ${activeTab === idx
+                          ? "opacity-100 translate-y-0 pointer-events-auto"
+                          : "opacity-0 translate-y-1 pointer-events-none"
+                        }`}
+                    >
+                      <span>
+                        {idx === 0
+                          ? "Claude Opus 5.5 · $0.04"
+                          : idx === 1
+                            ? "? for shortcuts"
+                            : "OpenTUI Solid v2.4"}
+                      </span>
+                      <span>
+                        {idx === 0
+                          ? "82% context"
+                          : idx === 1
+                            ? "Gemini Argon 4 · high"
+                            : "53 tests passed"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
 
           {/* Bottom Decorative Border track */}
-          <div className="w-full h-8 overflow-hidden relative opacity-70 border-t border-[#e3e2d8]">
+          <div className="w-full h-8 overflow-hidden relative opacity-70 border-t border-[#e3e2d8] flex-none">
             <div
               className="absolute inset-y-0 flex items-center will-change-transform transition-transform duration-100 ease-out"
               style={{

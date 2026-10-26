@@ -30,7 +30,7 @@ export function Navbar() {
   }, [isOpen]);
 
   return (
-    <header className="fixed top-10 left-0 right-0 z-40 h-14 bg-[#fffef2]/95 backdrop-blur-md border-b border-[#e3e2d8] transition-colors">
+    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-[#fffef2]/95 backdrop-blur-md transition-colors">
       <div className="max-w-266 mx-auto px-5 sm:px-10 h-full flex items-center justify-between">
         {/* Left: Logo & Nav items */}
         <div className="flex items-center gap-8 sm:gap-10">

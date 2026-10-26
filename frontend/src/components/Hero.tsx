@@ -4,7 +4,7 @@ import { HeroTerminal } from "./HeroTerminal";
 
 export function Hero() {
   return (
-    <section id="hero" className="w-full pt-28 sm:pt-36 lg:pt-40 pb-12 sm:pb-20">
+    <section id="hero" className="w-full pt-20 sm:pt-28 lg:pt-32 pb-12 sm:pb-20">
       <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col gap-10 sm:gap-14">
         {/* Header Row: Left Title & Right Paragraph with Action Buttons */}
         <div className="flex flex-col lg:flex-row items-start justify-between gap-8 lg:gap-12 w-full text-left">
@@ -45,7 +45,7 @@ export function Hero() {
 
         {/* Hero Visual Image with Floating Interactive Code Editor Overlay */}
         <div className="w-full relative rounded-xs overflow-hidden border border-[#e3e2d8] shadow-xs">
-          <div className="relative min-h-[460px] sm:min-h-[520px] md:aspect-1596/900 w-full overflow-hidden bg-[#e3e2d8] flex items-center justify-center p-3 sm:p-6 lg:p-10">
+          <div className="relative min-h-115 sm:min-h-130 md:aspect-1596/900 w-full overflow-hidden bg-[#e3e2d8] flex items-center justify-center p-3 sm:p-6 lg:p-10">
             <Image
               src="https://framerusercontent.com/images/IpHIdqVoOMzhY8zkGb0SKdPFg0.webp?width=1596&height=900"
               alt="Wide mountain range beneath a cloudy sky with subtle geometric overlay graphics."
@@ -56,7 +56,7 @@ export function Hero() {
             />
 
             {/* Centered Floating Animated & Interactive Code Editor Window */}
-            <div className="relative z-10 w-full max-w-[560px]">
+            <div className="relative z-10 w-full max-w-140">
               <HeroTerminal />
             </div>
           </div>
