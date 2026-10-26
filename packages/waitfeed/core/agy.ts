@@ -261,6 +261,7 @@ export interface AgyHeadParts {
   title: string
   meta: string
   pad: number
+  prefix?: string
 }
 
 /** One rendered statusline row: plain text (the visible content — every
@@ -281,6 +282,181 @@ const BEL = String.fromCharCode(7)
 const wrapAnsi = (code: string, s: string): string => `${ESC}[${code}m${s}${ESC}[0m`
 const wrapOsc8 = (url: string, label: string): string => `${ESC}]8;;${url}${BEL}${label}${ESC}]8;;${BEL}`
 
+/** Multi-line headline rows (user rule: never truncate, wrap to the second line).
+ *
+ * If the headline, badge, and meta fit within width on one line, returns 1 row.
+ * When the headline exceeds width, wraps words across lines without cutting or
+ * inserting ellipses:
+ *   Line 1: ▍ [HN] First part of headline that fits within terminal width
+ *   Line 2:        Continuation of headline text             ▲ score · age
+ * The continuation row aligns cleanly with the headline text, and the meta is
+ * right-justified at the terminal margin.
+ */
+export function agyHeadlineRows(it: FeedItem, width = WIDTH_DEFAULT): AgyRow[] {
+  const w = clampWidth(width)
+  const meta = formatMeta(it.score, it.time)
+  const tail = meta ? ` ${meta}` : ""
+  const badge = `${BAR} [${it.source}] `
+  const color = CHANNEL_ANSI[it.source] ?? MUTED_ANSI
+  const title = (it.title ?? "").replace(/\s+/g, " ").trim()
+
+  // 1. Single-line case: fits comfortably on one line with meta
+  if (badge.length + title.length + tail.length <= w) {
+    const pad = tail ? Math.max(0, w - badge.length - title.length - tail.length) : 0
+    return [
+      {
+        text: `${badge}${title}${" ".repeat(pad)}${tail}`,
+        dim: false,
+        parts: {
+          source: it.source,
+          color,
+          title,
+          meta: tail,
+          pad,
+        },
+      },
+    ]
+  }
+
+  // 2. Multi-line wrapping: never truncate headline; wrap into 2+ lines
+  const indent = " ".repeat(badge.length)
+  const words = title.split(" ").filter(Boolean)
+  const rows: AgyRow[] = []
+
+  // Pack words for Line 1 (starts with badge)
+  const line1Budget = Math.max(4, w - badge.length)
+  const line1Words: string[] = []
+  let line1Len = 0
+  let wordIdx = 0
+
+  while (wordIdx < words.length) {
+    const word = words[wordIdx]!
+    const addLen = line1Len === 0 ? word.length : line1Len + 1 + word.length
+    if (addLen <= line1Budget) {
+      line1Words.push(word)
+      line1Len = addLen
+      wordIdx++
+    } else {
+      if (line1Words.length === 0) {
+        line1Words.push(word.slice(0, line1Budget))
+        words[wordIdx] = word.slice(line1Budget)
+      }
+      break
+    }
+  }
+
+  const line1Text = line1Words.join(" ")
+  rows.push({
+    text: `${badge}${line1Text}`,
+    dim: false,
+    parts: {
+      source: it.source,
+      color,
+      title: line1Text,
+      meta: "",
+      pad: 0,
+    },
+  })
+
+  // Pack remaining words into continuation lines (starts with indent)
+  const contBudget = Math.max(4, w - indent.length)
+
+  while (wordIdx < words.length) {
+    const isLastChunk = (): boolean => {
+      const rest = words.slice(wordIdx)
+      const restLen = rest.reduce((acc, word, idx) => acc + word.length + (idx > 0 ? 1 : 0), 0)
+      return indent.length + restLen + tail.length <= w
+    }
+
+    if (isLastChunk()) {
+      const rest = words.slice(wordIdx)
+      const text = rest.join(" ")
+      const pad = tail ? Math.max(0, w - indent.length - text.length - tail.length) : 0
+      rows.push({
+        text: `${indent}${text}${" ".repeat(pad)}${tail}`,
+        dim: false,
+        parts: {
+          source: it.source,
+          color: "",
+          prefix: indent,
+          title: text,
+          meta: tail,
+          pad,
+        },
+      })
+      break
+    }
+
+    const lineWords: string[] = []
+    let lineLen = 0
+    while (wordIdx < words.length) {
+      const word = words[wordIdx]!
+      const addLen = lineLen === 0 ? word.length : lineLen + 1 + word.length
+      if (addLen <= contBudget) {
+        lineWords.push(word)
+        lineLen = addLen
+        wordIdx++
+      } else {
+        if (lineWords.length === 0) {
+          lineWords.push(word.slice(0, contBudget))
+          words[wordIdx] = word.slice(contBudget)
+        }
+        break
+      }
+    }
+
+    if (wordIdx < words.length) {
+      const text = lineWords.join(" ")
+      rows.push({
+        text: `${indent}${text}`,
+        dim: false,
+        parts: {
+          source: it.source,
+          color: "",
+          prefix: indent,
+          title: text,
+          meta: "",
+          pad: 0,
+        },
+      })
+    } else {
+      const text = lineWords.join(" ")
+      const pad = tail ? Math.max(0, w - indent.length - text.length - tail.length) : 0
+      rows.push({
+        text: `${indent}${text}${" ".repeat(pad)}${tail}`,
+        dim: false,
+        parts: {
+          source: it.source,
+          color: "",
+          prefix: indent,
+          title: text,
+          meta: tail,
+          pad,
+        },
+      })
+    }
+  }
+
+  // Edge case: if no continuation line was created but tail exists
+  if (rows.length === 1 && tail) {
+    const pad = Math.max(0, w - indent.length - tail.length)
+    rows.push({
+      text: `${indent}${" ".repeat(pad)}${tail.trimStart()}`,
+      dim: false,
+      parts: {
+        source: it.source,
+        color: "",
+        prefix: indent,
+        title: "",
+        meta: tail,
+        pad,
+      },
+    })
+  }
+
+  return rows
+}
+
 /** Terminal painting — decided once here like every other presentation
  * rule. Colors mirror the OpenCode news panel: the bar+badge rides its
  * channel color, the headline text stays clean, meta/body/link flow muted.
@@ -291,10 +467,11 @@ export function paintAgyRows(rows: AgyRow[]): string[] {
   return rows.map((row) => {
     if (row.url) return wrapOsc8(row.url, wrapAnsi(MUTED_ANSI, row.text))
     if (row.parts) {
-      const badge = `${BAR} [${row.parts.source}] `
+      const badge = row.parts.prefix !== undefined ? row.parts.prefix : `${BAR} [${row.parts.source}] `
       const gap = " ".repeat(row.parts.pad)
+      const prefix = row.parts.color ? wrapAnsi(row.parts.color, badge) : badge
       return (
-        wrapAnsi(row.parts.color, badge) +
+        prefix +
         row.parts.title +
         gap +
         (row.parts.meta ? wrapAnsi(MUTED_ANSI, row.parts.meta) : "")
@@ -304,7 +481,7 @@ export function paintAgyRows(rows: AgyRow[]): string[] {
   })
 }
 
-/** The statusline decision: the full card — headline row, up to three muted
+/** The statusline decision: the full card — headline row(s), up to three muted
  * description rows, the origin link row LAST — while a session is active
  * (see isAgyBusy); no rows otherwise; plus the dwell walk bookkeeping for
  * the state file. Redraws inside one window are idempotent. */
@@ -322,21 +499,7 @@ export function renderAgySnapshot(snap: AgySnapshot): {
   const it = pickAgyCard(items, ticked.ticks, snap.config ?? undefined)
   if (!it) return keep
   const w = agyWidth(snap.state)
-  const head = agyTickerParts(it, w)
-  const badge = `${BAR} [${it.source}] `
-  const rows: AgyRow[] = [
-    {
-      text: `${badge}${head.title}${" ".repeat(head.pad)}${head.meta}`,
-      dim: false,
-      parts: {
-        source: it.source,
-        color: CHANNEL_ANSI[it.source] ?? MUTED_ANSI,
-        title: head.title,
-        meta: head.meta,
-        pad: head.pad,
-      },
-    },
-  ]
+  const rows: AgyRow[] = [...agyHeadlineRows(it, w)]
   for (const text of agyDescRows(it, w)) rows.push({ text, dim: true })
   const link = agyLinkLine(it, w)
   if (link.length > 0) {

@@ -13,6 +13,7 @@ import {
   stripJsoncComments,
   registerOpenCodePlugin,
   registerAgyPlugin,
+  registerClaudePlugin,
   saveWaitFeedUserConfig,
   countLinesRows,
 } from "../packages/waitfeed/bin.mjs"
@@ -136,6 +137,32 @@ describe("Config writers in isolated environments", () => {
 
       // Second run is idempotent
       const second = await registerAgyPlugin(dir)
+      expect(second.alreadyConfigured).toBe(true)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("registerClaudePlugin stages bundles and registers statusLine and SessionStart hooks", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "claude-home-"))
+    try {
+      const res = await registerClaudePlugin(dir)
+      expect(existsSync(join(res.pluginDir, "dist", "statusline.mjs"))).toBe(true)
+      expect(existsSync(join(res.pluginDir, "dist", "scheduler.mjs"))).toBe(true)
+      expect(existsSync(res.settingsPath)).toBe(true)
+
+      const settings = JSON.parse(await readFile(res.settingsPath, "utf8")) as {
+        statusLine?: { type: string; command: string }
+        hooks?: { SessionStart?: Array<{ hooks?: Array<{ type: string; command: string }> }> }
+      }
+      expect(settings.statusLine).toBeDefined()
+      expect(settings.statusLine?.type).toBe("command")
+      expect(settings.statusLine?.command).toContain("statusline.mjs")
+      expect(settings.hooks?.SessionStart).toBeDefined()
+      expect(settings.hooks?.SessionStart?.[0]?.hooks?.[0]?.command).toContain("scheduler.mjs")
+
+      // Second run is idempotent
+      const second = await registerClaudePlugin(dir)
       expect(second.alreadyConfigured).toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })

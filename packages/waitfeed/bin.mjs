@@ -8,7 +8,7 @@
  */
 
 import { execSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -223,6 +223,97 @@ async function registerAgyPlugin(customHome) {
   }
 }
 
+// --- Claude Code Config Utilities ---
+async function registerClaudePlugin(customHome) {
+  const home = customHome || homedir()
+  const pluginDir = join(home, ".claude", "waitfeed")
+  const distDir = join(pluginDir, "dist")
+  const settingsPath = join(home, ".claude", "settings.json")
+
+  await mkdir(distDir, { recursive: true })
+
+  // 1. Stage shipped plugin assets into ~/.claude/waitfeed
+  const sourceClaudeDir = fileURLToPath(new URL("./claude", import.meta.url))
+  const filesToStage = [
+    { src: join(sourceClaudeDir, "dist", "scheduler.mjs"), dest: join(distDir, "scheduler.mjs") },
+    { src: join(sourceClaudeDir, "dist", "statusline.mjs"), dest: join(distDir, "statusline.mjs") },
+  ]
+
+  let stagedCount = 0
+  for (const { src, dest } of filesToStage) {
+    if (existsSync(src)) {
+      await copyFile(src, dest)
+      stagedCount++
+    }
+  }
+
+  // 2. Configure statusLine & SessionStart hook in ~/.claude/settings.json
+  let settings = {}
+  let settingsExisted = false
+  if (existsSync(settingsPath)) {
+    try {
+      const raw = await readFile(settingsPath, "utf8")
+      const clean = stripJsoncComments(raw)
+      if (clean) settings = JSON.parse(clean)
+      settingsExisted = true
+    } catch {
+      settings = {}
+    }
+  }
+
+  const targetStatuslinePath = join(distDir, "statusline.mjs").replace(/\\/g, "/")
+  const targetSchedulerPath = join(distDir, "scheduler.mjs").replace(/\\/g, "/")
+  const desiredStatuslineCommand = `node ${targetStatuslinePath}`
+  const desiredSchedulerCommand = `node ${targetSchedulerPath} --cycle`
+
+  const alreadyConfigured =
+    settings.statusLine &&
+    typeof settings.statusLine === "object" &&
+    settings.statusLine.command === desiredStatuslineCommand
+
+  if (!alreadyConfigured) {
+    settings.statusLine = {
+      type: "command",
+      command: desiredStatuslineCommand,
+    }
+  }
+
+  if (!settings.hooks || typeof settings.hooks !== "object") {
+    settings.hooks = {}
+  }
+  if (!Array.isArray(settings.hooks.SessionStart)) {
+    settings.hooks.SessionStart = []
+  }
+
+  const hasSessionStartHook = settings.hooks.SessionStart.some(
+    (entry) =>
+      entry &&
+      Array.isArray(entry.hooks) &&
+      entry.hooks.some((h) => h && h.command === desiredSchedulerCommand)
+  )
+
+  if (!hasSessionStartHook) {
+    settings.hooks.SessionStart.push({
+      hooks: [
+        {
+          type: "command",
+          command: desiredSchedulerCommand,
+        },
+      ],
+    })
+  }
+
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
+
+  return {
+    pluginDir,
+    settingsPath,
+    stagedCount,
+    alreadyConfigured,
+    settingsExisted,
+  }
+}
+
 // --- WaitFeed Shared Config Utilities ---
 async function saveWaitFeedUserConfig(sources, rssUrls, customDir) {
   const dir = customDir || join(homedir(), ".config", "waitfeed")
@@ -393,15 +484,131 @@ async function promptRss() {
   })
 }
 
+// --- 3D ASCII Startup Banner ---
+const BANNER_LINES = [
+  "██╗    ██╗ █████╗ ██╗████████╗███████╗███████╗███████╗██████╗ ",
+  "██║    ██║██╔══██╗██║╚══██╔══╝██╔════╝██╔════╝██╔════╝██╔══██╗",
+  "██║ █╗ ██║███████║██║   ██║   █████╗  █████╗  █████╗  ██║  ██║",
+  "██║███╗██║██╔══██║██║   ██║   ██╔══╝  ██╔══╝  ██╔══╝  ██║  ██║",
+  "╚███╔███╔╝██║  ██║██║   ██║   ██║     ███████╗███████╗██████╔╝",
+  " ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝     ╚══════╝╚══════╝╚═════╝ ",
+]
+
+const BANNER_STOPS = {
+  top: { r: 0xff, g: 0xd9, b: 0xa0 },
+  middle: { r: 0xff, g: 0x8a, b: 0x1f },
+  bottom: { r: 0xc4, g: 0x50, b: 0x0a },
+}
+
+function lerpColor(c1, c2, factor) {
+  return {
+    r: Math.round(c1.r + (c2.r - c1.r) * factor),
+    g: Math.round(c1.g + (c2.g - c1.g) * factor),
+    b: Math.round(c1.b + (c2.b - c1.b) * factor),
+  }
+}
+
+function getRowColor(rowIndex) {
+  const t = rowIndex / 5
+  if (t <= 0.5) {
+    return lerpColor(BANNER_STOPS.top, BANNER_STOPS.middle, t / 0.5)
+  }
+  return lerpColor(BANNER_STOPS.middle, BANNER_STOPS.bottom, (t - 0.5) / 0.5)
+}
+
+function colorLine24(line, frontColor, shadowColor) {
+  let result = ""
+  let currentColor = null
+  for (const char of line) {
+    if (char === " ") {
+      if (currentColor !== null) {
+        result += "\x1b[0m"
+        currentColor = null
+      }
+      result += " "
+    } else if (char === "█") {
+      if (currentColor !== "front") {
+        if (currentColor !== null) result += "\x1b[0m"
+        result += `\x1b[38;2;${frontColor.r};${frontColor.g};${frontColor.b}m`
+        currentColor = "front"
+      }
+      result += char
+    } else {
+      if (currentColor !== "shadow") {
+        if (currentColor !== null) result += "\x1b[0m"
+        result += `\x1b[38;2;${shadowColor.r};${shadowColor.g};${shadowColor.b}m`
+        currentColor = "shadow"
+      }
+      result += char
+    }
+  }
+  if (currentColor !== null) {
+    result += "\x1b[0m"
+  }
+  return result
+}
+
+function getPackageVersion() {
+  try {
+    const pkgPath = new URL("./package.json", import.meta.url)
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"))
+    return pkg.version || "1.0.0"
+  } catch {
+    return "1.0.0"
+  }
+}
+
+function renderBanner(options = {}) {
+  const env = options.env || process.env
+  const isTTY = options.isTTY !== undefined ? Boolean(options.isTTY) : Boolean(process.stdout.isTTY)
+  const columns = options.columns !== undefined ? options.columns : process.stdout.columns
+  const version = options.version || getPackageVersion()
+
+  const isNarrow = typeof columns === "number" && columns > 0 && columns < 66
+  const noColor = env.NO_COLOR !== undefined || !isTTY || env.TERM === "dumb"
+  const colorTerm = (env.COLORTERM || "").toLowerCase()
+  const supports24Bit = colorTerm === "truecolor" || colorTerm === "24bit" || Boolean(env.WT_SESSION)
+
+  if (isNarrow) {
+    if (noColor) {
+      return `WAITFEED  ·  v${version}`
+    }
+    if (!supports24Bit) {
+      return `\x1b[38;5;208mWAITFEED\x1b[0m  ·  v${version}`
+    }
+    return `\x1b[38;2;255;138;31mWAITFEED\x1b[0m  ·  v${version}`
+  }
+
+  if (noColor) {
+    const lines = [...BANNER_LINES, `News on your screen while your AI agent works · v${version}`]
+    return lines.join("\n")
+  }
+
+  if (!supports24Bit) {
+    const orange256 = "\x1b[38;5;208m"
+    const reset = "\x1b[0m"
+    const lines = BANNER_LINES.map((l) => `${orange256}${l}${reset}`)
+    lines.push(`\x1b[90mNews on your screen while your AI agent works · v${version}${reset}`)
+    return lines.join("\n")
+  }
+
+  const lines = BANNER_LINES.map((line, i) => {
+    const front = getRowColor(i)
+    const shadow = {
+      r: Math.round(front.r * 0.4),
+      g: Math.round(front.g * 0.4),
+      b: Math.round(front.b * 0.4),
+    }
+    return colorLine24(line, front, shadow)
+  })
+  lines.push(`\x1b[38;2;139;137;129mNews on your screen while your AI agent works · v${version}\x1b[0m`)
+  return lines.join("\n")
+}
+
 // --- Main CLI Execution ---
 async function runInit() {
   console.log()
-  console.log(`  ${c.dim}• WAITFEED INIT ────────────────────────────────────────────── 01${c.reset}`)
-  console.log(`  ${c.orange}${c.bold}█ █ █  ▄▀█  █  ▀█▀  █▀▀  █▀▀  █▀▀  █▀▄${c.reset}`)
-  console.log(`  ${c.orange}${c.bold}▀▄█▄▀  █▀█  █   █   █▀   ██▄  ██▄  █▄▀${c.reset}`)
-  console.log(`  ${c.white}Real-time news ticker inside your AI coding agent wait time${c.reset}`)
-  console.log(`  ${c.dim}100% local · no ads · no accounts · zero API keys${c.reset}`)
-  console.log(`  ${c.dim}─────────────────────────────────────────────────────────────${c.reset}`)
+  console.log(renderBanner())
   console.log()
 
   // 1. Detect Agent Environments
@@ -423,17 +630,18 @@ async function runInit() {
   }
 
   if (claudeStatus.installed) {
-    console.log(`  ${c.yellow}◇${c.reset} Claude Code: ${c.dim}detected (adapter releases in v1.2)${c.reset}`)
+    console.log(`  ${c.green}◆${c.reset} Claude Code: ${c.white}detected${c.reset}`)
   } else {
-    console.log(`  ${c.dim}◇ Claude Code: adapter coming soon in v1.2${c.reset}`)
+    console.log(`  ${c.dim}◇ Claude Code: not detected${c.reset}`)
   }
   console.log(`  ${c.dim}│${c.reset}`)
 
   // 2. Interactive Agent Provider Selection
-  // If neither detected, enable OpenCode and AGY by default for user discovery.
-  const hasAnyDetected = opencodeStatus.installed || agyStatus.installed
+  // If neither detected, enable OpenCode, AGY, and Claude by default for user discovery.
+  const hasAnyDetected = opencodeStatus.installed || agyStatus.installed || claudeStatus.installed
   const defaultOpenCode = hasAnyDetected ? opencodeStatus.installed : true
   const defaultAgy = hasAnyDetected ? agyStatus.installed : true
+  const defaultClaude = hasAnyDetected ? claudeStatus.installed : true
 
   const agentItems = [
     {
@@ -451,10 +659,8 @@ async function runInit() {
     {
       key: "claude",
       name: "Claude Code",
-      desc: "Wait-state hook (coming soon)",
-      enabled: false,
-      disabled: true,
-      badge: "[v1.2]",
+      desc: "Statusline hook & dwell-clock",
+      enabled: defaultClaude,
     },
   ]
 
@@ -508,6 +714,11 @@ async function runInit() {
     await registerAgyPlugin()
     console.log(`  ${c.green}✓${c.reset} Google Antigravity (AGY) integration active`)
   }
+
+  if (selectedAgents.claude) {
+    await registerClaudePlugin()
+    console.log(`  ${c.green}✓${c.reset} Claude Code integration active`)
+  }
   console.log(`  ${c.dim}│${c.reset}`)
 
   // 6. Single Unified Live Card Preview
@@ -519,7 +730,7 @@ async function runInit() {
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}full test suites without human intervention.               │${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}> ${c.cyan}swebench.com${c.reset}${c.dim}                                             │${c.reset}`)
   console.log(`  ${c.dim}│  └───────────────────────────────────────────────────────────────┘${c.reset}`)
-  console.log(`  ${c.dim}│  ↳ Renders above prompt in OpenCode and in the AGY statusline${c.reset}`)
+  console.log(`  ${c.dim}│  ↳ Renders above prompt in OpenCode, and in AGY/Claude Code statuslines${c.reset}`)
   console.log(`  ${c.dim}│${c.reset}`)
 
   // 7. Completion Box & Tailored Instructions
@@ -530,6 +741,10 @@ async function runInit() {
   }
   if (selectedAgents.agy) {
     console.log(`  ${c.dim}│${c.reset} • ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} — statusline ticker rotates.    ${c.dim}│${c.reset}`)
+    console.log(`  ${c.dim}│${c.reset}   Ctrl+Click origin links to open stories in your browser.        ${c.dim}│${c.reset}`)
+  }
+  if (selectedAgents.claude) {
+    console.log(`  ${c.dim}│${c.reset} • ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} — statusline ticker rotates.    ${c.dim}│${c.reset}`)
     console.log(`  ${c.dim}│${c.reset}   Ctrl+Click origin links to open stories in your browser.        ${c.dim}│${c.reset}`)
   }
   console.log(`  ${c.dim}│${c.reset} • Start typing your prompt anytime — the ticker vanishes!         ${c.dim}│${c.reset}`)
@@ -545,7 +760,7 @@ async function runInit() {
 function printHelp() {
   console.log(`
   ${c.bold}WaitFeed${c.reset} - Real-time news ticker for AI coding agents
-  Supports: OpenCode, Google Antigravity (AGY), Claude Code (coming soon)
+  Supports: OpenCode, Google Antigravity (AGY), Claude Code
 
   ${c.bold}Usage:${c.reset}
     npx waitfeed init      Run the interactive setup wizard
@@ -584,11 +799,13 @@ export {
   detectClaude,
   registerOpenCodePlugin,
   registerAgyPlugin,
+  registerClaudePlugin,
   saveWaitFeedUserConfig,
   resolveOpenCodeConfigPath,
   stripJsoncComments,
   countLinesRows,
   eraseBlock,
+  renderBanner,
 }
 
 // If invoked as CLI entry

@@ -34,6 +34,7 @@ import {
   agyLinkLine,
   agyTickerLine,
   agyTickerParts,
+  agyHeadlineRows,
   agyVisibleItems,
   agyWidth,
   isAgyBusy,
@@ -250,6 +251,54 @@ describe("agyTickerParts — the justify math (meta pins to the right edge)", ()
     const parts = agyTickerParts(item("m".repeat(300)), 90)
     expect(parts.pad).toBe(0)
     expect(agyTickerLine(item("m".repeat(300)), 90).length).toBe(90)
+  })
+})
+
+describe("agyHeadlineRows — multi-line headline wrapping (never truncate, use second line)", () => {
+  const NOW = Date.now()
+
+  it("short headlines that fit in one line render as 1 row with right-justified meta", () => {
+    const itShort = item("Anthropic releases Claude 3.7", { time: NOW - 3_600_000, score: 840 })
+    const rows = agyHeadlineRows(itShort, 80)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.text.length).toBe(80)
+    expect(rows[0]!.text.startsWith("▍ [HN] Anthropic releases Claude 3.7")).toBe(true)
+    expect(rows[0]!.text.endsWith("▲ 840 · 1h")).toBe(true)
+  })
+
+  it("long headlines wrap into a second line without cutting any text", () => {
+    const longTitle = "Nikon photography contest winner loses title after scientists spot signs of AI in winning image"
+    const itLong = item(longTitle, { time: NOW - 3 * 3_600_000, score: 254 })
+    const rows = agyHeadlineRows(itLong, 80)
+    expect(rows).toHaveLength(2)
+
+    // Row 0 has badge and first part of headline, no ellipsis
+    expect(rows[0]!.text.startsWith("▍ [HN] ")).toBe(true)
+    expect(rows[0]!.text).not.toContain("…")
+    expect(rows[0]!.text.length).toBeLessThanOrEqual(80)
+
+    // Row 1 has indentation matching badge width, continuation of headline, and right-justified meta
+    expect(rows[1]!.text.startsWith("       ")).toBe(true) // Indented to align with title text
+    expect(rows[1]!.text).not.toContain("…")
+    expect(rows[1]!.text.length).toBe(80) // Justified to width
+    expect(rows[1]!.text.endsWith("▲ 254 · 3h")).toBe(true)
+
+    // Reconstructed text contains the entire full title with zero missing words
+    const reconstructed = `${rows[0]!.text.replace("▍ [HN] ", "").trim()} ${rows[1]!.text.replace("       ", "").replace(/▲.*$/, "").trim()}`
+    expect(reconstructed).toBe(longTitle)
+  })
+
+  it("headlines without meta wrap to the second line cleanly without trailing padding", () => {
+    const longTitle = "Scientists discover new method to convert plastic waste into clean fuel without harmful toxic emissions"
+    const itNoMeta = item(longTitle)
+    const rows = agyHeadlineRows(itNoMeta, 70)
+    expect(rows.length).toBeGreaterThanOrEqual(2)
+    for (const r of rows) {
+      expect(r.text.length).toBeLessThanOrEqual(70)
+      expect(r.text).not.toContain("…")
+    }
+    const combined = rows.map((r, i) => (i === 0 ? r.text.replace("▍ [HN] ", "").trim() : r.text.trim())).join(" ")
+    expect(combined).toBe(longTitle)
   })
 })
 

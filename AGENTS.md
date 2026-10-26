@@ -79,11 +79,10 @@ deliberately opposite take: no ads, personal, OpenCode-native, zero backend.
 - Feed descriptions are stored up to 600 chars (`CONTEXT_MAX` in
   `core/feeds.ts`) — the reader wraps what it gets; never re-truncate display
   text into shorter stored data.
-- Gates before every handover:
-  - `npx tsc --noEmit` — clean (0 errors)
-  - `npx vitest run` — passes (from M1 onward; 53 tests since the
-    package-integrity suite landed)
-  - Zero IDE/Lint warnings — 0 warnings, standard utility classes (no unnecessary arbitrary Tailwind brackets), 0 unused imports.
+- Verification & gates policy during iteration:
+  - **Do NOT run verifications (tests, builds, typechecks) on every prompt cycle.** During interactive back-and-forth iteration, make the requested code changes directly and let the user review them. Running verifications constantly breaks momentum and wastes time.
+  - Full verifications (`npx tsc --noEmit`, `npx vitest run`, lint checks) are to be run **ONLY when explicitly confirmed/requested by the user** at the end before committing.
+  - Zero IDE/Lint warnings standard: Keep code clean, avoid unused imports/variables, and use standard utility classes without requiring an expensive verification cycle every turn.
 - Consumer-machine safety rules (found the hard way via the 1.0.0 TUI load
   failure — "works in dev, breaks on install" bug class, guarded by
   `tests/package.test.ts`):
@@ -132,4 +131,4 @@ publish, landing page).
 4. Stay observational: the plugin must not modify prompts, tools, or agent behavior.
 5. Verify plugin APIs against the current V2 docs before use — the API is young.
 6. Keep changes small and consistent; this repo will be public open source (MIT).
-7. **Zero-warning standard practices:** Always fix all IDE/lint warnings, remove unused imports/variables, and use standard utility classes before handing over code.
+7. **Zero-warning standard practices:** Always write clean code (no unused imports/variables, standard utility classes). Do NOT run heavy verification runs on every interaction; verify only upon the user's explicit request.

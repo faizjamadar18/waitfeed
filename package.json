@@ -7,7 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build:agy": "esbuild packages/waitfeed/agy/src/scheduler.ts packages/waitfeed/agy/src/statusline.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outdir=packages/waitfeed/agy/dist --out-extension:.js=.mjs --log-level=warning",
-    "pretest": "npm run -s build:agy",
+    "build:claude": "esbuild packages/waitfeed/claude/src/scheduler.ts packages/waitfeed/claude/src/statusline.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outdir=packages/waitfeed/claude/dist --out-extension:.js=.mjs --log-level=warning",
+    "pretest": "npm run -s build:agy && npm run -s build:claude",
     "test": "vitest run",
     "preview": "cd packages/waitfeed && npm pack --dry-run",
     "init": "node packages/waitfeed/bin.mjs",
