@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest"
 import { readdir, readFile } from "node:fs/promises"
 import { join, sep } from "node:path"
 
-const PKG = join(import.meta.dirname, "..", ".opencode", "plugins", "waitfeed")
+const PKG = join(import.meta.dirname, "..", "packages", "waitfeed")
 
 /** The JSX source declaration that MUST be the first line of the TUI entry. */
 const JSX_PRAGMA = "/* @jsxImportSource @opentui/solid */"
@@ -42,7 +42,7 @@ const CONTEXT_DEPENDENT = /__dirname|process\.cwd\(|C:\\\\Users|C:\\Users|\/home
 
 describe("package integrity (consumer-machine safety)", () => {
   it("tui.tsx declares its JSX source as the very first line", async () => {
-    const content = await readFile(join(PKG, "tui.tsx"), "utf8")
+    const content = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
     const firstLine = content.split(/\r?\n/, 1)[0]
     expect(firstLine).toBe(JSX_PRAGMA)
   })
@@ -75,8 +75,8 @@ describe("package integrity (consumer-machine safety)", () => {
     // The only sane anchor in a consumer install: join(homedir(), ".config", "waitfeed", ...).
     // Assert the anchor exists where file paths are built, so a future edit
     // can't quietly switch to a cwd-relative path that only works in this repo.
-    const index = await readFile(join(PKG, "index.ts"), "utf8")
-    const tui = await readFile(join(PKG, "tui.tsx"), "utf8")
+    const index = await readFile(join(PKG, "opencode", "index.ts"), "utf8")
+    const tui = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
     const config = await readFile(join(PKG, "core", "config.ts"), "utf8")
     for (const [name, content] of [["index.ts", index], ["tui.tsx", tui], ["config.ts", config]] as const) {
       expect(content, `${name} lost its homedir anchor`).toMatch(/join\(\s*homedir\(\)/)
@@ -106,7 +106,7 @@ describe("package integrity (consumer-machine safety)", () => {
 
 describe("ticker card layout (field-bug guard from 1.0.1, narrow terminal)", () => {
   it("the slot card sizes nothing from the global terminal width", async () => {
-    const src = await readFile(join(PKG, "tui.tsx"), "utf8")
+    const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
     const start = src.indexOf("const NewsParagraph")
     const end = src.indexOf("const ReaderRow")
     expect(start).toBeGreaterThan(-1)

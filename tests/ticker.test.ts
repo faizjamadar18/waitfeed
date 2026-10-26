@@ -16,10 +16,10 @@ import {
   retainMerge,
   stripHtmlTags,
   truncate,
-  type FeedItem,
-} from "../.opencode/plugins/waitfeed/core/ticker"
-import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable, NEEDS_MORE } from "../.opencode/plugins/waitfeed/core/llm"
-import { truncateSentence } from "../.opencode/plugins/waitfeed/core/ticker"
+} from "../packages/waitfeed/core/ticker"
+import type { FeedItem } from "../packages/waitfeed/core/types"
+import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable, NEEDS_MORE } from "../packages/waitfeed/core/llm"
+import { truncateSentence } from "../packages/waitfeed/core/ticker"
 
 const MIN = 60_000
 const HOUR = 3_600_000

@@ -21,17 +21,16 @@ Or manually add `waitfeed` to `plugins` in your `opencode.json(c)`:
 ```
 
 Full docs: the package README at
-[`.opencode/plugins/waitfeed/README.md`](.opencode/plugins/waitfeed/README.md),
+[`packages/waitfeed/README.md`](packages/waitfeed/README.md),
 also shown on [npm](https://www.npmjs.com/package/waitfeed).
 
 ## Repo layout
 
-- `.opencode/plugins/waitfeed/` — the OpenCode plugin (server pipeline + TUI).
-  This directory is the npm package `waitfeed`.
-- `tests/` — unit tests for the plugin's pure core.
+- `packages/waitfeed/` — the official `waitfeed` npm package (CLI, OpenCode plugin, Antigravity adapter).
+- `frontend/` — the Next.js marketing landing page.
+- `tests/` — unit & integration tests covering CLI, AGY, feed pipeline, and package safety.
 - `scripts/probe-feeds.mjs` — channel health probe.
-- Root `package.json` is only the dev harness (typecheck + tests), named
-  `waitfeed-dev` so it can never collide with the published package.
+- Root `package.json` is the monorepo dev harness (`waitfeed-dev`).
 
 ## Development
 

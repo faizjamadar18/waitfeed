@@ -21,7 +21,7 @@ import { spawnSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-const PKG = join(import.meta.dirname, "..", ".opencode", "plugins", "waitfeed")
+const PKG = join(import.meta.dirname, "..", "packages", "waitfeed")
 const AGY = join(PKG, "agy")
 const STATUSLINE_BUNDLE = join(AGY, "dist", "statusline.mjs")
 const SCHEDULER_BUNDLE = join(AGY, "dist", "scheduler.mjs")

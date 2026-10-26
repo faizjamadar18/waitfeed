@@ -22,7 +22,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/faizjamadar18/waitfeed.git",
-    "directory": ".opencode/plugins/waitfeed"
+    "directory": "packages/waitfeed"
   },
   "bugs": {
     "url": "https://github.com/faizjamadar18/waitfeed/issues"
@@ -31,20 +31,20 @@
     "node": ">=20"
   },
   "type": "module",
-  "main": "./index.ts",
+  "main": "./opencode/index.ts",
   "bin": {
     "waitfeed": "./bin.mjs"
   },
   "exports": {
-    ".": "./index.ts",
-    "./tui": "./tui.tsx"
+    ".": "./opencode/index.ts",
+    "./tui": "./opencode/tui.tsx"
   },
   "files": [
     "bin.mjs",
-    "index.ts",
-    "tui.tsx",
+    "opencode/",
     "core/",
     "agy/",
+    "claude/",
     "tsconfig.json",
     "LICENSE",
     "README.md"

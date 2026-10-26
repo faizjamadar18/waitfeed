@@ -1,5 +1,6 @@
 // WaitFeed ticker helpers — pure functions, fully unit-tested, no I/O.
 import type { FeedItem } from "./types"
+export type { FeedItem }
 
 const MIN = 60_000
 const HOUR = 3_600_000

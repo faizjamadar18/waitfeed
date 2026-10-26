@@ -9,4 +9,5 @@ opencode-api-spec.json
 .next/
 dist/
 build/
+.opencode/
 

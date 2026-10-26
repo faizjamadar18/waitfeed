@@ -1,7 +1,7 @@
 // Tests for the config normalizer — the pure validation half of config.ts
 // (the I/O half always hands JSON.parse output to exactly this function).
 import { describe, expect, it } from "vitest"
-import { DEFAULT_CONFIG, normalizeConfig } from "../.opencode/plugins/waitfeed/core/config"
+import { DEFAULT_CONFIG, normalizeConfig } from "../packages/waitfeed/core/config"
 
 describe("normalizeConfig", () => {
   it("returns defaults for garbage or missing input", () => {

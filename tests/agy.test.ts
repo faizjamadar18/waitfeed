@@ -43,9 +43,9 @@ import {
   type AgyRow,
   type AgySnapshot,
   type AgyStatuslineState,
-} from "../.opencode/plugins/waitfeed/core/agy"
-import { DEFAULT_CONFIG, type WaitFeedConfig } from "../.opencode/plugins/waitfeed/core/config"
-import type { FeedItem } from "../.opencode/plugins/waitfeed/core/types"
+} from "../packages/waitfeed/core/agy"
+import { DEFAULT_CONFIG, type WaitFeedConfig } from "../packages/waitfeed/core/config"
+import type { FeedItem } from "../packages/waitfeed/core/types"
 
 function item(title: string, over: Partial<FeedItem> = {}): FeedItem {
   return {

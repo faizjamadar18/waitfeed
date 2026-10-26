@@ -13,7 +13,7 @@
   },
   "include": [
     "src/**/*.ts",
-    ".opencode/plugins/waitfeed/**/*.ts",
-    ".opencode/plugins/waitfeed/**/*.tsx"
+    "packages/waitfeed/**/*.ts",
+    "packages/waitfeed/**/*.tsx"
   ]
 }

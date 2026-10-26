@@ -15,9 +15,9 @@ import {
   registerAgyPlugin,
   saveWaitFeedUserConfig,
   countLinesRows,
-} from "../.opencode/plugins/waitfeed/bin.mjs"
+} from "../packages/waitfeed/bin.mjs"
 
-const PKG = join(import.meta.dirname, "..", ".opencode", "plugins", "waitfeed")
+const PKG = join(import.meta.dirname, "..", "packages", "waitfeed")
 const BIN = join(PKG, "bin.mjs")
 
 describe("CLI flag execution", () => {

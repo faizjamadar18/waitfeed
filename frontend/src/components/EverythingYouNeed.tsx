@@ -239,7 +239,7 @@ export function EverythingYouNeed() {
                       >
                         <div className="flex items-center gap-2.5 mb-1">
                           <span
-                            className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[2px] ${tab.badgeBg} ${tab.badgeColor}`}
+                            className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-xs ${tab.badgeBg} ${tab.badgeColor}`}
                           >
                             {tab.badge}
                           </span>
@@ -433,7 +433,7 @@ export function EverythingYouNeed() {
                       <div className="py-1">
                         <svg
                           viewBox="0 0 351 77"
-                          className="w-full max-w-[280px] sm:max-w-[320px] h-auto"
+                          className="w-full max-w-70 sm:max-w-80 h-auto"
                           shapeRendering="crispEdges"
                           aria-label="OpenCode Logo"
                         >

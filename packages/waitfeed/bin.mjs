@@ -199,7 +199,7 @@ async function registerAgyPlugin(customHome) {
   }
 
   const targetStatuslinePath = join(distDir, "statusline.mjs").replace(/\\/g, "/")
-  const desiredCommand = `node "${targetStatuslinePath}"`
+  const desiredCommand = `node ${targetStatuslinePath}`
   const alreadyConfigured =
     settings.statusLine &&
     typeof settings.statusLine === "object" &&

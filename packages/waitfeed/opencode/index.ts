@@ -14,10 +14,10 @@
 import { Plugin } from "@opencode/plugin"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { loadConfig } from "./core/config"
-import { enrichMissing } from "./core/enrich"
-import { fetchAllFeeds } from "./core/feeds"
-import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable } from "./core/llm"
+import { loadConfig } from "../core/config"
+import { enrichMissing } from "../core/enrich"
+import { fetchAllFeeds } from "../core/feeds"
+import { buildStoryPrompt, cleanStory, isFreeTierGate, isNeedsMoreReply, isStoryable } from "../core/llm"
 import {
   emptyCache,
   makeProbeLog,
@@ -28,8 +28,8 @@ import {
   writeCacheDoc,
   type CacheFile,
   type CacheIo,
-} from "./core/pipeline"
-import type { FeedItem } from "./core/types"
+} from "../core/pipeline"
+import type { FeedItem } from "../core/types"
 
 const REFRESH_MS = 30 * 60 * 1000
 /** Stories per refresh cycle — fresh headlines need coverage quickly, so

@@ -26,10 +26,10 @@ import {
   STORY_TARGET,
   type CacheFile,
   type PipelineDeps,
-} from "../.opencode/plugins/waitfeed/core/pipeline"
-import { DEFAULT_CONFIG, type WaitFeedConfig } from "../.opencode/plugins/waitfeed/core/config"
-import type { FeedItem } from "../.opencode/plugins/waitfeed/core/types"
-import { isStoryable } from "../.opencode/plugins/waitfeed/core/llm"
+} from "../packages/waitfeed/core/pipeline"
+import { DEFAULT_CONFIG, type WaitFeedConfig } from "../packages/waitfeed/core/config"
+import type { FeedItem } from "../packages/waitfeed/core/types"
+import { isStoryable } from "../packages/waitfeed/core/llm"
 
 const HOUR = 3_600_000
 /** A fixed "now" every test shares — the fixtures are written against it. */

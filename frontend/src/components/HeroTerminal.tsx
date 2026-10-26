@@ -124,7 +124,7 @@ const INITIAL_HISTORY = [
 ];
 
 const LINE_DELAYS = [500, 1000, 1600, 2200, 2900, 3700, 4400, 5200];
-const STEP_LABELS = ["agent working", "slot showing", "you're typing"];
+const STEP_LABELS = ["agent working", "ticker streaming", "you're typing"];
 
 export function HeroTerminal() {
   const [history, setHistory] = useState<string[]>(INITIAL_HISTORY);
@@ -420,7 +420,7 @@ export function HeroTerminal() {
             autoCapitalize="off"
             spellCheck={false}
             maxLength={80}
-            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#EDEDF0] caret-[#D97757] outline-none placeholder:text-white/40"
+            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#EDEDF0] caret-[#D97757] outline-none placeholder-white/40"
           />
           {!inputValue && (
             <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse shrink-0" aria-hidden="true" />

@@ -37,9 +37,9 @@ import {
   saveConfig,
   type ChannelKey,
   type WaitFeedConfig,
-} from "./core/config"
-import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel, truncate } from "./core/ticker"
-import type { FeedItem } from "./core/types"
+} from "../core/config"
+import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel, truncate } from "../core/ticker"
+import type { FeedItem } from "../core/types"
 
 const BUILD = "2026-10-24-v17-no-category-ghosts"
 
