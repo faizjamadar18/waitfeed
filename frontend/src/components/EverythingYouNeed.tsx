@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import Image from "next/image";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 
 interface AgentTab {
   id: string;
@@ -29,6 +30,44 @@ const TABS: AgentTab[] = [
       "Reactive wait-state ticker docked right above the input prompt with zero keystroke latency.",
   },
 ];
+
+// Shared Motion Timing & Easing Constants (1 frame = 33.33ms; 17 frames = 567ms total)
+const T = {
+  // Right panel crossfade: incoming content layer, FIG header label, and statusbar caption
+  panelIn: {
+    delay: 0.133,
+    duration: 0.434,
+    ease: [0.25, 0.2, 0.85, 1] as const,
+  },
+  // Right panel crossfade: outgoing content layer, FIG header label, and statusbar caption
+  panelOut: {
+    delay: 0.090,
+    duration: 0.300,
+    ease: [0.3, 0.85, 0.1, 0.9] as const,
+  },
+  // Left rail active yellow indicator: glides smoothly from old position to new position
+  rail: {
+    delay: 0,
+    duration: 0.567,
+    ease: [0.6, 0, 0.05, 1] as const,
+  },
+  // Rail active dot (end-caps): turns active color early by +6f
+  dot: {
+    duration: 0.2,
+    ease: [0.6, 0, 0.05, 1] as const,
+  },
+  // Accordion descriptions: collapse outgoing and expand incoming
+  descOut: {
+    delay: 0.033,
+    duration: 0.300,
+    ease: [0.4, 0, 0.2, 1] as const,
+  },
+  descIn: {
+    delay: 0.120,
+    duration: 0.447,
+    ease: [0.25, 0.2, 0.85, 1] as const,
+  },
+};
 
 const AGY_PIXELS = [
   { r: 0, c: 5, color: "#F2922E" }, { r: 0, c: 6, color: "#F07236" },
@@ -68,11 +107,254 @@ const OPENCODE_PIXELS = [
   { r: 6, c: 5, color: "#808080" },
 ];
 
+const ClaudeCodeTerminalContent = memo(function ClaudeCodeTerminalContent() {
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        {/* Welcome Box */}
+        <div>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border border-[#D97757]/40 bg-[#D97757]/10 text-[#D97757] text-[10px]">
+            <span>✳</span> Welcome to Claude Code
+          </span>
+        </div>
+
+        {/* Authentic ANSI Shadow ASCII Art for CLAUDE CODE */}
+        <div className="py-0.5 overflow-hidden">
+          <pre className="font-mono text-[#D97757] text-[7.5px] sm:text-[8.5px] leading-[1.05] font-bold select-none tracking-tight">
+            {CLAUDE_ASCII.join("\n")}
+          </pre>
+        </div>
+      </div>
+
+      {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
+      <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
+        {/* Active wait-state indicator */}
+        <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
+          <span className="inline-block animate-spin text-[#D97757]">⠋</span>
+          <span>thinking &amp; analyzing codebase…</span>
+          <span className="ml-auto font-mono text-[9px] text-[#D97757]">wait-state active</span>
+        </div>
+
+        {/* WaitFeed Wait-State Slot */}
+        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-bold">
+              <span className="bg-[#27AD75] text-[#0A0A0C] px-1 text-[9px] font-bold">
+                GH
+              </span>
+              <span className="text-[#EDEDF0] truncate">vllm-project/vllm</span>
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
+              ▲ 31.2k · 2h
+            </span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+            Fast LLM serving engine. PagedAttention memory management achieves 24x higher throughput.
+          </p>
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+            <span className="text-[#818CF8]">↗ github.com/vllm-project/vllm</span>
+            <span>wait-state stream</span>
+          </div>
+        </div>
+
+        {/* Claude Prompt Line */}
+        <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+          <span className="text-[#D97757] font-bold text-sm">&gt;</span>
+          <span className="text-white/40">type anything to prompt Claude Code...</span>
+          <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse ml-auto" />
+        </div>
+      </div>
+    </>
+  );
+});
+
+const AntigravityTerminalContent = memo(function AntigravityTerminalContent() {
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        {/* Antigravity Rainbow Pixel "A" Logo Banner */}
+        <div className="py-1">
+          <svg
+            viewBox="0 0 108 110"
+            className="w-20 h-20 sm:w-24 sm:h-24"
+            shapeRendering="crispEdges"
+            aria-label="Antigravity Rainbow Logo"
+          >
+            {AGY_PIXELS.map((p, idx) => (
+              <rect
+                key={idx}
+                x={p.c * 9}
+                y={p.r * 11}
+                width={9}
+                height={11}
+                fill={p.color}
+              />
+            ))}
+          </svg>
+        </div>
+
+        {/* Welcome to Antigravity! */}
+        <div className="text-xs sm:text-sm font-bold tracking-tight font-mono">
+          <span className="text-[#EDEDF0]">Welcome to </span>
+          <span className="text-[#58A6FF]">Antigravity!</span>
+        </div>
+      </div>
+
+      {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
+      <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
+        {/* Active wait-state indicator */}
+        <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
+          <span className="inline-block animate-spin text-[#58A6FF]">⠋</span>
+          <span>running tool calls &amp; reasoning…</span>
+          <span className="ml-auto font-mono text-[9px] text-[#58A6FF]">wait-state active</span>
+        </div>
+
+        {/* WaitFeed Statusline Hook Card */}
+        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-bold">
+              <span className="bg-[#fcaa2d] text-[#0A0A0C] px-1 text-[9px] font-bold">
+                HN
+              </span>
+              <span className="text-[#EDEDF0] truncate">
+                SQLite with WebAssembly &amp; OPFS
+              </span>
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
+              ▲ 1.4k · 3h
+            </span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+            Official SQLite Wasm release brings ACID-compliant local database storage via OPFS.
+          </p>
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+            <span className="text-[#818CF8]">↗ sqlite.org/wasm</span>
+            <span>dwell clock: 20s</span>
+          </div>
+        </div>
+
+        {/* AGY Prompt Line */}
+        <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+          <span className="text-[#58A6FF] font-bold text-sm">&gt;</span>
+          <span className="text-white/40">type prompt...</span>
+          <span className="w-1.5 h-3.5 bg-[#58A6FF] animate-pulse ml-auto" />
+        </div>
+      </div>
+    </>
+  );
+});
+
+const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
+  return (
+    <>
+      <div className="flex flex-col">
+        {/* Official OpenCode Wordmark Banner */}
+        <div className="py-1">
+          <svg
+            viewBox="0 0 351 77"
+            className="w-full max-w-60 sm:max-w-68 h-auto"
+            shapeRendering="crispEdges"
+            aria-label="OpenCode Logo"
+          >
+            {OPENCODE_PIXELS.map((p, idx) => (
+              <rect
+                key={idx}
+                x={p.c * 9}
+                y={p.r * 11}
+                width={9}
+                height={11}
+                fill={p.color}
+              />
+            ))}
+          </svg>
+        </div>
+
+        {/* OpenCode Slogan / Subtitle */}
+        <p className="font-mono text-[9px] sm:text-[10px] text-[#7A7A85] tracking-wider uppercase select-none">
+          THE AI CODING AGENT BUILT FOR THE TERMINAL
+        </p>
+
+        {/* OpenCode Execution Logs */}
+        <div className="flex flex-col gap-1.5 pt-6 font-mono text-[11px] select-none">
+          <div className="flex items-center gap-2 text-[#8A8A94]">
+            <span className="flex items-center gap-2">
+              <span className="text-[#3fb950]">✓</span>
+              <span className="text-[#EDEDF0]">Read</span>
+              <span className="text-[#8A8A94]">core/parser.rs</span>
+            </span>
+            <span className="text-[10px] text-[#5C5C66]">142 lines</span>
+          </div>
+          <div className="flex items-center gap-2 text-[#8A8A94]">
+            <span className="flex items-center gap-2">
+              <span className="text-[#3fb950]">✓</span>
+              <span className="text-[#EDEDF0]">Edit</span>
+              <span className="text-[#8A8A94]">core/parser.rs</span>
+            </span>
+            <span className="text-[10px] font-mono">
+              <span className="text-[#3fb950]">+38</span>{" "}
+              <span className="text-[#F85149]">−12</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
+      <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
+        {/* Active wait-state indicator */}
+        <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
+          <span className="inline-block animate-spin text-[#3fb950]">⠋</span>
+          <span>thinking &amp; analyzing codebase…</span>
+          <span className="ml-auto font-mono text-[9px] text-[#3fb950]">wait-state active</span>
+        </div>
+
+        {/* WaitFeed Reactive OpenTUI Slot */}
+        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-bold">
+              <span className="bg-[#8A63F4] text-white px-1 text-[9px] font-bold">
+                DEV
+              </span>
+              <span className="text-[#EDEDF0] truncate">
+                Zero-copy AST parser in Rust
+              </span>
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
+              ▲ 420 · 5h
+            </span>
+          </div>
+          <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+            Memory-efficient parsing patterns utilizing Rust string slices, lifetimes, and zero-allocation token trees.
+          </p>
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+            <span className="text-[#818CF8]">↗ dev.to/rust-ast</span>
+            <span>OpenTUI Solid reactive</span>
+          </div>
+        </div>
+
+        {/* OpenCode Prompt Line */}
+        <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
+          <span className="text-[#3fb950] font-bold text-sm">&gt;</span>
+          <span className="text-white/40">Type your prompt...</span>
+          <span className="w-1.5 h-3.5 bg-[#3fb950] animate-pulse ml-auto" />
+        </div>
+      </div>
+    </>
+  );
+});
+
 export function EverythingYouNeed() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<number>(0);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const isClickingRef = useRef<boolean>(false);
+  const shouldReduceMotion = useReducedMotion();
+
+  const reducedTransition = {
+    type: "tween" as const,
+    duration: 0.15,
+    ease: "linear" as const,
+  };
+
   const indicatorTop =
     activeTab === 0
       ? "14px"
@@ -154,13 +436,42 @@ export function EverythingYouNeed() {
           {/* Top Decorative Border track */}
           <div className="w-full flex flex-col gap-2 flex-none">
             <div className="flex items-center justify-between text-[10px] font-decima text-[#191918]/50 uppercase tracking-widest px-1">
-              <span>
-                {activeTab === 0
-                  ? "FIG. 001 · CLAUDE CODE INTEGRATION"
-                  : activeTab === 1
-                    ? "FIG. 002 · ANTIGRAVITY STATUSLINE"
-                    : "FIG. 003 · OPENCODE COMPOSER"}
-              </span>
+              <div className="relative h-3.5 flex items-center">
+                <AnimatePresence initial={false} mode="sync">
+                  <motion.span
+                    key={activeTab}
+                    className="absolute left-0 whitespace-nowrap"
+                    initial={{ opacity: 0 }}
+                    animate={{
+                      opacity: 1,
+                      transition: shouldReduceMotion
+                        ? reducedTransition
+                        : { type: "tween", ...T.panelIn },
+                    }}
+                    exit={{
+                      opacity: 0,
+                      transition: shouldReduceMotion
+                        ? reducedTransition
+                        : { type: "tween", ...T.panelOut },
+                      pointerEvents: "none",
+                    }}
+                    style={{ willChange: "opacity" }}
+                  >
+                    {activeTab === 0
+                      ? "FIG. 001 · CLAUDE CODE INTEGRATION"
+                      : activeTab === 1
+                        ? "FIG. 002 · ANTIGRAVITY STATUSLINE"
+                        : "FIG. 003 · OPENCODE COMPOSER"}
+                  </motion.span>
+                </AnimatePresence>
+                <span className="invisible select-none pointer-events-none" aria-hidden="true">
+                  {activeTab === 0
+                    ? "FIG. 001 · CLAUDE CODE INTEGRATION"
+                    : activeTab === 1
+                      ? "FIG. 002 · ANTIGRAVITY STATUSLINE"
+                      : "FIG. 003 · OPENCODE COMPOSER"}
+                </span>
+              </div>
               <span>RUNTIME ADAPTERS</span>
             </div>
             <div className="w-full h-8 overflow-hidden relative opacity-70 border-b border-[#e3e2d8]">
@@ -207,21 +518,49 @@ export function EverythingYouNeed() {
                   <div className="absolute left-0.75 -translate-x-1/2 top-3.5 h-41.5 w-px border-l-2 border-dotted border-[#191918]/25 pointer-events-none" />
 
                   {/* Top Terminal Dot */}
-                  <div
-                    className={`absolute left-0.75 top-3.5 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-colors duration-300 pointer-events-none ${activeTab === 0 ? "bg-[#fcaa2d]" : "bg-[#BDBDB6]"
-                      }`}
+                  <motion.div
+                    className="absolute left-0.75 top-3.5 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                    animate={{
+                      backgroundColor: activeTab === 0 ? "#fcaa2d" : "#BDBDB6",
+                    }}
+                    transition={
+                      shouldReduceMotion
+                        ? reducedTransition
+                        : {
+                            type: "tween",
+                            ...T.dot,
+                            delay: activeTab === 0 ? 0.05 : 0.0,
+                          }
+                    }
                   />
 
                   {/* Bottom Terminal Dot */}
-                  <div
-                    className={`absolute left-0.75 top-45 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-colors duration-300 pointer-events-none ${activeTab === 2 ? "bg-[#fcaa2d]" : "bg-[#BDBDB6]"
-                      }`}
+                  <motion.div
+                    className="absolute left-0.75 top-45 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                    animate={{
+                      backgroundColor: activeTab === 2 ? "#fcaa2d" : "#BDBDB6",
+                    }}
+                    transition={
+                      shouldReduceMotion
+                        ? reducedTransition
+                        : {
+                            type: "tween",
+                            ...T.dot,
+                            delay: activeTab === 2 ? 0.05 : 0.0,
+                          }
+                    }
                   />
 
                   {/* Sliding Active Amber Indicator Segment (Constant 64px height, glides smoothly) */}
-                  <div
-                    className="absolute left-0.75 -translate-x-1/2 w-0.5 h-16 bg-[#fcaa2d] rounded-full transition-all duration-400 ease-out pointer-events-none"
-                    style={{ top: indicatorTop }}
+                  <motion.div
+                    className="absolute left-0.75 -translate-x-1/2 w-0.5 h-16 bg-[#fcaa2d] rounded-full pointer-events-none"
+                    animate={{ top: indicatorTop }}
+                    transition={
+                      shouldReduceMotion
+                        ? reducedTransition
+                        : { type: "tween", ...T.rail }
+                    }
+                    style={{ willChange: "top" }}
                   />
 
                   {/* Tabs List */}
@@ -245,16 +584,25 @@ export function EverythingYouNeed() {
                           </h3>
 
                           {/* Expandable description */}
-                          <div
-                            className={`overflow-hidden transition-all duration-300 ease-out ${isActive
-                                ? "max-h-24 opacity-100 mt-2 sm:mt-2.5"
-                                : "max-h-0 opacity-0 mt-0"
-                              }`}
+                          <motion.div
+                            initial={false}
+                            animate={{
+                              height: isActive ? "auto" : 0,
+                              opacity: isActive ? 1 : 0,
+                            }}
+                            transition={
+                              shouldReduceMotion
+                                ? reducedTransition
+                                : isActive
+                                  ? { type: "tween", ...T.descIn }
+                                  : { type: "tween", ...T.descOut }
+                            }
+                            style={{ overflow: "hidden" }}
                           >
-                            <p className="text-sm sm:text-[15px] text-[#191918]/65 font-parabole leading-relaxed max-w-md">
+                            <p className="text-sm sm:text-[15px] text-[#191918]/65 font-parabole leading-relaxed max-w-md pt-2 sm:pt-2.5">
                               {tab.description}
                             </p>
-                          </div>
+                          </motion.div>
                         </button>
                       );
                     })}
@@ -271,21 +619,33 @@ export function EverythingYouNeed() {
                     <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
                     <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
                     <div className="relative h-4 overflow-hidden ml-2 flex-1 w-48">
-                      {TABS.map((tab, idx) => (
-                        <span
-                          key={tab.id}
-                          className={`absolute left-0 top-0 text-[#8A8A94] transition-all duration-300 ease-out ${activeTab === idx
-                              ? "opacity-100 translate-y-0"
-                              : "opacity-0 -translate-y-2 pointer-events-none"
-                            }`}
+                      <AnimatePresence initial={false} mode="sync">
+                        <motion.span
+                          key={activeTab}
+                          className="absolute left-0 top-0 text-[#8A8A94] pointer-events-auto"
+                          initial={{ opacity: 0 }}
+                          animate={{
+                            opacity: 1,
+                            transition: shouldReduceMotion
+                              ? reducedTransition
+                              : { type: "tween", ...T.panelIn },
+                          }}
+                          exit={{
+                            opacity: 0,
+                            transition: shouldReduceMotion
+                              ? reducedTransition
+                              : { type: "tween", ...T.panelOut },
+                            pointerEvents: "none",
+                          }}
+                          style={{ willChange: "opacity" }}
                         >
-                          {idx === 0
+                          {activeTab === 0
                             ? "claude · ~/projects/waitfeed"
-                            : idx === 1
+                            : activeTab === 1
                               ? "antigravity · ~/projects/waitfeed"
                               : "opencode · ~/projects/waitfeed"}
-                        </span>
-                      ))}
+                        </motion.span>
+                      </AnimatePresence>
                     </div>
                   </div>
                   <span className="flex items-center gap-1.5 text-[#8A8A94]">
@@ -294,276 +654,73 @@ export function EverythingYouNeed() {
                   </span>
                 </div>
 
-                {/* Terminal Views Layered Stack (Smooth Crossfade & Slide Transition) */}
+                {/* Terminal Views Layered Stack (Smooth Pure Opacity Crossfade) */}
                 <div className="relative flex-1 w-full my-1 min-h-75 sm:min-h-78 overflow-hidden">
-                  {/* TAB 0: CLAUDE CODE */}
-                  <div
-                    className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 0
-                        ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
-                        : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
-                      }`}
-                  >
-                    <div className="flex flex-col gap-3">
-                      {/* Welcome Box */}
-                      <div>
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border border-[#D97757]/40 bg-[#D97757]/10 text-[#D97757] text-[10px]">
-                          <span>✳</span> Welcome to Claude Code
-                        </span>
-                      </div>
-
-                      {/* Authentic ANSI Shadow ASCII Art for CLAUDE CODE */}
-                      <div className="py-0.5 overflow-hidden">
-                        <pre className="font-mono text-[#D97757] text-[7.5px] sm:text-[8.5px] leading-[1.05] font-bold select-none tracking-tight">
-                          {CLAUDE_ASCII.join("\n")}
-                        </pre>
-                      </div>
-                    </div>
-
-                    {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
-                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
-                      {/* Active wait-state indicator */}
-                      <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
-                        <span className="inline-block animate-spin text-[#D97757]">⠋</span>
-                        <span>thinking &amp; analyzing codebase…</span>
-                        <span className="ml-auto font-mono text-[9px] text-[#D97757]">wait-state active</span>
-                      </div>
-
-                      {/* WaitFeed Wait-State Slot */}
-                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1.5 font-bold">
-                            <span className="bg-[#27AD75] text-[#0A0A0C] px-1 text-[9px] font-bold">
-                              GH
-                            </span>
-                            <span className="text-[#EDEDF0] truncate">vllm-project/vllm</span>
-                          </span>
-                          <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
-                            ▲ 31.2k · 2h
-                          </span>
-                        </div>
-                        <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
-                          Fast LLM serving engine. PagedAttention memory management achieves 24x higher throughput.
-                        </p>
-                        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
-                          <span className="text-[#818CF8]">↗ github.com/vllm-project/vllm</span>
-                          <span>wait-state stream</span>
-                        </div>
-                      </div>
-
-                      {/* Claude Prompt Line */}
-                      <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-                        <span className="text-[#D97757] font-bold text-sm">&gt;</span>
-                        <span className="text-white/40">type anything to prompt Claude Code...</span>
-                        <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse ml-auto" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* TAB 1: ANTIGRAVITY */}
-                  <div
-                    className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 1
-                        ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
-                        : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
-                      }`}
-                  >
-                    <div className="flex flex-col gap-2">
-                      {/* Antigravity Rainbow Pixel "A" Logo Banner */}
-                      <div className="py-1">
-                        <svg
-                          viewBox="0 0 108 110"
-                          className="w-20 h-20 sm:w-24 sm:h-24"
-                          shapeRendering="crispEdges"
-                          aria-label="Antigravity Rainbow Logo"
-                        >
-                          {AGY_PIXELS.map((p, idx) => (
-                            <rect
-                              key={idx}
-                              x={p.c * 9}
-                              y={p.r * 11}
-                              width={9}
-                              height={11}
-                              fill={p.color}
-                            />
-                          ))}
-                        </svg>
-                      </div>
-
-                      {/* Welcome to Antigravity! */}
-                      <div className="text-xs sm:text-sm font-bold tracking-tight font-mono">
-                        <span className="text-[#EDEDF0]">Welcome to </span>
-                        <span className="text-[#58A6FF]">Antigravity!</span>
-                      </div>
-                    </div>
-
-                    {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
-                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
-                      {/* Active wait-state indicator */}
-                      <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
-                        <span className="inline-block animate-spin text-[#58A6FF]">⠋</span>
-                        <span>running tool calls &amp; reasoning…</span>
-                        <span className="ml-auto font-mono text-[9px] text-[#58A6FF]">wait-state active</span>
-                      </div>
-
-                      {/* WaitFeed Statusline Hook Card */}
-                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1.5 font-bold">
-                            <span className="bg-[#fcaa2d] text-[#0A0A0C] px-1 text-[9px] font-bold">
-                              HN
-                            </span>
-                            <span className="text-[#EDEDF0] truncate">
-                              SQLite with WebAssembly &amp; OPFS
-                            </span>
-                          </span>
-                          <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
-                            ▲ 1.4k · 3h
-                          </span>
-                        </div>
-                        <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
-                          Official SQLite Wasm release brings ACID-compliant local database storage via OPFS.
-                        </p>
-                        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
-                          <span className="text-[#818CF8]">↗ sqlite.org/wasm</span>
-                          <span>dwell clock: 20s</span>
-                        </div>
-                      </div>
-
-                      {/* AGY Prompt Line */}
-                      <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-                        <span className="text-[#58A6FF] font-bold text-sm">&gt;</span>
-                        <span className="text-white/40">type prompt...</span>
-                        <span className="w-1.5 h-3.5 bg-[#58A6FF] animate-pulse ml-auto" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* TAB 2: OPENCODE */}
-                  <div
-                    className={`absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed transition-all duration-500 ease-out ${activeTab === 2
-                        ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
-                        : "opacity-0 translate-y-2 scale-[0.98] pointer-events-none"
-                      }`}
-                  >
-                    <div className="flex flex-col">
-                      {/* Official OpenCode Wordmark Banner */}
-                      <div className="py-1">
-                        <svg
-                          viewBox="0 0 351 77"
-                          className="w-full max-w-60 sm:max-w-68 h-auto"
-                          shapeRendering="crispEdges"
-                          aria-label="OpenCode Logo"
-                        >
-                          {OPENCODE_PIXELS.map((p, idx) => (
-                            <rect
-                              key={idx}
-                              x={p.c * 9}
-                              y={p.r * 11}
-                              width={9}
-                              height={11}
-                              fill={p.color}
-                            />
-                          ))}
-                        </svg>
-                      </div>
-
-                      {/* OpenCode Slogan / Subtitle */}
-                      <p className="font-mono text-[9px] sm:text-[10px] text-[#7A7A85] tracking-wider uppercase select-none">
-                        THE AI CODING AGENT BUILT FOR THE TERMINAL
-                      </p>
-
-                      {/* OpenCode Execution Logs */}
-                      <div className="flex flex-col gap-1.5 pt-6 font-mono text-[11px] select-none">
-                        <div className="flex items-center gap-2 text-[#8A8A94]">
-                          <span className="flex items-center gap-2">
-                            <span className="text-[#3fb950]">✓</span>
-                            <span className="text-[#EDEDF0]">Read</span>
-                            <span className="text-[#8A8A94]">core/parser.rs</span>
-                          </span>
-                          <span className="text-[10px] text-[#5C5C66]">142 lines</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[#8A8A94]">
-                          <span className="flex items-center gap-2">
-                            <span className="text-[#3fb950]">✓</span>
-                            <span className="text-[#EDEDF0]">Edit</span>
-                            <span className="text-[#8A8A94]">core/parser.rs</span>
-                          </span>
-                          <span className="text-[10px] font-mono">
-                            <span className="text-[#3fb950]">+38</span>{" "}
-                            <span className="text-[#F85149]">−12</span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Area: WaitFeed Slot STUCK directly above Prompt Line */}
-                    <div className="mt-auto flex flex-col gap-1.5 pt-1.5 pb-1">
-                      {/* Active wait-state indicator */}
-                      <div className="flex items-center gap-2 text-[10px] text-[#8A8A94]">
-                        <span className="inline-block animate-spin text-[#3fb950]">⠋</span>
-                        <span>thinking &amp; analyzing codebase…</span>
-                        <span className="ml-auto font-mono text-[9px] text-[#3fb950]">wait-state active</span>
-                      </div>
-
-                      {/* WaitFeed Reactive OpenTUI Slot */}
-                      <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1.5 font-bold">
-                            <span className="bg-[#8A63F4] text-white px-1 text-[9px] font-bold">
-                              DEV
-                            </span>
-                            <span className="text-[#EDEDF0] truncate">
-                              Zero-copy AST parser in Rust
-                            </span>
-                          </span>
-                          <span className="shrink-0 font-mono text-[10px] text-[#27AD75]">
-                            ▲ 420 · 5h
-                          </span>
-                        </div>
-                        <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
-                          Memory-efficient parsing patterns utilizing Rust string slices, lifetimes, and zero-allocation token trees.
-                        </p>
-                        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
-                          <span className="text-[#818CF8]">↗ dev.to/rust-ast</span>
-                          <span>OpenTUI Solid reactive</span>
-                        </div>
-                      </div>
-
-                      {/* OpenCode Prompt Line */}
-                      <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-                        <span className="text-[#3fb950] font-bold text-sm">&gt;</span>
-                        <span className="text-white/40">Type your prompt...</span>
-                        <span className="w-1.5 h-3.5 bg-[#3fb950] animate-pulse ml-auto" />
-                      </div>
-                    </div>
-                  </div>
+                  <AnimatePresence initial={false} mode="sync">
+                    <motion.div
+                      key={activeTab}
+                      className="absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed pointer-events-auto"
+                      initial={{ opacity: 0 }}
+                      animate={{
+                        opacity: 1,
+                        transition: shouldReduceMotion
+                          ? reducedTransition
+                          : { type: "tween", ...T.panelIn },
+                      }}
+                      exit={{
+                        opacity: 0,
+                        transition: shouldReduceMotion
+                          ? reducedTransition
+                          : { type: "tween", ...T.panelOut },
+                        pointerEvents: "none",
+                      }}
+                      style={{ willChange: "opacity" }}
+                    >
+                      {activeTab === 0 && <ClaudeCodeTerminalContent />}
+                      {activeTab === 1 && <AntigravityTerminalContent />}
+                      {activeTab === 2 && <OpenCodeTerminalContent />}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
 
                 {/* Bottom Statusbar */}
                 <div className="pt-2 border-t border-[#1E1E22] flex items-center justify-between text-[9px] text-white/40 font-decima uppercase tracking-wider relative h-6">
-                  {TABS.map((tab, idx) => (
-                    <div
-                      key={tab.id}
-                      className={`absolute inset-x-0 top-1.5 flex items-center justify-between transition-all duration-300 ease-out ${activeTab === idx
-                          ? "opacity-100 translate-y-0 pointer-events-auto"
-                          : "opacity-0 translate-y-1 pointer-events-none"
-                        }`}
+                  <AnimatePresence initial={false} mode="sync">
+                    <motion.div
+                      key={activeTab}
+                      className="absolute inset-x-0 top-1.5 flex items-center justify-between pointer-events-auto"
+                      initial={{ opacity: 0 }}
+                      animate={{
+                        opacity: 1,
+                        transition: shouldReduceMotion
+                          ? reducedTransition
+                          : { type: "tween", ...T.panelIn },
+                      }}
+                      exit={{
+                        opacity: 0,
+                        transition: shouldReduceMotion
+                          ? reducedTransition
+                          : { type: "tween", ...T.panelOut },
+                        pointerEvents: "none",
+                      }}
+                      style={{ willChange: "opacity" }}
                     >
                       <span>
-                        {idx === 0
+                        {activeTab === 0
                           ? "Claude Opus 5.5 · $0.04"
-                          : idx === 1
+                          : activeTab === 1
                             ? "? for shortcuts"
                             : "OpenTUI Solid v2.4"}
                       </span>
                       <span>
-                        {idx === 0
+                        {activeTab === 0
                           ? "82% context"
-                          : idx === 1
+                          : activeTab === 1
                             ? "Gemini Argon 4 · high"
                             : "53 tests passed"}
                       </span>
-                    </div>
-                  ))}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
