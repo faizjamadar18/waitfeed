@@ -14,6 +14,11 @@
 //      - Prints nothing when idle or empty.
 //      - Survives corrupt/absent payloads.
 //      - Advances rotation across runs through claude-rotation.json.
+//      - Reserves the host's statusline inset: no row ever exceeds
+//        COLUMNS − 4, at any terminal width (the no-cut-off contract).
+//      - Honors the hook-driven activity ledger: a busy mark wakes the card
+//        for that session only, an idle mark quiets it, a stale mark goes
+//        quiet, and a ledger-less install keeps the legacy always-on panel.
 //   4. E2E: the scheduler bundle runs a keyless headline-mode cycle cleanly
 //      without dynamic require errors.
 import { describe, expect, it } from "vitest"
@@ -81,6 +86,13 @@ const CLAUDE_SESSION = JSON.stringify({
   terminal_width: 120,
 })
 
+/** Claude Code exports COLUMNS as the raw terminal width, but renders the
+ * statusline in a field ~3 columns narrower and truncates overflow with `…`
+ * (anthropics/claude-code#81454, #69967). The bundle reserves 4 columns, so
+ * every shipped row must fit COLUMNS − 4 — never COLUMNS. */
+const MARGIN = 4
+const COLUMNS_SWEEP = [45, 80, 120, 200]
+
 const WORKING = JSON.stringify({ agent_state: "working", terminal_width: 120 })
 const IDLE = JSON.stringify({ agent_state: "idle", terminal_width: 120 })
 
@@ -120,10 +132,11 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       expect(rows).toHaveLength(3)
       expect(rows[0]).toContain("[HN]")
       expect(rows[0]).toContain("Alpha headline")
-      expect(rows[0]!.length).toBe(120) // right-justified meta
+      expect(rows[0]!.length).toBe(120 - MARGIN) // right-justified inside the reserved field
       expect(rows[1]).toContain("Alpha description body")
-      expect(rows[1]!.length).toBeLessThanOrEqual(120)
+      expect(rows[1]!.length).toBeLessThanOrEqual(120 - MARGIN)
       expect(rows[2]).toContain("e.com/a")
+      expect(rows[2]!.startsWith("   > ")).toBe(true) // OpenCode's origin-row marker
       expect(res.stdout ?? "").toContain(`${ESC}]8;;https://e.com/a${BEL}`) // OSC 8 link
       expect(res.stdout ?? "").toContain(`${ESC}[38;5;202m`) // HN orange
 
@@ -166,11 +179,40 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       expect(res.status).toBe(0)
       const rows = visibleRows(res.stdout)
       expect(rows).toHaveLength(3)
-      expect(rows[0]!.length).toBe(85)
+      expect(rows[0]!.length).toBe(85 - MARGIN)
       expect(rows[0]).toContain("Alpha headline")
       expect(rows[0]).toMatch(/▲\s*7/)
     } finally {
       await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — no row ever overflows the reserved field at any COLUMNS (the cut-off contract)", async () => {
+    for (const columns of COLUMNS_SWEEP) {
+      const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-w-"))
+      try {
+        await writeFile(join(dir, "cache.json"), CACHED, "utf8")
+        const res = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
+          input: CLAUDE_SESSION,
+          encoding: "utf8",
+          env: { ...process.env, COLUMNS: String(columns) },
+        })
+        expect(res.status, `COLUMNS=${columns}`).toBe(0)
+        const rows = visibleRows(res.stdout)
+        expect(rows.length, `COLUMNS=${columns}`).toBeGreaterThanOrEqual(3)
+        // The headline row is justified to the usable field; meta intact at the end.
+        expect(rows[0]!.length, `COLUMNS=${columns}`).toBe(columns - MARGIN)
+        expect(rows[0]!.endsWith("▲ 7 · now"), `COLUMNS=${columns}`).toBe(true)
+        // Every other row (description, link) stays inside the field too —
+        // nothing for Claude Code to truncate.
+        for (const row of rows) {
+          expect(row.length, `COLUMNS=${columns} row=${row}`).toBeLessThanOrEqual(columns - MARGIN)
+        }
+        // The clickable origin survives every width.
+        expect(res.stdout ?? "", `COLUMNS=${columns}`).toContain(`${ESC}]8;;https://e.com/a${BEL}`)
+      } finally {
+        await rm(dir, { recursive: true, force: true })
+      }
     }
   })
 
@@ -258,6 +300,110 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       for (const payload of ["not-json", "{broken", JSON.stringify({ agent_state: "unknown" })]) {
         const res = runStatusline(dir, payload)
         expect(res.status).toBe(0)
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — narrow terminals still wrap long headlines without cutting text or meta", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-"))
+    try {
+      const longTitle = "Nikon photography contest winner loses title after scientists spot signs of AI in winning image"
+      const cache = JSON.stringify({
+        items: [{ id: "hn-nikon", source: "HN", title: longTitle, url: "https://example.com/nikon", score: 254, time: Date.now() - 3600000 }],
+        fetchedAt: Date.now(),
+        summaries: {},
+        llmUnavailable: true,
+      })
+      await writeFile(join(dir, "cache.json"), cache, "utf8")
+      const payload = JSON.stringify({ model: { id: "openrouter/free" } })
+      const res = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
+        input: payload,
+        encoding: "utf8",
+        env: { ...process.env, COLUMNS: "45" },
+      })
+      expect(res.status).toBe(0)
+      const rows = visibleRows(res.stdout)
+      expect(rows.length).toBeGreaterThanOrEqual(3) // wrapped headline rows + link row
+      const usable = 45 - MARGIN
+      for (const row of rows) expect(row.length).toBeLessThanOrEqual(usable)
+      for (const row of rows) expect(row).not.toContain("…") // nothing host-truncated
+      // The meta survives intact, right-justified on its headline row.
+      expect(rows.slice(0, -1).some((r) => r.includes("▲ 254"))).toBe(true)
+      // Every headline word survives across the wrapped rows — nothing cut.
+      const linkIdx = rows.findIndex((r) => r.includes("example.com"))
+      const text = rows
+        .slice(0, linkIdx)
+        .map((r) => r.replace(/^▍ \[HN\] /, "").replace(/^ {7}/, "").replace(/▲.*$/, "").trim())
+        .filter(Boolean)
+        .join(" ")
+      expect(text).toBe(longTitle)
+      // The clickable origin is still there.
+      expect(res.stdout ?? "").toContain(`${ESC}]8;;https://example.com/nikon${BEL}`)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — hook heartbeats wake the card per session; idle marks quiet it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-act-"))
+    try {
+      await writeFile(join(dir, "cache.json"), CACHED, "utf8")
+      const heartbeat = spawnSync(
+        process.execPath,
+        [SCHEDULER_BUNDLE, "--data-dir", dir, "--heartbeat"],
+        { input: JSON.stringify({ session_id: "sess-1" }), encoding: "utf8", timeout: 5_000 },
+      )
+      expect(heartbeat.status).toBe(0)
+      expect(heartbeat.stdout ?? "").toBe("") // observational hooks print nothing
+
+      // The ledger records the session as busy...
+      const doc = JSON.parse(await readFile(join(dir, "claude-activity.json"), "utf8")) as {
+        sessions: Record<string, { busy: boolean; at: number }>
+      }
+      expect(doc.sessions["sess-1"]?.busy).toBe(true)
+      expect(doc.sessions["sess-1"]?.at).toBeGreaterThan(0)
+
+      // ...so the statusline renders for THAT session...
+      const busyRun = runStatusline(dir, JSON.stringify({ session_id: "sess-1", model: { id: "x" } }))
+      expect(visibleRows(busyRun.stdout)).toHaveLength(3)
+
+      // ...stays quiet for a session the ledger never saw...
+      const stranger = runStatusline(dir, JSON.stringify({ session_id: "sess-2", model: { id: "x" } }))
+      expect((stranger.stdout ?? "").trim()).toBe("")
+
+      // ...and goes quiet again once the turn ends.
+      const stop = spawnSync(process.execPath, [SCHEDULER_BUNDLE, "--data-dir", dir, "--idle"], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(stop.status).toBe(0)
+      const idleRun = runStatusline(dir, JSON.stringify({ session_id: "sess-1", model: { id: "x" } }))
+      expect((idleRun.stdout ?? "").trim()).toBe("")
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — a stale busy mark (crashed session) goes quiet; a missing ledger stays legacy-busy", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-stale-"))
+    try {
+      await writeFile(join(dir, "cache.json"), CACHED, "utf8")
+      const stale = { sessions: { "sess-1": { busy: true, at: Date.now() - 16 * 60_000 } } }
+      await writeFile(join(dir, "claude-activity.json"), JSON.stringify(stale), "utf8")
+      const staleRun = runStatusline(dir, JSON.stringify({ session_id: "sess-1", model: { id: "x" } }))
+      expect((staleRun.stdout ?? "").trim()).toBe("")
+
+      // No ledger file at all → pre-ledger install → the legacy always-busy panel.
+      const noLedgerDir = await mkdtemp(join(tmpdir(), "waitfeed-claude-nolegacy-"))
+      try {
+        await writeFile(join(noLedgerDir, "cache.json"), CACHED, "utf8")
+        const legacy = runStatusline(noLedgerDir, JSON.stringify({ session_id: "sess-9", model: { id: "x" } }))
+        expect(visibleRows(legacy.stdout).length).toBeGreaterThanOrEqual(2)
+      } finally {
+        await rm(noLedgerDir, { recursive: true, force: true })
       }
     } finally {
       await rm(dir, { recursive: true, force: true })

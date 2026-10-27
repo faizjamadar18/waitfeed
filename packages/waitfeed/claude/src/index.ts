@@ -1,3 +1,13 @@
 // WaitFeed Claude Code adapter public exports.
 export { schedulerDeps } from "./scheduler"
-export { parseClaudeState } from "./statusline"
+export { parseClaudeState, CLAUDE_STATUSLINE_MARGIN } from "./statusline-state"
+export {
+  applyActivity,
+  emptyActivityDoc,
+  markActivity,
+  readActivityDoc,
+  CLAUDE_BUSY_STALE_MS,
+  CLAUDE_SESSION_PRUNE_MS,
+  type ClaudeActivity,
+  type ClaudeActivityDoc,
+} from "./activity"

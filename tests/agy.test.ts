@@ -303,17 +303,20 @@ describe("agyHeadlineRows — multi-line headline wrapping (never truncate, use 
 })
 
 describe("agyLinkLine — the verifiable origin of the story", () => {
-  it("renders the same short link the OpenCode ticker shows", () => {
+  it("renders the OpenCode ticker's link row: indent + > marker + the same short label", () => {
+    // OpenCode's card marks the origin row "   > label" so it reads as a
+    // distinct element next to the unmarked description rows (tui.tsx).
     expect(agyLinkLine(item("x", { url: "https://news.ycombinator.com/item?id=42" }), 100)).toBe(
-      "news.ycombinator.com/item?id=42",
+      "   > news.ycombinator.com/item?id=42",
     )
   })
 
-  it("long urls shorten to host + last segment, still on one line", () => {
+  it("long urls shorten to host + last segment, marker included, still on one line", () => {
     const line = agyLinkLine(
       item("x", { url: "https://github.com/chenglou/handwired/tree/main/very/deep/path/segment" }),
       40,
     )
+    expect(line.startsWith("   > ")).toBe(true)
     expect(line.length).toBeLessThanOrEqual(40)
     expect(line).toContain("github.com")
   })
@@ -415,7 +418,7 @@ describe("renderAgySnapshot — the statusline decision, pure over injected data
     expect(texts(out.rows)[0]!.length).toBe(120) // justified to the terminal width
     expect(texts(out.rows)[0]!.endsWith("now")).toBe(true) // meta pins to the right edge
     expect(texts(out.rows)[1]).toBe("Alpha context sentence.")
-    expect(texts(out.rows)[2]).toBe("example.com/alpha") // the origin, ALWAYS the last row
+    expect(texts(out.rows)[2]).toBe("   > example.com/alpha") // the origin, ALWAYS the last row
     expect(out.rows[0]!.dim).toBe(false)
     expect(out.rows[1]!.dim).toBe(true) // the body reads dimmed
     expect(out.rows[2]!.dim).toBe(false) // the link stays bright to verify the source
@@ -488,7 +491,7 @@ describe("renderAgySnapshot — the statusline decision, pure over injected data
   it("an item without a description skips those rows entirely — no filler", () => {
     const out = renderAgySnapshot(snap({ windowStart: NOW, now: NOW + DWELL })) // beta has no context
     expect(out.rows).toHaveLength(2) // headline + link, nothing padded on
-    expect(texts(out.rows)[1]).toBe("example.com/beta")
+    expect(texts(out.rows)[1]).toBe("   > example.com/beta")
   })
 
   it("an item without a usable url skips the link row — no empty placeholder", () => {
@@ -531,6 +534,18 @@ describe("paintAgyRows — the OpenCode news-panel look, decided once in core", 
     ])
   })
 
+  it("the > marker stays OUTSIDE the OSC 8 span — the underline covers only the label", () => {
+    const row: AgyRow = {
+      text: "   > example.com/x",
+      dim: false,
+      url: "https://example.com/x",
+      linkPrefix: "   > ",
+    }
+    expect(paintAgyRows([row])).toEqual([
+      `${ESC}[2m   > ${ESC}[0m${ESC}]8;;https://example.com/x${BEL}${ESC}[2mexample.com/x${ESC}[0m${ESC}]8;;${BEL}`,
+    ])
+  })
+
   it("the description body flows muted", () => {
     expect(paintAgyRows([{ text: "reading body", dim: true }])).toEqual([`${ESC}[2mreading body${ESC}[0m`])
   })
@@ -543,8 +558,8 @@ describe("paintAgyRows — the OpenCode news-panel look, decided once in core", 
     const rows: AgyRow[] = [
       { text: "▍ [HN] headline", dim: false, parts: { source: "HN", color: "38;5;202", title: "headline", meta: "", pad: 0 } },
       { text: "reading body", dim: true },
-      { text: "example.com/x", dim: false, url: "https://example.com/x" },
+      { text: "   > example.com/x", dim: false, url: "https://example.com/x", linkPrefix: "   > " },
     ]
-    expect(paintAgyRows(rows).map(strip)).toEqual(["▍ [HN] headline", "reading body", "example.com/x"])
+    expect(paintAgyRows(rows).map(strip)).toEqual(["▍ [HN] headline", "reading body", "   > example.com/x"])
   })
 })

@@ -264,44 +264,69 @@ async function registerClaudePlugin(customHome) {
   const targetStatuslinePath = join(distDir, "statusline.mjs").replace(/\\/g, "/")
   const targetSchedulerPath = join(distDir, "scheduler.mjs").replace(/\\/g, "/")
   const desiredStatuslineCommand = `node ${targetStatuslinePath}`
-  const desiredSchedulerCommand = `node ${targetSchedulerPath} --cycle`
+  const cycleCommand = `node ${targetSchedulerPath} --cycle`
+  const heartbeatCommand = `node ${targetSchedulerPath} --heartbeat`
+  const idleCommand = `node ${targetSchedulerPath} --idle`
+
+  // The statusline also re-runs on a timer so a busy→idle transition painted
+  // after the Stop hook actually shows — event-only updates never re-render.
+  const statuslineRefreshSeconds = 10
 
   const alreadyConfigured =
     settings.statusLine &&
     typeof settings.statusLine === "object" &&
-    settings.statusLine.command === desiredStatuslineCommand
+    settings.statusLine.command === desiredStatuslineCommand &&
+    settings.statusLine.refreshInterval === statuslineRefreshSeconds
 
   if (!alreadyConfigured) {
     settings.statusLine = {
       type: "command",
       command: desiredStatuslineCommand,
+      refreshInterval: statuslineRefreshSeconds,
     }
   }
 
   if (!settings.hooks || typeof settings.hooks !== "object") {
     settings.hooks = {}
   }
-  if (!Array.isArray(settings.hooks.SessionStart)) {
-    settings.hooks.SessionStart = []
-  }
 
-  const hasSessionStartHook = settings.hooks.SessionStart.some(
-    (entry) =>
-      entry &&
-      Array.isArray(entry.hooks) &&
-      entry.hooks.some((h) => h && h.command === desiredSchedulerCommand)
-  )
-
-  if (!hasSessionStartHook) {
-    settings.hooks.SessionStart.push({
-      hooks: [
-        {
-          type: "command",
-          command: desiredSchedulerCommand,
-        },
-      ],
+  // One matcher group per WaitFeed hook handler, added only when absent so
+  // re-running init never duplicates entries.
+  const addHook = (event, command, opts = {}) => {
+    if (!Array.isArray(settings.hooks[event])) settings.hooks[event] = []
+    const matcher = opts.matcher
+    const present = settings.hooks[event].some(
+      (entry) =>
+        (matcher === undefined || entry?.matcher === matcher) &&
+        Array.isArray(entry?.hooks) &&
+        entry.hooks.some((h) => h && h.command === command)
+    )
+    if (present) return
+    settings.hooks[event].push({
+      ...(matcher !== undefined ? { matcher } : {}),
+      hooks: [{ type: "command", command, ...(opts.async ? { async: true } : {}) }],
     })
   }
+
+  // Data cycle on session start (fetch → enrich → cache, headline mode)…
+  addHook("SessionStart", cycleCommand)
+  // …plus the quiet-at-startup marker: SessionStart also marks the session
+  // idle, so the card never shows on the splash screen (AGY parity).
+  addHook("SessionStart", idleCommand)
+  // Heartbeats: the session is actively working while a prompt or a tool
+  // event is in flight. Async — they never delay the prompt or the tools.
+  for (const event of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure"]) {
+    addHook(event, heartbeatCommand, { async: true })
+  }
+  // Turn and session boundaries quiet the card again.
+  addHook("Stop", idleCommand, { async: true })
+  addHook("StopFailure", idleCommand, { async: true })
+  // SessionEnd hooks share a 1.5-second budget — run this one synchronously
+  // (the ledger write takes ~100 ms).
+  addHook("SessionEnd", idleCommand)
+  // The 60s idle notification also quiets the card, bounding a news panel
+  // left up by an interrupted (Esc) turn.
+  addHook("Notification", idleCommand, { matcher: "idle_prompt", async: true })
 
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
 

@@ -143,7 +143,7 @@ describe("Config writers in isolated environments", () => {
     }
   })
 
-  it("registerClaudePlugin stages bundles and registers statusLine and SessionStart hooks", async () => {
+  it("registerClaudePlugin stages bundles and registers the full statusLine + hook set", async () => {
     const dir = await mkdtemp(join(tmpdir(), "claude-home-"))
     try {
       const res = await registerClaudePlugin(dir)
@@ -152,18 +152,48 @@ describe("Config writers in isolated environments", () => {
       expect(existsSync(res.settingsPath)).toBe(true)
 
       const settings = JSON.parse(await readFile(res.settingsPath, "utf8")) as {
-        statusLine?: { type: string; command: string }
-        hooks?: { SessionStart?: Array<{ hooks?: Array<{ type: string; command: string }> }> }
+        statusLine?: { type: string; command: string; refreshInterval?: number }
+        hooks?: Record<string, Array<{ matcher?: string; hooks?: Array<{ type: string; command: string; async?: boolean }> }>>
       }
+      // The statusline re-runs on a timer so the busy→idle transition actually
+      // paints after the Stop hook fires (event-only updates never re-render).
       expect(settings.statusLine).toBeDefined()
       expect(settings.statusLine?.type).toBe("command")
       expect(settings.statusLine?.command).toContain("statusline.mjs")
-      expect(settings.hooks?.SessionStart).toBeDefined()
-      expect(settings.hooks?.SessionStart?.[0]?.hooks?.[0]?.command).toContain("scheduler.mjs")
+      expect(settings.statusLine?.refreshInterval).toBe(10)
 
-      // Second run is idempotent
+      // The full hook set: heartbeats mark busy while the agent works; the
+      // turn/session/notification boundaries mark idle.
+      const hooks = settings.hooks ?? {}
+      const commandsOf = (event: string): string[] =>
+        (hooks[event] ?? []).flatMap((g) => (g.hooks ?? []).map((h) => h.command ?? ""))
+      for (const event of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure"]) {
+        const commands = commandsOf(event)
+        expect(commands.some((c) => c.includes("--heartbeat")), `${event} → --heartbeat`).toBe(true)
+      }
+      for (const event of ["Stop", "StopFailure", "SessionEnd"]) {
+        const commands = commandsOf(event)
+        expect(commands.some((c) => c.includes("--idle")), `${event} → --idle`).toBe(true)
+      }
+      // The 60s idle notification also quiets the card (bounded Esc-interrupt ghost).
+      const idleNotifications = (hooks.Notification ?? []).filter((g) => g.matcher === "idle_prompt")
+      expect(idleNotifications.some((g) => (g.hooks ?? []).some((h) => h.command?.includes("--idle")))).toBe(true)
+
+      // SessionStart keeps BOTH the data cycle and the quiet-at-startup marker.
+      const sessionStartCommands = commandsOf("SessionStart")
+      expect(sessionStartCommands.some((c) => c.includes("--cycle"))).toBe(true)
+      expect(sessionStartCommands.some((c) => c.includes("--idle"))).toBe(true)
+
+      // Second run is idempotent — no duplicated hook entries.
       const second = await registerClaudePlugin(dir)
       expect(second.alreadyConfigured).toBe(true)
+      const secondSettings = JSON.parse(await readFile(res.settingsPath, "utf8")) as {
+        hooks?: Record<string, Array<{ hooks?: Array<{ command: string }> }>>
+      }
+      for (const [event, groups] of Object.entries(secondSettings.hooks ?? {})) {
+        const total = groups.reduce((n, g) => n + (g.hooks?.length ?? 0), 0)
+        expect(total, `${event} hook count after re-run`).toBeLessThanOrEqual(2)
+      }
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

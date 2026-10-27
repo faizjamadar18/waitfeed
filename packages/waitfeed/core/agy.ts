@@ -168,9 +168,11 @@ export function agyTickerLine(it: FeedItem, width = WIDTH_DEFAULT): string {
   return `${BAR} [${it.source}] ${parts.title}${" ".repeat(parts.pad)}${parts.meta}`
 }
 
-/** The origin row shown UNDER the headline — the same short link label the
- * OpenCode ticker and reader print (host/path, shortened to fit). Empty for
- * items without a usable url. Plain text; the runner keeps it bright. */
+/** The origin row shown UNDER the headline — OpenCode's ticker card marks it
+ * `   > label` (indent + arrow marker + the same short host/path label),
+ * which is what makes the link read as its own element next to the unmarked
+ * description rows. Empty for items without a usable url. Plain text; the
+ * runner keeps it bright, and the marker rides inside the OSC 8 click target. */
 export function agyLinkLine(it: FeedItem, width = WIDTH_DEFAULT): string {
   const url = typeof it.url === "string" ? it.url.trim() : ""
   if (!url) return ""
@@ -179,7 +181,8 @@ export function agyLinkLine(it: FeedItem, width = WIDTH_DEFAULT): string {
   } catch {
     return "" // unparseable → no made-up text on screen
   }
-  return linkLabel(url, clampWidth(width))
+  const marker = LINK_MARKER
+  return `${marker}${linkLabel(url, Math.max(8, clampWidth(width) - marker.length))}`
 }
 
 /** The card shows AT MOST this many wrapped description rows — the user's
@@ -273,6 +276,9 @@ export interface AgyRow {
   dim: boolean
   parts?: AgyHeadParts
   url?: string
+  /** The marker portion of a link row (kept OUTSIDE the OSC 8 span so the
+   * terminal's hover underline covers only the label, never the arrow). */
+  linkPrefix?: string
 }
 
 // Escape bytes are built from char codes — escape literals must not ride
@@ -420,20 +426,58 @@ export function agyHeadlineRows(it: FeedItem, width = WIDTH_DEFAULT): AgyRow[] {
         },
       })
     } else {
-      const text = lineWords.join(" ")
-      const pad = tail ? Math.max(0, w - indent.length - text.length - tail.length) : 0
-      rows.push({
-        text: `${indent}${text}${" ".repeat(pad)}${tail}`,
-        dim: false,
-        parts: {
-          source: it.source,
-          color: "",
-          prefix: indent,
-          title: text,
-          meta: tail,
-          pad,
-        },
-      })
+      let text = lineWords.join(" ")
+      // The packed line consumed every word, but the meta tail must never
+      // ride past the width (the host truncates overflow with an ellipsis):
+      // hand overflow words back so the meta stays right-justified beside
+      // the text on the SAME line when there is room for both.
+      while (lineWords.length > 1 && indent.length + text.length + tail.length > w) {
+        words.push(lineWords.pop()!)
+        text = lineWords.join(" ")
+      }
+      if (indent.length + text.length + tail.length <= w) {
+        const pad = tail ? Math.max(0, w - indent.length - text.length - tail.length) : 0
+        rows.push({
+          text: `${indent}${text}${" ".repeat(pad)}${tail}`,
+          dim: false,
+          parts: {
+            source: it.source,
+            color: "",
+            prefix: indent,
+            title: text,
+            meta: tail,
+            pad,
+          },
+        })
+      } else {
+        // A single word already fills the line: the text takes this row
+        // whole (never cut), and the meta gets a dedicated justified row.
+        rows.push({
+          text: `${indent}${text}`,
+          dim: false,
+          parts: {
+            source: it.source,
+            color: "",
+            prefix: indent,
+            title: text,
+            meta: "",
+            pad: 0,
+          },
+        })
+        const metaPad = Math.max(0, w - indent.length - tail.length)
+        rows.push({
+          text: `${indent}${" ".repeat(metaPad)}${tail.trimStart()}`,
+          dim: false,
+          parts: {
+            source: it.source,
+            color: "",
+            prefix: indent,
+            title: "",
+            meta: tail,
+            pad: metaPad,
+          },
+        })
+      }
     }
   }
 
@@ -457,6 +501,11 @@ export function agyHeadlineRows(it: FeedItem, width = WIDTH_DEFAULT): AgyRow[] {
   return rows
 }
 
+/** The origin row's marker — OpenCode's ticker card prints the link as
+ * `   > label`; one constant so the plain row, the width budget, and the
+ * painter's OSC 8 split can never drift apart. */
+export const LINK_MARKER = "   > "
+
 /** Terminal painting — decided once here like every other presentation
  * rule. Colors mirror the OpenCode news panel: the bar+badge rides its
  * channel color, the headline text stays clean, meta/body/link flow muted.
@@ -465,7 +514,16 @@ export function agyHeadlineRows(it: FeedItem, width = WIDTH_DEFAULT): AgyRow[] {
  * where it doesn't, the label degrades to plain text. */
 export function paintAgyRows(rows: AgyRow[]): string[] {
   return rows.map((row) => {
-    if (row.url) return wrapOsc8(row.url, wrapAnsi(MUTED_ANSI, row.text))
+    if (row.url) {
+      // The marker paints dim OUTSIDE the hyperlink span: the terminal's
+      // hover underline then covers only the link label, never the arrow.
+      const prefix = row.linkPrefix ?? ""
+      const label = row.text.slice(prefix.length)
+      return (
+        (prefix ? wrapAnsi(MUTED_ANSI, prefix) : "") +
+        wrapOsc8(row.url, wrapAnsi(MUTED_ANSI, label))
+      )
+    }
     if (row.parts) {
       const badge = row.parts.prefix !== undefined ? row.parts.prefix : `${BAR} [${row.parts.source}] `
       const gap = " ".repeat(row.parts.pad)
@@ -504,7 +562,7 @@ export function renderAgySnapshot(snap: AgySnapshot): {
   const link = agyLinkLine(it, w)
   if (link.length > 0) {
     const url = typeof it.url === "string" ? it.url.trim() : ""
-    rows.push({ text: link, dim: false, url })
+    rows.push({ text: link, dim: false, url, linkPrefix: LINK_MARKER })
   }
   return { rows, ticks: ticked.ticks, windowStart: ticked.windowStart }
 }
