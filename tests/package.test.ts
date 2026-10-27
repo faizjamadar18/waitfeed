@@ -120,6 +120,27 @@ describe("ticker card layout (field-bug guard from 1.0.1, narrow terminal)", () 
   })
 })
 
+describe("render gating — the panel is on ONLY while the agent executes", () => {
+  it("the ticker hides while the agent waits on the user (question or permission)", async () => {
+    const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
+    // The wait check must exist and mirror OpenCode's own attention rule:
+    // permission requests and question-tool forms decide "waiting on user".
+    const start = src.indexOf("const waitingOnUser")
+    expect(start, "no wait check — the ticker would show while the agent asks").toBeGreaterThan(-1)
+    const wait = src.slice(start, src.indexOf("/** Keeps the busy window"))
+    expect(wait, "wait check must consult permission.list").toContain("permission.list")
+    expect(wait, "wait check must consult form.list — the question tool surfaces as a form").toContain("form.list")
+    // The slot gate combines both: busy AND NOT waiting on the user.
+    expect(src, "slot gate must be busy && !waitingOnUser").toMatch(
+      /<Show when=\{isBusy\(props\.sessionID\) && !waitingOnUser\(props\.sessionID\)\}>/,
+    )
+    // A failed wait read never leaves the ticker stuck hidden — fail open to busy.
+    const failing = wait.indexOf("catch")
+    expect(failing, "wait read must be guarded").toBeGreaterThan(-1)
+    expect(wait.slice(failing), "failed wait read must NOT hide the ticker").toContain("false")
+  })
+})
+
 describe("AGY plugin bundle packaging (Antigravity CLI port)", () => {
   it("the published package ships the agy/ directory", async () => {
     const pkg = JSON.parse(await readFile(join(PKG, "package.json"), "utf8")) as { files: string[] }

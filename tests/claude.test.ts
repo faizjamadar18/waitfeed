@@ -19,7 +19,7 @@
 //      up), pruned of dead sessions, and never trusted for a session it has
 //      no entry for. A crashed session's busy mark goes stale after 15 min.
 import { afterEach, describe, expect, it } from "vitest"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -27,9 +27,13 @@ import {
   CLAUDE_BUSY_STALE_MS,
   CLAUDE_SESSION_PRUNE_MS,
   emptyActivityDoc,
+  markActivityTransition,
   readActivityDoc,
   type ClaudeActivityDoc,
 } from "../packages/waitfeed/claude/src/activity"
+import { FLIP_SUFFIX, baseCommand, flipStatuslineCommand } from "../packages/waitfeed/claude/src/flip"
+import { INTERRUPT_MARKER, turnInterrupted } from "../packages/waitfeed/claude/src/interrupt"
+import { watchPathsOutput } from "../packages/waitfeed/claude/src/watch"
 import { CLAUDE_STATUSLINE_MARGIN, parseClaudeState } from "../packages/waitfeed/claude/src/statusline-state"
 import { isAgyBusy } from "../packages/waitfeed/core/agy"
 
@@ -259,5 +263,158 @@ describe("readActivityDoc — the on-disk round trip keeps entries", () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe("markActivityTransition — flips are real state changes only", () => {
+  it("the first mark for a session is a transition (screen changes), repeats are not", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-tr-"))
+    try {
+      const file = join(dir, "claude-activity.json")
+      expect(await markActivityTransition(file, "s1", true)).toBe(true) // unseen → busy
+      expect(await markActivityTransition(file, "s1", true)).toBe(false) // busy → busy
+      expect(await markActivityTransition(file, "s1", false)).toBe(true) // busy → idle
+      expect(await markActivityTransition(file, "s1", false)).toBe(false) // idle → idle
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("sessions stay independent — another window's transition never reads as ours", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-tr2-"))
+    try {
+      const file = join(dir, "claude-activity.json")
+      expect(await markActivityTransition(file, "s1", true)).toBe(true)
+      expect(await markActivityTransition(file, "s2", true)).toBe(true) // s2's own first mark
+      expect(await markActivityTransition(file, "s1", true)).toBe(false) // s1 unchanged
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("flipStatuslineCommand — the instant-paint mechanism", () => {
+  it("the two command variants are behavior-identical and byte-different", () => {
+    const base = "node C:/h/.claude/waitfeed/dist/statusline.mjs"
+    expect(baseCommand(base + FLIP_SUFFIX)).toBe(base)
+    expect(baseCommand(base)).toBe(base)
+  })
+
+  it("flips to the suffixed variant and back, preserving every other setting", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-flip-"))
+    try {
+      const file = join(dir, "settings.json")
+      const settings = {
+        env: { FORCE_HYPERLINK: "1" },
+        statusLine: { type: "command", command: "node /h/.claude/waitfeed/dist/statusline.mjs", refreshInterval: 2 },
+        hooks: { Stop: [{ hooks: [{ type: "command", command: "node /x/scheduler.mjs --idle" }] }] },
+      }
+      await writeFile(file, JSON.stringify(settings, null, 2) + "\n", "utf8")
+
+      expect(await flipStatuslineCommand(file)).toBe(true)
+      const flipped = JSON.parse(await readFile(file, "utf8")) as typeof settings
+      expect(flipped.statusLine.command.endsWith(FLIP_SUFFIX)).toBe(true)
+      expect(flipped.statusLine.command.startsWith("node /h/.claude/waitfeed/dist/statusline.mjs")).toBe(true)
+      expect(flipped.statusLine.refreshInterval).toBe(2)
+      expect(flipped.env).toEqual({ FORCE_HYPERLINK: "1" })
+      expect(flipped.hooks).toEqual(settings.hooks)
+
+      expect(await flipStatuslineCommand(file)).toBe(true)
+      const restored = JSON.parse(await readFile(file, "utf8")) as typeof settings
+      expect(restored.statusLine.command).toBe(settings.statusLine.command)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("anything that is not our statusline stays untouched — and nothing throws", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-flip2-"))
+    try {
+      const foreign = join(dir, "foreign.json")
+      await writeFile(
+        foreign,
+        JSON.stringify({ statusLine: { type: "command", command: "node elsewhere/other.mjs" } }),
+        "utf8",
+      )
+      expect(await flipStatuslineCommand(foreign)).toBe(false)
+      expect((JSON.parse(await readFile(foreign, "utf8")) as { statusLine: { command: string } }).statusLine.command).toBe(
+        "node elsewhere/other.mjs",
+      )
+
+      const noStatus = join(dir, "noline.json")
+      await writeFile(noStatus, JSON.stringify({ model: "x" }), "utf8")
+      expect(await flipStatuslineCommand(noStatus)).toBe(false)
+
+      const corrupt = join(dir, "corrupt.json")
+      await writeFile(corrupt, "{not json", "utf8")
+      expect(await flipStatuslineCommand(corrupt)).toBe(false)
+      expect(await flipStatuslineCommand(join(dir, "absent.json"))).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("turnInterrupted — the Esc-interrupt detector (no hook fires on interrupt)", () => {
+  // Entry builders shaped exactly like the real transcript lines:
+  // the interrupt is a user-type entry with interruptedMessageId + marker
+  // text; bookkeeping entries follow it; real prompts are plain user entries.
+  const assistant = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "working…" }] } })
+  const prompt = JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: "go deeper" }] } })
+  const interrupted = JSON.stringify({
+    type: "user",
+    interruptedMessageId: "m1",
+    message: { role: "user", content: [{ type: "text", text: `${INTERRUPT_MARKER}]` }] },
+  })
+  const interruptedTool = JSON.stringify({
+    type: "user",
+    interruptedMessageId: "m2",
+    message: { role: "user", content: [{ type: "tool_result", content: `${INTERRUPT_MARKER} for tool use]` }] },
+  })
+  const bookkeeping = JSON.stringify({ type: "cost-state" })
+
+  it("a newest-entry interrupt marker (bookkeeping may follow it) → the turn died by Esc", () => {
+    expect(turnInterrupted([assistant, bookkeeping, interrupted, bookkeeping])).toBe(true)
+    expect(turnInterrupted([assistant, interruptedTool, bookkeeping])).toBe(true)
+  })
+
+  it("real turn activity after the marker means the turn is live again", () => {
+    expect(turnInterrupted([interrupted, bookkeeping, prompt])).toBe(false)
+    expect(turnInterrupted([interrupted, bookkeeping, assistant])).toBe(false)
+  })
+
+  it("a live turn (assistant streaming, prompt running) never reads as interrupted", () => {
+    expect(turnInterrupted([assistant])).toBe(false)
+    expect(turnInterrupted([prompt, assistant])).toBe(false)
+  })
+
+  it("undecidable tails fail OPEN to live — the card can never get stuck hidden", () => {
+    expect(turnInterrupted([])).toBe(false)
+    expect(turnInterrupted([bookkeeping])).toBe(false)
+    expect(turnInterrupted(["{not json"])).toBe(false)
+  })
+
+  it("sidechain (subagent) entries never decide the main turn", () => {
+    const sidechainInterrupt = JSON.stringify({
+      type: "user",
+      isSidechain: true,
+      interruptedMessageId: "m3",
+      message: { role: "user", content: [{ type: "text", text: `${INTERRUPT_MARKER}]` }] },
+    })
+    expect(turnInterrupted([assistant, sidechainInterrupt, bookkeeping])).toBe(false)
+  })
+})
+
+describe("watchPathsOutput — seeding the transcript watcher from SessionStart", () => {
+  it("returns the watchPaths JSON for a payload that carries the transcript path", () => {
+    expect(JSON.parse(watchPathsOutput(JSON.stringify({ session_id: "s", transcript_path: "C:/t/x.jsonl" })))).toEqual({
+      watchPaths: ["C:/t/x.jsonl"],
+    })
+  })
+
+  it("prints nothing without a transcript path — plain stdout must never leak into the hook output", () => {
+    expect(watchPathsOutput("{}")).toBe("")
+    expect(watchPathsOutput(JSON.stringify({ transcript_path: "" }))).toBe("")
+    expect(watchPathsOutput("not json")).toBe("")
   })
 })

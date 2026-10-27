@@ -1,50 +1,112 @@
 import type { SVGProps } from "react";
 
-export function WaitFeedLogo({ className = "h-6 w-auto", ...props }: SVGProps<SVGSVGElement>) {
+export function WaitFeedMark({ className = "w-7 h-7", ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
       role="presentation"
-      viewBox="0 0 148 28"
-      fill="none"
+      viewBox="0 0 96 96"
       className={className}
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <rect x="0" y="3" width="6" height="22" rx="1.5" fill="#fcaa2d" />
-      <text
-        x="15"
-        y="19"
-        fill="currentColor"
-        fontFamily="var(--font-decima), monospace"
-        fontSize="17"
-        fontWeight="700"
-        letterSpacing="0.08em"
+      <rect width="96" height="96" rx="14" fill="#141414" />
+      <path
+        d="M20 18H76A28 28 0 0 1 20 18ZM48 50L48 50A28 28 0 0 1 69.45 60L26.55 60A28 28 0 0 1 48 50ZM24.05 63.5L71.95 63.5A28 28 0 0 1 74.15 68L21.85 68A28 28 0 0 1 24.05 63.5ZM20.76 71.5L75.24 71.5A28 28 0 0 1 76 78L20 78A28 28 0 0 1 20.76 71.5Z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  );
+}
+
+export function WaitFeedMarkInverted({ className = "w-7 h-7", ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      role="presentation"
+      viewBox="0 0 96 96"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <rect width="96" height="96" rx="14" fill="#FFFFFF" />
+      <path
+        d="M20 18H76A28 28 0 0 1 20 18ZM48 50L48 50A28 28 0 0 1 69.45 60L26.55 60A28 28 0 0 1 48 50ZM24.05 63.5L71.95 63.5A28 28 0 0 1 74.15 68L21.85 68A28 28 0 0 1 24.05 63.5ZM20.76 71.5L75.24 71.5A28 28 0 0 1 76 78L20 78A28 28 0 0 1 20.76 71.5Z"
+        fill="#141414"
+      />
+    </svg>
+  );
+}
+
+export function WaitFeedBrand({
+  className = "",
+  markClassName = "w-7 h-7",
+  textClassName = "text-[22px]",
+  text,
+  isDark = false,
+}: {
+  className?: string;
+  markClassName?: string;
+  textClassName?: string;
+  text?: string;
+  isDark?: boolean;
+}) {
+  return (
+    <div className={`flex items-end gap-1 sm:gap-1.5 select-none ${className}`}>
+      <WaitFeedMark className={`${markClassName} shrink-0`} />
+      <span
+        className={`font-logo ${textClassName} leading-none translate-y-px`}
       >
-        WAITFEED
-      </text>
-    </svg>
+        {text && text !== "waitfeed" ? (
+          text
+        ) : (
+          <>
+            <span
+              className={`italic font-medium tracking-[-0.035em] ${
+                isDark ? "text-[#A8A596]" : "text-[#807D6E]"
+              }`}
+            >
+              wait
+            </span>
+            <span
+              className={`relative inline-block not-italic font-bold tracking-[-0.035em] ml-0.5 ${
+                isDark ? "text-white" : "text-[#191918]"
+              }`}
+            >
+              feed
+              <svg
+                viewBox="0 0 100 12"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "-2px",
+                  bottom: "-5px",
+                  width: "calc(100% + 5px)",
+                  height: "6px",
+                  overflow: "visible",
+                  pointerEvents: "none",
+                  opacity: 1,
+                  transform: "none",
+                  transition: "none",
+                }}
+              >
+                <path
+                  d="M 1 9.5 C 25 3.5, 60 1.5, 99 4 C 65 5.5, 30 7.5, 1 9.5 Z"
+                  fill="#fcaa2d"
+                />
+              </svg>
+            </span>
+          </>
+        )}
+      </span>
+    </div>
   );
 }
 
-export const RelaceLogo = WaitFeedLogo;
-
-
-export function RelaceEmblem({ className = "w-6 h-6", ...props }: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      role="presentation"
-      viewBox="0 0 384 384"
-      fill="currentColor"
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <path d="M 177.066 300.457 C 188.67 327.679 201.159 356.423 216.195 384 L 0 384 L 0 329.824 C 48.183 331.267 100.417 326.816 147.142 311.881 C 157.323 308.627 167.342 304.837 177.066 300.457 Z" />
-      <path d="M 383.945 383.945 L 275.086 383.945 C 253.92 350.935 237.842 313.244 221.208 274.303 C 228.711 268.535 235.808 262.208 242.402 255.276 C 268.654 227.677 285.796 191.66 289.736 146.511 C 292.09 119.567 287.37 78.854 259.318 54.148 C 233.586 31.486 188.735 22.755 157.324 49.241 C 143.173 61.173 135.78 77.355 131.854 91.172 C 122.646 123.526 126.293 157.201 133.953 187.412 C 139.885 210.807 148.615 233.54 157.063 253.678 C 149.051 257.332 140.568 260.58 131.67 263.423 C 91.091 276.393 44.151 280.378 0 278.932 L 0 0 L 383.945 0 Z" />
-      <path d="M 189.842 88.267 C 197.03 82.207 213.302 81.727 225.493 92.462 C 235.362 101.156 240.715 121.164 238.872 142.265 L 238.872 142.271 C 235.904 176.29 223.427 201.422 205.342 220.436 C 203.656 222.206 201.919 223.928 200.133 225.599 C 193.453 209.133 187.286 192.136 182.968 175.103 C 176.388 149.151 174.735 125.478 180.489 105.261 L 180.492 105.245 C 182.893 96.792 186.298 91.254 189.842 88.268 Z" />
-    </svg>
-  );
-}
+export const WaitFeedLogo = WaitFeedBrand;
+export const RelaceLogo = WaitFeedBrand;
+export const RelaceEmblem = WaitFeedMark;
 
 export function BrainIcon({ className = "w-4 h-4", ...props }: SVGProps<SVGSVGElement>) {
   return (
@@ -378,3 +440,23 @@ export function LinkedInIcon({ className = "w-4 h-4", ...props }: SVGProps<SVGSV
     </svg>
   );
 }
+
+export function GitHubIcon({ className = "w-4 h-4", ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      role="presentation"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+      />
+    </svg>
+  );
+}
+

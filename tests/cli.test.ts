@@ -155,12 +155,15 @@ describe("Config writers in isolated environments", () => {
         statusLine?: { type: string; command: string; refreshInterval?: number }
         hooks?: Record<string, Array<{ matcher?: string; hooks?: Array<{ type: string; command: string; async?: boolean }> }>>
       }
-      // The statusline re-runs on a timer so the busy→idle transition actually
-      // paints after the Stop hook fires (event-only updates never re-render).
+      // The statusline re-runs on a timer so the ledger transitions actually
+      // paint — event-only updates never re-render. At 2s the timer ALSO
+      // covers the two waits the events can't paint: Enter (no statusline
+      // trigger at submit — the card must not wait for the first assistant
+      // message) and the moment a question/permission wait ends.
       expect(settings.statusLine).toBeDefined()
       expect(settings.statusLine?.type).toBe("command")
       expect(settings.statusLine?.command).toContain("statusline.mjs")
-      expect(settings.statusLine?.refreshInterval).toBe(10)
+      expect(settings.statusLine?.refreshInterval).toBe(2)
 
       // The full hook set: heartbeats mark busy while the agent works; the
       // turn/session/notification boundaries mark idle.
@@ -171,10 +174,26 @@ describe("Config writers in isolated environments", () => {
         const commands = commandsOf(event)
         expect(commands.some((c) => c.includes("--heartbeat")), `${event} → --heartbeat`).toBe(true)
       }
-      for (const event of ["Stop", "StopFailure", "SessionEnd"]) {
+      // Turn/session boundaries quiet the card; so does the agent asking for
+      // permission — waiting on the user is not executing.
+      for (const event of ["Stop", "StopFailure", "SessionEnd", "PermissionRequest"]) {
         const commands = commandsOf(event)
         expect(commands.some((c) => c.includes("--idle")), `${event} → --idle`).toBe(true)
       }
+      // The question tool waits on the user the moment it starts — PreToolUse
+      // fires BEFORE the tool blocks, so the card quiets while it asks.
+      const askQuiet = (hooks.PreToolUse ?? []).some(
+        (g) => g.matcher === "AskUserQuestion" && (g.hooks ?? []).some((h) => h.command?.includes("--idle")),
+      )
+      expect(askQuiet, "PreToolUse AskUserQuestion → --idle").toBe(true)
+      // MCP elicitation dialogs are questions to the user too.
+      for (const matcher of ["elicitation_dialog", "elicitation_url_dialog"]) {
+        const elicitation = (hooks.Notification ?? []).filter((g) => g.matcher === matcher)
+        expect(elicitation.some((g) => (g.hooks ?? []).some((h) => h.command?.includes("--idle"))), matcher).toBe(true)
+      }
+      // A DENIED permission hands control back to the agent — busy again.
+      const deniedCommands = commandsOf("PermissionDenied")
+      expect(deniedCommands.some((c) => c.includes("--heartbeat")), "PermissionDenied → --heartbeat").toBe(true)
       // The 60s idle notification also quiets the card (bounded Esc-interrupt ghost).
       const idleNotifications = (hooks.Notification ?? []).filter((g) => g.matcher === "idle_prompt")
       expect(idleNotifications.some((g) => (g.hooks ?? []).some((h) => h.command?.includes("--idle")))).toBe(true)
@@ -183,17 +202,31 @@ describe("Config writers in isolated environments", () => {
       const sessionStartCommands = commandsOf("SessionStart")
       expect(sessionStartCommands.some((c) => c.includes("--cycle"))).toBe(true)
       expect(sessionStartCommands.some((c) => c.includes("--idle"))).toBe(true)
+      // The transcript watcher: SessionStart seeds it; FileChanged turns the
+      // interrupt-marker write (Esc — no hook of its own) into an instant
+      // hide: ledger idle + the instant-paint flip.
+      expect(sessionStartCommands.some((c) => c.includes("--watch")), "SessionStart → --watch").toBe(true)
+      expect(commandsOf("FileChanged").some((c) => c.includes("--interrupt-check")), "FileChanged → --interrupt-check").toBe(true)
 
-      // Second run is idempotent — no duplicated hook entries.
+      // Second run is idempotent — the hook set comes back byte-identical.
       const second = await registerClaudePlugin(dir)
       expect(second.alreadyConfigured).toBe(true)
       const secondSettings = JSON.parse(await readFile(res.settingsPath, "utf8")) as {
         hooks?: Record<string, Array<{ hooks?: Array<{ command: string }> }>>
       }
-      for (const [event, groups] of Object.entries(secondSettings.hooks ?? {})) {
-        const total = groups.reduce((n, g) => n + (g.hooks?.length ?? 0), 0)
-        expect(total, `${event} hook count after re-run`).toBeLessThanOrEqual(2)
-      }
+      expect(secondSettings.hooks).toEqual(hooks)
+
+      // The hook flips the stored command at runtime (" --wf" suffix) to
+      // repaint the card instantly on busy↔idle transitions; init must treat
+      // that as configured — a rewrite back would itself trigger an instant
+      // statusline re-run on every init.
+      const withFlip = JSON.parse(await readFile(res.settingsPath, "utf8")) as { statusLine?: { command: string } }
+      withFlip.statusLine!.command += " --wf"
+      await writeFile(res.settingsPath, JSON.stringify(withFlip, null, 2) + "\n", "utf8")
+      const third = await registerClaudePlugin(dir)
+      expect(third.alreadyConfigured).toBe(true)
+      const thirdSettings = JSON.parse(await readFile(res.settingsPath, "utf8")) as { statusLine?: { command: string } }
+      expect(thirdSettings.statusLine?.command.endsWith(" --wf"), "flip variant survives a re-run of init").toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

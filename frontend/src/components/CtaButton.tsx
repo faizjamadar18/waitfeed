@@ -1,5 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import React from "react";
+import { motion } from "motion/react";
+import { RELACE_EASE } from "@/lib/motion";
+
+const MotionLink = motion.create(Link);
 
 interface CtaButtonProps {
   href: string;
@@ -28,7 +34,7 @@ export function CtaButton({
   // Dark = black background with white text
 
   const baseClasses =
-    "group relative inline-flex items-center justify-center gap-3 select-none rounded-xs transition-all duration-300 focus:outline-none cursor-pointer overflow-hidden";
+    "group relative inline-flex items-center justify-center gap-3 select-none rounded-xs transition-colors duration-300 focus:outline-none cursor-pointer overflow-hidden";
 
   const sizeClasses =
     variant === "ghost"
@@ -51,18 +57,20 @@ export function CtaButton({
   const isExternal = href.startsWith("http") || href.startsWith("mailto");
 
   return (
-    <Link
+    <MotionLink
       href={href}
       target={target || (isExternal ? "_blank" : undefined)}
       rel={rel || (isExternal ? "noopener noreferrer" : undefined)}
       onClick={onClick}
+      whileHover={{ scale: 1.015, transition: { duration: 0.2, ease: RELACE_EASE } }}
+      whileTap={{ scale: 0.98, transition: { duration: 0.1, ease: RELACE_EASE } }}
       className={`${baseClasses} ${sizeClasses} ${colorClasses} ${className}`}
     >
       <span className="relative z-10 font-parabole">{children}</span>
 
       {/* Dual sliding arrow icon */}
       {(showArrow ?? (variant !== "ghost")) && (
-        <span className="relative z-10 w-4 h-4 overflow-hidden shrink-0 inline-flex items-center justify-center">
+        <span className="relative z-10 w-3.5 h-3.5 overflow-hidden shrink-0 inline-flex items-center justify-center">
           {/* Default arrow */}
           <svg
             viewBox="0 0 16 16"
@@ -93,6 +101,6 @@ export function CtaButton({
           </svg>
         </span>
       )}
-    </Link>
+    </MotionLink>
   );
 }

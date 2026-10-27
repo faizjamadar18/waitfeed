@@ -100,3 +100,22 @@ export async function markActivity(file: string, sessionID: string, busy: boolea
   const doc = await readActivityDoc(file)
   await writeActivityDoc(file, applyActivity(doc ?? emptyActivityDoc(), sessionID, busy, now))
 }
+
+/**
+ * The same hook event, reporting whether it FLIPPED the session's busy
+ * state (a session with no entry counts as flipped — the first mark always
+ * changes the screen). The scheduler uses this to repaint instantly: the
+ * statusline command flips only on a real busy↔idle transition, so mid-run
+ * tool events (busy → busy) cause no settings churn.
+ */
+export async function markActivityTransition(
+  file: string,
+  sessionID: string,
+  busy: boolean,
+  now = Date.now(),
+): Promise<boolean> {
+  const doc = await readActivityDoc(file)
+  const before = doc?.sessions?.[sessionID]?.busy
+  await writeActivityDoc(file, applyActivity(doc ?? emptyActivityDoc(), sessionID, busy, now))
+  return before !== busy
+}

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import Image from "next/image";
+import { motion } from "motion/react";
+import { relaceViewport, transitionWithDelay } from "@/lib/motion";
 
 interface FeedRow {
   source: string;
@@ -107,33 +109,55 @@ export function ModelsAndInfra() {
     <section
       id="sources"
       ref={sectionRef}
-      className="w-full py-16 sm:py-24 border-t border-[#e3e2d8]"
+      className="w-full py-16 sm:py-24"
     >
       <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col gap-6 sm:gap-8">
         {/* Header */}
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={relaceViewport}
+            transition={transitionWithDelay(0)}
+            className="flex items-center gap-2"
+          >
             <span className="w-1.5 h-1.5 rounded-full bg-[#fcaa2d]" />
             <span className="font-decima text-[10px] uppercase tracking-widest text-[#fcaa2d]">
-              Live Sources &amp; Pipeline
+              Feed Ingestion
             </span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918] max-w-180">
-            Developer intelligence from{" "}
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={relaceViewport}
+            transition={transitionWithDelay(0.05)}
+            className="text-2xl sm:text-3xl md:text-[42px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918] max-w-180"
+          >
+            Real-time engineering feeds from{" "} <br></br>
             <strong className="font-display font-normal text-black">
-              verifiable technical sources
+              primary developer networks
             </strong>
-          </h2>
-          <p className="text-sm sm:text-base text-[#191918]/60 font-parabole leading-relaxed max-w-160">
-            Streaming high-signal updates from Hacker News, GitHub Trending,
-            Dev.to, and custom RSS. Synthesized strictly from technical metadata
-            into 180-character briefs using your agent&apos;s local session with
-            strict substance gates and zero hallucinations.
-          </p>
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={relaceViewport}
+            transition={transitionWithDelay(0.1)}
+            className="text-sm sm:text-base text-[#191918]/60 font-parabole leading-relaxed max-w-160"
+          >
+            Direct streaming ingestion from Hacker News, GitHub Trending, Dev.to,
+            Reddit and custom RSS. Dispatched straight to your terminal.
+          </motion.p>
         </div>
 
         {/* Visual: Single Sunset Mountain Ridge Background */}
-        <div className="relative aspect-1596/900 min-h-110 sm:min-h-0 w-full rounded-xs overflow-hidden border border-[#e3e2d8] bg-[#f3f2e7]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98, y: 20 }}
+          whileInView={{ opacity: 1, scale: 1, y: 0 }}
+          viewport={relaceViewport}
+          transition={transitionWithDelay(0.15)}
+          className="relative aspect-1596/900 min-h-110 sm:min-h-0 w-full rounded-xs overflow-hidden border border-[#e3e2d8] bg-[#f3f2e7]"
+        >
           <Image
             src="https://framerusercontent.com/images/Bj6BdvVC7GNAWhZbDFhJ2X9rTFI.webp?width=1596&height=900"
             alt="Mountain ridge at sunset with trees in the foreground"
@@ -380,7 +404,7 @@ export function ModelsAndInfra() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

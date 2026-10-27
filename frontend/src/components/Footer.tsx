@@ -1,61 +1,66 @@
+"use client";
+
 import Link from "next/link";
-import { RelaceEmblem, TwitterIcon, LinkedInIcon } from "./Icons";
+import { motion } from "motion/react";
+import { WaitFeedBrand, GitHubIcon, LinkedInIcon } from "./Icons";
+import { RELACE_EASE } from "@/lib/motion";
 
 export function Footer() {
   return (
-    <footer className="w-full bg-[#fffef2] pt-0 pb-12 flex flex-col items-center justify-center">
+    <motion.footer
+      initial={{ opacity: 0, y: 15 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.6, ease: RELACE_EASE }}
+      className="w-full bg-[#fffef2] pt-0 pb-12 flex flex-col items-center justify-center"
+    >
       <div className="w-full max-w-266 flex flex-col">
-        {/* Footer Top Row: Logo, Links (Y Combinator, About Us, Email Us), Socials (X, LinkedIn) (matches Relace #framer-3uejix) */}
+        {/* Footer Top Row: Logo, Links, Socials */}
         <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 px-5 py-5">
           {/* Left: Logo */}
           <Link
             href="/"
-            aria-label="Relace Home"
-            className="flex items-center gap-2.5 text-[#191918] hover:opacity-85 transition-opacity"
+            aria-label="WaitFeed home"
+            className="group logo flex items-center text-[#191918] focus-visible:outline-hidden"
           >
-            <RelaceEmblem className="w-6 h-6 text-[#191918]" />
-            <span className="font-parabole text-xl font-medium tracking-tight text-[#191918]">
-              Relace
-            </span>
+            <WaitFeedBrand />
           </Link>
 
-          {/* Middle: Links */}
+          {/* Middle: Important Section Nav Links */}
           <div className="flex flex-wrap items-center gap-6 sm:gap-8">
             <Link
-              href="https://www.ycombinator.com/companies/relace"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#how-it-works"
               className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
             >
-              Y Combinator
+              How It Works
             </Link>
             <Link
-              href="/about-us"
+              href="#features"
               className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
             >
-              About Us
+              Features
             </Link>
             <Link
-              href="mailto:info@relace.ai"
+              href="#faq"
               className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
             >
-              Email Us
+              FAQ
             </Link>
           </div>
 
-          {/* Right: Socials (X, LinkedIn) */}
+          {/* Right: Socials (GitHub, LinkedIn) */}
           <div className="flex items-center gap-4">
             <Link
-              href="https://x.com/relace_ai"
+              href="https://github.com/faizjamadar18/waitfeed"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="X (Twitter)"
+              aria-label="GitHub"
               className="text-[#191918] hover:opacity-70 transition-opacity"
             >
-              <TwitterIcon className="w-4 h-4" />
+              <GitHubIcon className="w-5 h-5" />
             </Link>
             <Link
-              href="https://www.linkedin.com/company/relace-ai/"
+              href="https://www.linkedin.com/in/faiz-jamadar-2859732a4"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="LinkedIn"
@@ -66,45 +71,43 @@ export function Footer() {
           </div>
         </div>
 
-        {/* 1px Divider Line (matches Relace #framer-49p5hk) */}
+        {/* 1px Divider Line */}
         <div className="w-full h-px bg-[#191918]/5 mx-auto" />
 
-        {/* Footer Bottom Row: Copyright on Left, Legal on Right (matches Relace #framer-129z12s) */}
+        {/* Footer Bottom Row: Copyright on Left, Legal on Right */}
         <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-5 text-[10px] text-[#191918]/60 font-parabole">
           <div>
-            Copyright © 2026 Relace
+            Copyright © 2026 WaitFeed
           </div>
 
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <Link
-              href="https://status.relace.ai/"
+              href="https://www.npmjs.com/package/waitfeed"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-[#191918] transition-colors"
             >
-              Status
+              npm Package
             </Link>
             <Link
-              href="/legal/terms-of-use"
+              href="https://github.com/faizjamadar18/waitfeed/issues/new?title=%5BFeed+Request%5D%3A+&labels=enhancement&body=**Feed+Name%2FURL%3A**%0A%0A**Why+it's+worth+adding%3A**"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hover:text-[#191918] transition-colors"
             >
-              Terms of Use
+              Suggest a Feed
             </Link>
             <Link
-              href="/legal/privacy-policy"
+              href="https://github.com/faizjamadar18/waitfeed/releases"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hover:text-[#191918] transition-colors"
             >
-              Privacy Policy
-            </Link>
-            <Link
-              href="/legal/zero-data-retention-policy"
-              className="hover:text-[#191918] transition-colors"
-            >
-              ZDR Policy
+              Changelog
             </Link>
           </div>
         </div>
       </div>
-    </footer>
+    </motion.footer>
   );
 }

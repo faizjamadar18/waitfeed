@@ -294,6 +294,25 @@ export default Plugin.define({
       }
     }
 
+    /** Waiting on the user is NOT executing: a pending permission request or
+     * a pending question form means the agent paused for an answer, so the
+     * ticker yields to the question. Same two reactive reads OpenCode's own
+     * attention badge uses (permission.list / form.list lengths), so the
+     * store updates arrive live and the slot re-evaluates on its own. A
+     * failed read fails open to busy — the ticker never gets stuck hidden. */
+    const waitingOnUser = (sessionID?: string): boolean => {
+      if (!sessionID) return false
+      try {
+        const perms = context.data.session.permission.list(sessionID) ?? []
+        if (perms.length > 0) return true
+        const forms = context.data.session.form.list(sessionID) ?? []
+        return forms.length > 0
+      } catch (err) {
+        void debugLog(`wait read FAILED: ${(err as Error)?.message ?? String(err)}`)
+        return false
+      }
+    }
+
     /** Keeps the busy window for the done summary. Runs in the rotation tick —
      * always alive, no mount-order games. A busy flip STARTS a run: the seen
      * counter resets so the done summary describes exactly that run. */
@@ -407,14 +426,17 @@ export default Plugin.define({
       )
     }
 
-    // --- Slot A: the live ticker, visible only while the session is busy ---
+    // --- Slot A: the live ticker, visible only while the agent EXECUTES ---
+    // Hidden when the session is idle and when the agent is waiting on the
+    // user (a question or a permission request) — that moment belongs to the
+    // question, not the news.
     context.ui.slot({
       append: "session.composer.top",
       render: (props) => {
         lastSessionID = props.sessionID
         void debugLog(`slot A render: sid=${props.sessionID} idx=${rotation()}`)
         return (
-          <Show when={isBusy(props.sessionID)}>
+          <Show when={isBusy(props.sessionID) && !waitingOnUser(props.sessionID)}>
             <Show when={current()}>
               {(item) => <NewsParagraph item={item()} withBar />}
             </Show>

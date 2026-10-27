@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import {
+  relaceViewport,
+  transitionWithDelay,
+  staggerContainerVariants,
+  staggerItemVariants,
+} from "@/lib/motion";
 
 interface FaqItem {
   id: string;
@@ -10,79 +17,102 @@ interface FaqItem {
 
 const FAQS: FaqItem[] = [
   {
-    id: "why-relace",
-    question: "Why Relace?",
+    id: "performance-tokens",
+    question: "Will WaitFeed slow down my agent or use up tokens?",
     answer:
-      "Relace is purpose-built for coding workflows. Instead of relying on general-purpose LLMs, our in-house models specialize in retrieval, merging, and code generation — making them faster, more reliable, and easier to integrate into engineering pipelines. Teams use Relace to cut down errors, accelerate development, and gain a real competitive edge.",
+      "Zero tokens and zero slowdown. WaitFeed is purely observational—it never touches your prompts, tools, or agent context. Feeds are cached locally in the background so your agent runs at full speed.",
   },
   {
-    id: "soc2",
-    question: "Is Relace SOC 2 compliant?",
+    id: "typing-interference",
+    question: "Does the ticker get in the way when I type?",
     answer:
-      "Yes. Relace is built with enterprise security in mind, and our systems are SOC 2 compliant. This ensures your data is handled with the highest standards of confidentiality and integrity.",
+      "No. The ticker only displays while your agent is actively running. The moment you start typing or the agent finishes, it disappears immediately so your prompt stays clean.",
   },
   {
-    id: "self-host",
-    question: "Can I self-host Relace models?",
+    id: "opening-links",
+    question: "How do I open an article or read a story?",
     answer:
-      "Absolutely. For teams with stricter compliance or latency requirements, we offer on-premise and VPC-isolated deployments. You get full control of your environment while still benefiting from Relace's optimized inference stack.",
+      "Click the link directly on the terminal card with Ctrl+Click (or Cmd+Click), or type /news to search recently displayed stories and press Enter to launch them in your browser.",
   },
   {
-    id: "sensitive-code",
-    question: "How does Relace handle sensitive code?",
+    id: "missed-headlines",
+    question: "What if a headline disappears before I finish reading it?",
     answer:
-      "Your code never leaves your controlled environment when using self-hosted or VPC deployments. Even on our hosted tier, all data is encrypted in transit and at rest.",
+      "Type /news. The reader keeps a dedicated 'Recently on Ticker' list right at the top showing the exact cards you just saw, so you can easily catch up on missed stories.",
   },
   {
-    id: "source-control",
-    question: "What’s the main advantage for source control workflows?",
+    id: "custom-sources",
+    question: "Can I choose which news sources appear?",
     answer:
-      "Relace outperforms frontier LLMs at code retrieval and merging. Our models can search a codebase in under a second and merge at 10,000 tokens per second — speeding up PR reviews, automated fixes, and CI/CD processes.",
+      "Yes. Pick your preferred channels during npx waitfeed init, toggle them anytime in the /news sources menu, or add up to 10 custom RSS/Atom feeds in your config.",
   },
   {
-    id: "onboarding",
-    question: "How fast in onboarding?",
+    id: "pricing-privacy",
+    question: "Do I need any accounts, API keys, or subscriptions?",
     answer:
-      "You can start experimenting within minutes using our hosted API. For enterprise and self-hosted setups, our team provides guided onboarding to help you deploy Relace quickly and securely in your stack.",
+      "None. WaitFeed is 100% keyless, private, and local. There are no accounts to create, no tracking, and zero ads.",
   },
 ];
 
+// Popular fluid easing curve (quintic ease-out used across modern design systems)
+const DRAWER_EASE = [0.22, 1, 0.36, 1] as const;
+
 export function FaqSection() {
-  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   function toggle(id: string) {
-    setOpenIds((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setOpenId((prev) => (prev === id ? null : id));
   }
 
   return (
-    <section id="faq" className="w-full pt-28 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center border-t border-[#e3e2d8]">
+    <section id="faq" className="w-full pt-28 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
       <div className="w-full max-w-266 flex flex-col md:flex-row items-start justify-start gap-10 md:gap-0">
         {/* Left Column: Header (matches Relace #faq-header: flex: 1 0 0, 0 20px padding) */}
         <div className="w-full md:w-2/5 flex flex-col items-start gap-5 px-5 shrink-0">
           {/* Overline */}
-          <div className="flex flex-row items-center gap-2.5">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={relaceViewport}
+            transition={transitionWithDelay(0)}
+            className="flex flex-row items-center gap-2.5"
+          >
             <span className="w-1.5 h-1.25 bg-[#fcaa2d] shrink-0" />
             <span className="font-decima text-[10px] leading-[1.1] tracking-[0.03em] uppercase text-[#fcaa2d]">
               FAQs
             </span>
-          </div>
+          </motion.div>
 
           {/* Heading */}
-          <h2 className="text-[32px] sm:text-[36px] md:text-[40px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-black">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={relaceViewport}
+            transition={transitionWithDelay(0.05)}
+            className="text-[32px] sm:text-[36px] md:text-[40px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-black"
+          >
             Frequently<br className="hidden md:inline" /> asked<br className="hidden md:inline" /> questions
-          </h2>
+          </motion.h2>
         </div>
 
         {/* Right Column: FAQ Accordion List (matches Relace #faq-list: flex: 3 0 0) */}
         <div className="w-full md:w-3/5 flex flex-col px-5 md:px-0">
-          <ul className="w-full flex flex-col border-b border-[#191918]/10 list-none p-0 m-0">
+          <motion.ul
+            variants={staggerContainerVariants(0.06, 0.05)}
+            initial="hidden"
+            whileInView="visible"
+            viewport={relaceViewport}
+            className="w-full flex flex-col border-b border-[#191918]/10 list-none p-0 m-0"
+          >
             {FAQS.map((item) => {
-              const isOpen = Boolean(openIds[item.id]);
+              const isOpen = openId === item.id;
               return (
-                <li key={item.id} className="border-t border-[#191918]/10 w-full">
+                <motion.li
+                  key={item.id}
+                  variants={staggerItemVariants}
+                  className="border-t border-[#191918]/10 w-full"
+                >
                   <button
                     type="button"
                     onClick={() => toggle(item.id)}
@@ -93,27 +123,74 @@ export function FaqSection() {
                       {item.question}
                     </span>
 
-                    {/* Plus / Minus indicator */}
+                    {/* Plus / Minus indicator with smooth morph */}
                     <span className="relative w-6 h-6 flex items-center justify-center text-[#191918] shrink-0">
                       <span className="absolute w-3.5 h-[1.5px] bg-[#191918]" />
-                      <span
-                        className={`absolute w-3.5 h-[1.5px] bg-[#191918] transition-transform duration-300 ${
-                          isOpen ? "rotate-90 scale-0" : "rotate-90 scale-100"
-                        }`}
+                      <motion.span
+                        className="absolute w-3.5 h-[1.5px] bg-[#191918]"
+                        initial={false}
+                        animate={{
+                          rotate: isOpen ? 0 : 90,
+                          scale: isOpen ? 0 : 1,
+                          opacity: isOpen ? 0 : 1,
+                        }}
+                        transition={
+                          shouldReduceMotion
+                            ? { duration: 0 }
+                            : {
+                                duration: isOpen ? 0.42 : 0.3,
+                                ease: DRAWER_EASE,
+                              }
+                        }
                       />
                     </span>
                   </button>
 
-                  {/* Expandable answer */}
-                  {isOpen && (
-                    <div className="pb-6 pr-5 text-base font-parabole leading-normal text-[#191918]/60 animate-fade-in">
+                  {/* Smooth expanding drawer container */}
+                  <motion.div
+                    initial={false}
+                    animate={{
+                      height: isOpen ? "auto" : 0,
+                      opacity: isOpen ? 1 : 0,
+                    }}
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0 }
+                        : {
+                            height: {
+                              duration: isOpen ? 0.48 : 0.35,
+                              ease: DRAWER_EASE,
+                            },
+                            opacity: {
+                              duration: isOpen ? 0.38 : 0.2,
+                              delay: isOpen ? 0.08 : 0,
+                              ease: "easeInOut",
+                            },
+                          }
+                    }
+                    className="overflow-hidden"
+                  >
+                    <motion.div
+                      animate={{
+                        y: isOpen ? 0 : -8,
+                      }}
+                      transition={
+                        shouldReduceMotion
+                          ? { duration: 0 }
+                          : {
+                              duration: isOpen ? 0.45 : 0.25,
+                              ease: DRAWER_EASE,
+                            }
+                      }
+                      className="pb-6 pr-5 text-base font-parabole leading-normal text-[#191918]/60"
+                    >
                       {item.answer}
-                    </div>
-                  )}
-                </li>
+                    </motion.div>
+                  </motion.div>
+                </motion.li>
               );
             })}
-          </ul>
+          </motion.ul>
         </div>
       </div>
     </section>

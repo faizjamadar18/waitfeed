@@ -410,6 +410,269 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
     }
   })
 
+  it("E2E — an Esc-interrupted turn goes quiet within one render (transcript detector + self-heal)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-esc-"))
+    try {
+      await writeFile(join(dir, "cache.json"), CACHED, "utf8")
+      // The ledger says busy — heartbeats ran during the turn...
+      const busy = spawnSync(process.execPath, [SCHEDULER_BUNDLE, "--data-dir", dir, "--heartbeat"], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(busy.status).toBe(0)
+
+      // ...then the user pressed Esc. No Stop/StopFailure hook fires for an
+      // interrupt — but the transcript records it as the newest turn event.
+      const transcript = join(dir, "transcript.jsonl")
+      await writeFile(
+        transcript,
+        [
+          JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Searching…" }] } }),
+          JSON.stringify({
+            type: "user",
+            interruptedMessageId: "m1",
+            message: { role: "user", content: [{ type: "text", text: "[Request interrupted by user]" }] },
+          }),
+          JSON.stringify({ type: "cost-state" }),
+        ].join("\n") + "\n",
+        "utf8",
+      )
+
+      // The card must go quiet within this render.
+      const quiet = runStatusline(dir, JSON.stringify({ session_id: "sess-1", transcript_path: transcript, model: { id: "x" } }))
+      expect((quiet.stdout ?? "").trim()).toBe("")
+
+      // Self-heal: the ledger records idle for real, so the NEXT Enter is a
+      // fresh idle→busy transition (the instant-paint flip fires).
+      const doc = JSON.parse(await readFile(join(dir, "claude-activity.json"), "utf8")) as {
+        sessions: Record<string, { busy: boolean }>
+      }
+      expect(doc.sessions["sess-1"]?.busy).toBe(false)
+
+      // A live turn after an OLDER interrupt keeps rendering the card.
+      await writeFile(
+        join(dir, "claude-activity.json"),
+        JSON.stringify({ sessions: { "sess-1": { busy: true, at: Date.now() } } }),
+        "utf8",
+      )
+      await writeFile(
+        transcript,
+        [
+          JSON.stringify({
+            type: "user",
+            interruptedMessageId: "m1",
+            message: { role: "user", content: [{ type: "text", text: "[Request interrupted by user]" }] },
+          }),
+          JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: "go on" }] } }),
+        ].join("\n") + "\n",
+        "utf8",
+      )
+      const live = runStatusline(dir, JSON.stringify({ session_id: "sess-1", transcript_path: transcript, model: { id: "x" } }))
+      expect(visibleRows(live.stdout).length).toBeGreaterThanOrEqual(2)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — SessionStart's --watch seeds the transcript watcher (the instant Esc path)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-watch-"))
+    try {
+      const res = spawnSync(process.execPath, [SCHEDULER_BUNDLE, "--watch"], {
+        input: JSON.stringify({ session_id: "s", transcript_path: "C:/t/turn.jsonl" }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(res.status).toBe(0)
+      expect(JSON.parse(res.stdout ?? "")).toEqual({ watchPaths: ["C:/t/turn.jsonl"] })
+
+      // No transcript path → prints NOTHING (plain stdout on SessionStart
+      // would leak into the hook's context/output).
+      const none = spawnSync(process.execPath, [SCHEDULER_BUNDLE, "--watch"], {
+        input: "{}",
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(none.status).toBe(0)
+      expect((none.stdout ?? "").trim()).toBe("")
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — FileChanged: the interrupt-marker write instantly quiets + flips; a live write does nothing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-fc-"))
+    try {
+      const settingsFile = join(dir, "settings.json")
+      const base = `node ${join(dir, "statusline.mjs")}`
+      await writeFile(
+        settingsFile,
+        JSON.stringify({ statusLine: { type: "command", command: base, refreshInterval: 2 } }, null, 2) + "\n",
+        "utf8",
+      )
+      const args = ["--data-dir", dir, "--settings", settingsFile]
+      const readCommand = async (): Promise<string> => {
+        const parsed = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: { command: string } }
+        return parsed.statusLine.command
+      }
+      const transcript = join(dir, "turn.jsonl")
+      const markBusy = async (): Promise<void> => {
+        await writeFile(
+          join(dir, "claude-activity.json"),
+          JSON.stringify({ sessions: { "sess-1": { busy: true, at: Date.now() } } }),
+          "utf8",
+        )
+      }
+
+      // Esc: the marker lands in the transcript, the watcher fires, the hook
+      // sees busy + interrupted → idle + flip, all in this one invocation.
+      await markBusy()
+      await writeFile(
+        transcript,
+        [
+          JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "working…" }] } }),
+          JSON.stringify({ type: "user", interruptedMessageId: "m1", message: { role: "user", content: [{ type: "text", text: "[Request interrupted by user]" }] } }),
+          JSON.stringify({ type: "cost-state" }),
+        ].join("\n") + "\n",
+        "utf8",
+      )
+      const check = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--interrupt-check"], {
+        input: JSON.stringify({ session_id: "sess-1", transcript_path: transcript }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(check.status).toBe(0)
+      expect((check.stdout ?? "").trim()).toBe("") // observational hook
+      const healed = JSON.parse(await readFile(join(dir, "claude-activity.json"), "utf8")) as {
+        sessions: Record<string, { busy: boolean }>
+      }
+      expect(healed.sessions["sess-1"]?.busy).toBe(false)
+      expect(await readCommand()).toBe(`${base} --wf`)
+
+      // A live turn's transcript write: busy ledger + live tail → untouched.
+      await markBusy()
+      await writeFile(
+        transcript,
+        [JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: "go on" }] } })].join("\n") +
+          "\n",
+        "utf8",
+      )
+      const live = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--interrupt-check"], {
+        input: JSON.stringify({ session_id: "sess-1", transcript_path: transcript }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(live.status).toBe(0)
+      expect((live.stdout ?? "").trim()).toBe("")
+      const still = JSON.parse(await readFile(join(dir, "claude-activity.json"), "utf8")) as {
+        sessions: Record<string, { busy: boolean }>
+      }
+      expect(still.sessions["sess-1"]?.busy).toBe(true)
+      expect(await readCommand()).toBe(`${base} --wf`)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — a fast typist: Enter before the self-heal tick still paints instantly", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-fast-"))
+    try {
+      const settingsFile = join(dir, "settings.json")
+      const base = `node ${join(dir, "statusline.mjs")}`
+      await writeFile(
+        settingsFile,
+        JSON.stringify({ statusLine: { type: "command", command: base, refreshInterval: 2 } }, null, 2) + "\n",
+        "utf8",
+      )
+      // The ledger still carries the interrupted turn's busy mark (the
+      // statusline self-heal has not run yet)...
+      await writeFile(
+        join(dir, "claude-activity.json"),
+        JSON.stringify({ sessions: { "sess-1": { busy: true, at: Date.now() - 500 } } }),
+        "utf8",
+      )
+      const transcript = join(dir, "turn.jsonl")
+      await writeFile(
+        transcript,
+        [
+          JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "working…" }] } }),
+          JSON.stringify({ type: "user", interruptedMessageId: "m1", message: { role: "user", content: [{ type: "text", text: "[Request interrupted by user]" }] } }),
+          JSON.stringify({ type: "cost-state" }),
+        ].join("\n") + "\n",
+        "utf8",
+      )
+
+      // ...but the Enter heartbeat verifies the lie against the transcript
+      // and treats it as a real transition → the flip fires.
+      const enter = spawnSync(
+        process.execPath,
+        [SCHEDULER_BUNDLE, "--data-dir", dir, "--settings", settingsFile, "--heartbeat"],
+        { input: JSON.stringify({ session_id: "sess-1", transcript_path: transcript }), encoding: "utf8", timeout: 5_000 },
+      )
+      expect(enter.status).toBe(0)
+      const doc = JSON.parse(await readFile(join(dir, "claude-activity.json"), "utf8")) as {
+        sessions: Record<string, { busy: boolean }>
+      }
+      expect(doc.sessions["sess-1"]?.busy).toBe(true) // the NEW turn is live
+      const flipped = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: { command: string } }
+      expect(flipped.statusLine.command).toBe(`${base} --wf`)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — the instant-paint flip: a transition rewrites the statusline command, a repeat does not", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-flip-"))
+    try {
+      const settingsFile = join(dir, "settings.json")
+      const base = `node ${join(dir, "statusline.mjs")}`
+      await writeFile(
+        settingsFile,
+        JSON.stringify({ statusLine: { type: "command", command: base, refreshInterval: 2 }, other: "kept" }, null, 2) +
+          "\n",
+        "utf8",
+      )
+      const args = ["--data-dir", dir, "--settings", settingsFile]
+      const readCommand = async (): Promise<string> => {
+        const parsed = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: { command: string } }
+        return parsed.statusLine.command
+      }
+
+      // Enter: idle → busy → the command flips (Claude Code re-runs it
+      // instantly on the change, skipping the debounce).
+      const enter = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--heartbeat"], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(enter.status).toBe(0)
+      expect(await readCommand()).toBe(`${base} --wf`)
+      expect((JSON.parse(await readFile(settingsFile, "utf8")) as { other: string }).other).toBe("kept")
+
+      // Mid-run tool events: busy → busy → NO settings churn.
+      const tool = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--heartbeat"], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(tool.status).toBe(0)
+      expect(await readCommand()).toBe(`${base} --wf`)
+
+      // Stop: busy → idle → flips back; a repeat Stop does not.
+      for (const expectSuffix of [false, false]) {
+        const stop = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--idle"], {
+          input: JSON.stringify({ session_id: "sess-1" }),
+          encoding: "utf8",
+          timeout: 5_000,
+        })
+        expect(stop.status).toBe(0)
+        expect(await readCommand()).toBe(expectSuffix ? `${base} --wf` : base)
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it("E2E — scheduler runs cleanly in plain Node without errors", async () => {
     const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-sched-"))
     try {

@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
+import { Inter_Tight } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  weight: ["500", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "WaitFeed — Real-Time Developer Intelligence for OpenCode, AGY & Claude Code",
@@ -9,14 +18,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "https://framerusercontent.com/images/FFActUeE4daoS9F9mpqmKv4y3ZI.svg",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "https://framerusercontent.com/images/tsBoPWRI49fIIsApJWW1xqPCgj0.svg",
-        media: "(prefers-color-scheme: dark)",
+        url: "/mark-black-on-white.svg",
+        type: "image/svg+xml",
       },
     ],
+    shortcut: "/mark-black-on-white.svg",
+    apple: "/mark-black-on-white.svg",
   },
   openGraph: {
     type: "website",
@@ -40,7 +47,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-parabole bg-[#fffef2] text-[#191918] antialiased min-h-screen selection:bg-[#fcaa2d] selection:text-white">
+      <body className={`${interTight.variable} font-parabole bg-[#fffef2] text-[#191918] antialiased min-h-screen selection:bg-[#fcaa2d] selection:text-white`}>
         {children}
         <Script
           src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs"

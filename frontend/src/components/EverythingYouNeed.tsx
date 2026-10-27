@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, memo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { RELACE_EASE, relaceViewport } from "@/lib/motion";
 
 interface AgentTab {
   id: string;
@@ -27,7 +28,7 @@ const TABS: AgentTab[] = [
     id: "opencode",
     name: "OpenCode",
     description:
-      "Reactive wait-state ticker docked right above the input prompt with zero keystroke latency.",
+      "A live ticker above your prompt, plus /news to catch up on anything you missed.",
   },
 ];
 
@@ -159,9 +160,9 @@ const ClaudeCodeTerminalContent = memo(function ClaudeCodeTerminalContent() {
 
         {/* Claude Prompt Line */}
         <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-          <span className="text-[#D97757] font-bold text-sm">&gt;</span>
+          <span className="text-white font-bold text-sm">&gt;</span>
           <span className="text-white/40">type anything to prompt Claude Code...</span>
-          <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse ml-auto" />
+          <span className="w-1.5 h-3.5 bg-white animate-pulse ml-auto" />
         </div>
       </div>
     </>
@@ -235,9 +236,9 @@ const AntigravityTerminalContent = memo(function AntigravityTerminalContent() {
 
         {/* AGY Prompt Line */}
         <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-          <span className="text-[#58A6FF] font-bold text-sm">&gt;</span>
+          <span className="text-white font-bold text-sm">&gt;</span>
           <span className="text-white/40">type prompt...</span>
-          <span className="w-1.5 h-3.5 bg-[#58A6FF] animate-pulse ml-auto" />
+          <span className="w-1.5 h-3.5 bg-white animate-pulse ml-auto" />
         </div>
       </div>
     </>
@@ -333,9 +334,9 @@ const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
 
         {/* OpenCode Prompt Line */}
         <div className="flex items-center gap-2 text-xs text-[#5C5C66] pt-1.5 border-t border-[#1E1E22]">
-          <span className="text-[#3fb950] font-bold text-sm">&gt;</span>
+          <span className="text-white font-bold text-sm">&gt;</span>
           <span className="text-white/40">Type your prompt...</span>
-          <span className="w-1.5 h-3.5 bg-[#3fb950] animate-pulse ml-auto" />
+          <span className="w-1.5 h-3.5 bg-white animate-pulse ml-auto" />
         </div>
       </div>
     </>
@@ -427,7 +428,7 @@ export function EverythingYouNeed() {
     <section
       id="how-it-works"
       ref={containerRef}
-      className="relative w-full border-t border-[#e3e2d8]"
+      className="relative w-full"
       style={{ height: "260vh" }}
     >
       {/* Pinned Sticky Viewport Window */}
@@ -502,15 +503,22 @@ export function EverythingYouNeed() {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col justify-center py-4 sm:py-6">
+          <div className="flex-1 flex flex-col justify-center">
             {/* Two Column Layout: Left Column (Heading + Rail Tabs), Right Column (Terminal Preview) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14 items-start">
               {/* Left Column: Heading + Interactive Agent Tabs (Strictly anchored at top) */}
               <div className="flex flex-col justify-start items-start">
-                <h2 className="text-2xl sm:text-3xl md:text-[34px] lg:text-[38px] font-parabole font-normal leading-[1.12] tracking-[-0.035em] text-[#191918] mb-8 sm:mb-10 shrink-0">
-                  Native integration across your <br className="hidden sm:inline" />
-                  <strong className="font-display font-normal text-black">agent of choice</strong>
-                </h2>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={relaceViewport}
+                  transition={{ duration: 0.6, ease: RELACE_EASE }}
+                  className="text-2xl sm:text-3xl md:text-[34px] lg:text-[38px] font-parabole font-normal leading-[1.12] tracking-[-0.035em] text-[#191918] mb-8 sm:mb-10 shrink-0"
+                >
+                  Native integration across{" "}
+                  <strong className="font-display font-normal text-black">agent</strong> of your{" "}
+                  <strong className="font-display font-normal text-black">choice</strong>
+                </motion.h2>
 
                 {/* Interactive Agent Tabs with Vertical Rail */}
                 <div className="relative pl-7 sm:pl-9 py-1 w-full min-h-48.75">
@@ -611,7 +619,13 @@ export function EverythingYouNeed() {
               </div>
 
               {/* Right Column: High-Definition Vector Terminal Window */}
-              <div className="relative w-full max-w-133 mx-auto min-h-98 sm:min-h-102 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-3.5 sm:p-4 flex flex-col justify-between text-white font-mono shadow-2xl select-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: 20 }}
+                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                viewport={relaceViewport}
+                transition={{ duration: 0.6, ease: RELACE_EASE, delay: 0.1 }}
+                className="relative w-full max-w-133 mx-auto min-h-98 sm:min-h-102 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-3.5 sm:p-4 flex flex-col justify-between text-white font-mono shadow-2xl select-none"
+              >
                 {/* Top Window Bar */}
                 <div className="flex items-center justify-between pb-2.5 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
                   <div className="flex items-center gap-1.5">
@@ -722,7 +736,7 @@ export function EverythingYouNeed() {
                     </motion.div>
                   </AnimatePresence>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
 

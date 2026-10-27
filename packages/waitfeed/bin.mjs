@@ -267,15 +267,25 @@ async function registerClaudePlugin(customHome) {
   const cycleCommand = `node ${targetSchedulerPath} --cycle`
   const heartbeatCommand = `node ${targetSchedulerPath} --heartbeat`
   const idleCommand = `node ${targetSchedulerPath} --idle`
+  const watchCommand = `node ${targetSchedulerPath} --watch`
+  const interruptCheckCommand = `node ${targetSchedulerPath} --interrupt-check`
 
-  // The statusline also re-runs on a timer so a busy→idle transition painted
-  // after the Stop hook actually shows — event-only updates never re-render.
-  const statuslineRefreshSeconds = 10
+  // The statusline re-runs on a timer because event-only updates never
+  // re-render. At 2s the timer covers every transition the events can't
+  // paint: Enter (nothing re-runs the statusline at prompt submit — the card
+  // must not wait for the first assistant message), the moment a
+  // question/permission wait ends, and the busy→idle repaint after Stop.
+  const statuslineRefreshSeconds = 2
 
+  // The hook flips the stored command between two behavior-identical
+  // variants (" --wf" suffix) to repaint instantly on busy↔idle transitions
+  // — both variants count as configured, so a re-run of init never flips it
+  // back (a rewrite would itself trigger an instant statusline re-run).
   const alreadyConfigured =
     settings.statusLine &&
     typeof settings.statusLine === "object" &&
-    settings.statusLine.command === desiredStatuslineCommand &&
+    (settings.statusLine.command === desiredStatuslineCommand ||
+      settings.statusLine.command === `${desiredStatuslineCommand} --wf`) &&
     settings.statusLine.refreshInterval === statuslineRefreshSeconds
 
   if (!alreadyConfigured) {
@@ -313,6 +323,9 @@ async function registerClaudePlugin(customHome) {
   // …plus the quiet-at-startup marker: SessionStart also marks the session
   // idle, so the card never shows on the splash screen (AGY parity).
   addHook("SessionStart", idleCommand)
+  // The transcript watcher: SessionStart seeds it; FileChanged turns the
+  // interrupt-marker write (Esc — no hook of its own) into an instant hide.
+  addHook("SessionStart", watchCommand)
   // Heartbeats: the session is actively working while a prompt or a tool
   // event is in flight. Async — they never delay the prompt or the tools.
   for (const event of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure"]) {
@@ -321,9 +334,23 @@ async function registerClaudePlugin(customHome) {
   // Turn and session boundaries quiet the card again.
   addHook("Stop", idleCommand, { async: true })
   addHook("StopFailure", idleCommand, { async: true })
+  // FileChanged hook for transcript changes: checks if an Esc interrupt occurred
+  addHook("FileChanged", interruptCheckCommand, { async: true })
   // SessionEnd hooks share a 1.5-second budget — run this one synchronously
   // (the ledger write takes ~100 ms).
   addHook("SessionEnd", idleCommand)
+  // Waiting on the user is not executing: a permission prompt or the
+  // question tool starts → quiet immediately (the next refresh tick paints
+  // it). PreToolUse fires BEFORE the question tool blocks, so the card hides
+  // while the question is up, and PostToolUse's heartbeat brings it back
+  // after the answer.
+  addHook("PermissionRequest", idleCommand, { async: true })
+  addHook("PreToolUse", idleCommand, { matcher: "AskUserQuestion", async: true })
+  // MCP elicitation dialogs are questions to the user — same rule.
+  addHook("Notification", idleCommand, { matcher: "elicitation_dialog", async: true })
+  addHook("Notification", idleCommand, { matcher: "elicitation_url_dialog", async: true })
+  // A DENIED permission hands control back to the agent — busy again.
+  addHook("PermissionDenied", heartbeatCommand, { async: true })
   // The 60s idle notification also quiets the card, bounding a news panel
   // left up by an interrupted (Esc) turn.
   addHook("Notification", idleCommand, { matcher: "idle_prompt", async: true })

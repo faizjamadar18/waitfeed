@@ -39,14 +39,32 @@ driven entirely by official hooks:
 | `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` | `--heartbeat` (async) | the session is actively working |
 | `SessionStart` | `--idle` | quiet on the splash screen |
 | `Stop`, `StopFailure`, `SessionEnd` | `--idle` | the turn/session ended |
-| `Notification` (`idle_prompt` matcher) | `--idle` (async) | bounded quiet after an interrupted (Esc) turn |
+| `PermissionRequest` | `--idle` (async) | the agent waits on the user — not executing |
+| `PreToolUse` (`AskUserQuestion` matcher) | `--idle` (async) | the question tool is asking the user |
+| `Notification` (`elicitation_dialog`, `elicitation_url_dialog`) | `--idle` (async) | MCP elicitation is waiting on the user |
+| `PermissionDenied` | `--heartbeat` (async) | denied → control returns to the agent |
+| `Notification` (`idle_prompt` matcher) | `--idle` (async) | bounded quiet after a paused/idle stretch |
+
+No hook fires when the user presses **Esc** to interrupt a turn (Stop skips
+interrupts, StopFailure is API-errors only), so the STATUSLINE itself detects
+it: the payload's `transcript_path` records the interrupt as the newest turn
+event (`[Request interrupted by user]`), and a busy-marked session whose
+transcript ends that way goes quiet within one refresh tick — and self-heals
+the ledger to idle, so the next Enter is a fresh instant-paint transition.
 
 Rules: sessions are independent (two Claude windows never wake each other
 up), a busy mark goes stale after 15 minutes (a crashed session can never pin
-the card), and `statusLine.refreshInterval: 10` makes the busy→idle
-transition actually paint. A missing ledger (pre-ledger install) falls back
-to the legacy always-busy panel so the news keeps working without a re-run of
-init.
+the card), and every REAL busy↔idle transition repaints INSTANTLY: the hook
+first marks the ledger, then flips the stored statusline command between two
+behavior-identical variants (a trailing ` --wf`) — Claude Code re-runs the
+statusline the moment the command changes in settings.json, skipping its
+300 ms update debounce, so Enter→card, question→hide, and answer→card all
+land within a few hundred milliseconds instead of at the next refresh tick.
+The 2-second `refreshInterval` remains as the safety net. The hook writes
+only the `statusLine.command` string (read-modify-write of settings.json),
+the suffix is inert for rendering, and a re-run of init accepts either
+variant. A missing ledger (pre-ledger install) falls back to the legacy
+always-busy panel so the news keeps working without a re-run of init.
 
 ## Install & migration
 
@@ -62,7 +80,9 @@ always-on mode.
 ## Development
 
 - Source: `claude/src/` — `statusline.ts` (runner glue), `statusline-state.ts`
-  (pure parse/width/busy decisions), `activity.ts` (ledger), `scheduler.ts`
+  (pure parse/width/busy decisions), `activity.ts` (ledger),
+  `flip.ts` (instant-paint command flip), `interrupt.ts` (Esc-interrupt
+  detector), `scheduler.ts`
   (`--cycle` fetch pipeline + `--heartbeat`/`--idle` ledger writers),
   `stdin.ts` (shared stdin collector).
 - Build: `npm run build:claude` from the repo root bundles into

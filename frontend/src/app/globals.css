@@ -105,3 +105,10 @@ html, body {
 .terminal-prompt-input::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
+
+.font-logo {
+  font-family: var(--font-inter-tight), "Inter Tight", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+
+

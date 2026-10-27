@@ -27,8 +27,10 @@ import {
   paintAgyRows,
   renderAgySnapshot,
   AGY_DWELL_DEFAULT_MS,
+  isAgyBusy,
 } from "../../core/agy"
-import { readActivityDoc } from "./activity"
+import { readActivityDoc, markActivity } from "./activity"
+import { readTranscriptTail, turnInterrupted } from "./interrupt"
 import { parseClaudeState } from "./statusline-state"
 import { readStdinText } from "./stdin"
 
@@ -68,6 +70,30 @@ export async function main(argv: string[]): Promise<void> {
   // parseClaudeState falls back to the legacy mapping without one.
   const activityDoc = await readActivityDoc(join(dir, "claude-activity.json"))
   const state = parseClaudeState(payload, { doc: activityDoc, now: Date.now() })
+
+  // Esc-interrupt self-heal: NO hook fires when the user interrupts (Stop
+  // skips interrupts, StopFailure is API-errors only), so a ledger busy mark
+  // would pin the card for up to 15 minutes. The transcript records the
+  // interrupt instead — when the ledger says busy but the newest turn event
+  // is an interrupt marker, go quiet AND write the idle mark (so the next
+  // Enter is a fresh idle→busy transition with its instant-paint flip).
+  if (isAgyBusy(state)) {
+    try {
+      const parsed = JSON.parse(payload) as { session_id?: unknown; transcript_path?: unknown }
+      if (
+        typeof parsed?.session_id === "string" &&
+        typeof parsed?.transcript_path === "string" &&
+        parsed.transcript_path.length > 0
+      ) {
+        if (turnInterrupted(await readTranscriptTail(parsed.transcript_path))) {
+          await markActivity(join(dir, "claude-activity.json"), parsed.session_id, false)
+          state.agent_state = undefined // interrupted → quiet this render
+        }
+      }
+    } catch {
+      // Detection must never break the render.
+    }
+  }
 
   const dwellFile = join(dir, "claude-rotation.json")
   const dwell = await readDwellState(dwellFile)
