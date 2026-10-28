@@ -1,7 +1,7 @@
 {
   "name": "waitfeed",
   "version": "1.1.0",
-  "description": "While your agent works: a slim news ticker above the input box (OpenCode) + statusline ticker (AGY), with story-anchored AI digests. No ads, no keys, no server.",
+  "description": "While your AI coding agent works: a slim news ticker above the input box (OpenCode) or in the statusline (Claude Code, Antigravity). No ads, no keys, no server.",
   "keywords": [
     "opencode",
     "opencode-plugin",

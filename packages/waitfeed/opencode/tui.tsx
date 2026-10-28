@@ -48,7 +48,7 @@ const SUMMARY_MS = 6_000
 /** Reader rows — generous on purpose: the reader is where a headline that
  * rotated away gets re-read, so browsing should feel roomy. */
 const PANEL_ITEMS = 12
-/** Fixed text-grade colors, distrotv-style — consistent across user themes. */
+/** Fixed text-grade colors — consistent across user themes. */
 const MUTED = "#7d8590"
 const SELECT_COLOR = "#f0883e"
 const BADGE_STYLE: Record<string, string> = {
@@ -242,10 +242,10 @@ export default Plugin.define({
       bumpRotation((n) => n + 1)
     }
 
-    /** Card dwell: distrotv's 9s was tuned for a ONE-LINE ad. Our full card
-     * (headline + story + link) reads in ~15-25s, so the default dwell is
-     * 20s — the knob `dwellSeconds` in config.json sets it (5-120, clamped
-     * on load). Rotating faster than the read is the mid-read pop-up bug. */
+    /** Card dwell: a full card (headline + story + link) reads in ~15-25s,
+     * so the default dwell is 20s — the knob `dwellSeconds` in config.json
+     * sets it (5-120, clamped on load). Rotating faster than the read is
+     * the mid-read pop-up bug. */
     const dwellMs = (): number => cfg().dwellSeconds * 1000
     let rotateTimer: ReturnType<typeof setInterval> | undefined
     const rescheduleRotate = (): void => {

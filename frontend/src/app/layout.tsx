@@ -12,7 +12,7 @@ const interTight = Inter_Tight({
 });
 
 export const metadata: Metadata = {
-  title: "WaitFeed — Real-Time Developer Intelligence for OpenCode, AGY & Claude Code",
+  title: "WaitFeed — Make Every Agent Wait Count",
   description:
     "While your AI coding agent works, a slim tech feed rotates developer updates and trending repos in your terminal. You start typing — it vanishes. 100% local, no ads, zero keys.",
   icons: {
@@ -27,14 +27,14 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    title: "WaitFeed — Real-Time Developer Intelligence for OpenCode, AGY & Claude Code",
+    title: "WaitFeed — Make Every Agent Wait Count",
     description:
       "While your AI coding agent works, a slim tech feed rotates developer updates and trending repos in your terminal. You start typing — it vanishes. 100% local, no ads, zero keys.",
     url: "https://waitfeed.dev",
   },
   twitter: {
     card: "summary_large_image",
-    title: "WaitFeed — Real-Time Developer Intelligence for OpenCode, AGY & Claude Code",
+    title: "WaitFeed — Make Every Agent Wait Count",
     description:
       "While your AI coding agent works, a slim tech feed rotates developer updates and trending repos in your terminal. You start typing — it vanishes. 100% local, no ads, zero keys.",
   },

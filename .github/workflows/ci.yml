@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  package:
+    name: Package (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dev harness
+        run: npm ci
+
+      # The published package resolves its own dependency tree (exactly
+      # pinned; the undici override needs --legacy-peer-deps).
+      - name: Install package dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: packages/waitfeed
+
+      - name: Build adapter bundles
+        run: npm run -s pretest
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npx vitest run
+
+  frontend:
+    name: Landing page
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build

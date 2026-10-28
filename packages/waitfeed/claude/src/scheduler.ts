@@ -36,7 +36,7 @@ import { fetchAllFeeds } from "../../core/feeds"
 import { makeProbeLog, runPipeline, type PipelineDeps } from "../../core/pipeline"
 import { markActivityTransition, readActivityDoc } from "./activity"
 import { flipStatuslineCommand } from "./flip"
-import { readTranscriptTail, turnInterrupted } from "./interrupt"
+import { readTranscriptTail, lastInterrupt } from "./interrupt"
 import { readStdinText } from "./stdin"
 import { watchPathsOutput } from "./watch"
 
@@ -78,7 +78,12 @@ function payloadInfo(raw: string): { sessionID: string; transcriptPath: string |
 /** True when a busy ledger mark for the session is a LIE left by an
  * Esc-interrupted turn: no hook fires on interrupt, and the statusline's
  * self-heal only lands on the next refresh tick — a fast typist can hit
- * Enter before it. The transcript tells the truth. */
+ * Enter before it. The transcript tells the truth.
+ *
+ * The WHEN guard keeps a delayed check from undoing a real turn: a busy
+ * mark written AFTER the interrupt entry's timestamp belongs to the next
+ * real turn (its prompt may not be in the transcript yet) — only a mark
+ * that predates the interrupt is the interrupted turn's own heartbeat. */
 async function busyMarkIsInterrupt(
   ledgerFile: string,
   sessionID: string,
@@ -86,8 +91,12 @@ async function busyMarkIsInterrupt(
 ): Promise<boolean> {
   if (!transcriptPath) return false
   const doc = await readActivityDoc(ledgerFile)
-  if (doc?.sessions?.[sessionID]?.busy !== true) return false
-  return turnInterrupted(await readTranscriptTail(transcriptPath))
+  const mark = doc?.sessions?.[sessionID]
+  if (mark?.busy !== true) return false
+  const info = lastInterrupt(await readTranscriptTail(transcriptPath))
+  if (!info.interrupted) return false
+  if (info.at !== undefined && mark.at > info.at) return false
+  return true
 }
 
 async function recordActivity(argv: string[], busy: boolean): Promise<void> {

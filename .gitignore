@@ -10,4 +10,8 @@ opencode-api-spec.json
 dist/
 build/
 .opencode/
+scratch/
+.env*
+Thumbs.db
+desktop.ini
 

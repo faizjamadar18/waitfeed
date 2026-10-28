@@ -22,13 +22,11 @@ const PKG = join(import.meta.dirname, "..", "packages", "waitfeed")
 const BIN = join(PKG, "bin.mjs")
 
 describe("CLI flag execution", () => {
-  it("--help prints usage with supported agent providers", () => {
+  it("--help prints the usage with the product tagline", () => {
     const res = spawnSync(process.execPath, [BIN, "--help"], { encoding: "utf8" })
     expect(res.status).toBe(0)
     expect(res.stdout).toContain("WaitFeed")
-    expect(res.stdout).toContain("OpenCode")
-    expect(res.stdout).toContain("Google Antigravity (AGY)")
-    expect(res.stdout).toContain("Claude Code")
+    expect(res.stdout).toContain("Make Every Agent Wait Count")
     expect(res.stdout).toContain("npx waitfeed init")
   })
 

@@ -434,7 +434,7 @@ export function HeroTerminal() {
         </div>
       </div>
 
-      {/* Stepper below terminal matching distrotv */}
+      {/* Stepper below the terminal window */}
       <ol className="m-0 mt-3 flex list-none flex-wrap items-center gap-x-2 gap-y-1 p-0 font-mono text-[11px]">
         {STEP_LABELS.map((step, idx) => (
           <li key={step} className="flex items-center gap-2">

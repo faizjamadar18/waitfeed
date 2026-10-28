@@ -811,8 +811,7 @@ async function runInit() {
 
 function printHelp() {
   console.log(`
-  ${c.bold}WaitFeed${c.reset} - Real-time news ticker for AI coding agents
-  Supports: OpenCode, Google Antigravity (AGY), Claude Code
+  ${c.bold}WaitFeed${c.reset} - Make Every Agent Wait Count
 
   ${c.bold}Usage:${c.reset}
     npx waitfeed init      Run the interactive setup wizard

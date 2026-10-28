@@ -32,7 +32,7 @@ import {
   type ClaudeActivityDoc,
 } from "../packages/waitfeed/claude/src/activity"
 import { FLIP_SUFFIX, baseCommand, flipStatuslineCommand } from "../packages/waitfeed/claude/src/flip"
-import { INTERRUPT_MARKER, turnInterrupted } from "../packages/waitfeed/claude/src/interrupt"
+import { INTERRUPT_MARKER, lastInterrupt } from "../packages/waitfeed/claude/src/interrupt"
 import { watchPathsOutput } from "../packages/waitfeed/claude/src/watch"
 import { CLAUDE_STATUSLINE_MARGIN, parseClaudeState } from "../packages/waitfeed/claude/src/statusline-state"
 import { isAgyBusy } from "../packages/waitfeed/core/agy"
@@ -355,7 +355,11 @@ describe("flipStatuslineCommand — the instant-paint mechanism", () => {
   })
 })
 
-describe("turnInterrupted — the Esc-interrupt detector (no hook fires on interrupt)", () => {
+describe("lastInterrupt — the Esc-interrupt detector (no hook fires on interrupt)", () => {
+  // The boolean form the original contracts were written against — every
+  // assertion below stays verbatim; the `at` contracts live in the describe
+  // that follows.
+  const turnInterrupted = (lines: string[]): boolean => lastInterrupt(lines).interrupted
   // Entry builders shaped exactly like the real transcript lines:
   // the interrupt is a user-type entry with interruptedMessageId + marker
   // text; bookkeeping entries follow it; real prompts are plain user entries.
@@ -402,6 +406,47 @@ describe("turnInterrupted — the Esc-interrupt detector (no hook fires on inter
       message: { role: "user", content: [{ type: "text", text: `${INTERRUPT_MARKER}]` }] },
     })
     expect(turnInterrupted([assistant, sidechainInterrupt, bookkeeping])).toBe(false)
+  })
+})
+
+describe("lastInterrupt.at — the WHEN that guards the stale-check race", () => {
+  // Real transcript entries carry a timestamp; the ledger's busy mark must
+  // be compared against it (a mark written AFTER the interrupt belongs to
+  // the next real turn, not to the interrupted one).
+  const markerAt = (iso: string): string =>
+    JSON.stringify({
+      type: "user",
+      timestamp: iso,
+      interruptedMessageId: "m1",
+      message: { role: "user", content: [{ type: "text", text: `${INTERRUPT_MARKER}]` }] },
+    })
+  const assistant = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "working…" }] } })
+  const prompt = JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: "go on" }] } })
+  const bookkeeping = JSON.stringify({ type: "cost-state" })
+
+  it("an interrupted tail carries the interrupt entry's timestamp as epoch ms", () => {
+    expect(lastInterrupt([assistant, bookkeeping, markerAt("2026-10-27T10:44:30.000Z"), bookkeeping])).toEqual({
+      interrupted: true,
+      at: Date.parse("2026-10-27T10:44:30.000Z"),
+    })
+  })
+
+  it("a live tail is not interrupted and carries no interrupt time", () => {
+    expect(lastInterrupt([markerAt("2026-10-27T10:44:30.000Z"), prompt])).toEqual({ interrupted: false, at: undefined })
+    expect(lastInterrupt([assistant])).toEqual({ interrupted: false, at: undefined })
+  })
+
+  it("a timestamp-less marker still reads as interrupted, with an unknown time", () => {
+    const noTs = JSON.stringify({
+      type: "user",
+      interruptedMessageId: "m1",
+      message: { role: "user", content: [{ type: "text", text: `${INTERRUPT_MARKER}]` }] },
+    })
+    expect(lastInterrupt([assistant, noTs, bookkeeping])).toEqual({ interrupted: true, at: undefined })
+  })
+
+  it("a garbage timestamp stays interrupted but the time is unknown", () => {
+    expect(lastInterrupt([markerAt("not-a-date")])).toEqual({ interrupted: true, at: undefined })
   })
 })
 

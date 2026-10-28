@@ -621,6 +621,85 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
     }
   })
 
+  it("E2E — a busy mark written AFTER the interrupt is a fresh turn, never undone", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-race-"))
+    try {
+      const settingsFile = join(dir, "settings.json")
+      const base = `node ${join(dir, "statusline.mjs")}`
+      await writeFile(
+        settingsFile,
+        JSON.stringify({ statusLine: { type: "command", command: base, refreshInterval: 2 } }, null, 2) + "\n",
+        "utf8",
+      )
+      const args = ["--data-dir", dir, "--settings", settingsFile]
+      const readState = async (): Promise<{ command: string; busy: boolean | undefined }> => {
+        const parsed = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: { command: string } }
+        const doc = JSON.parse(await readFile(join(dir, "claude-activity.json"), "utf8")) as {
+          sessions: Record<string, { busy: boolean }>
+        }
+        return { command: parsed.statusLine.command, busy: doc.sessions["sess-1"]?.busy }
+      }
+
+      // Real transcript entries carry timestamps — the Esc marker written
+      // 5 s ago, after an assistant entry a minute before it.
+      const transcript = join(dir, "turn.jsonl")
+      await writeFile(
+        transcript,
+        [
+          JSON.stringify({
+            type: "assistant",
+            timestamp: new Date(Date.now() - 60_000).toISOString(),
+            message: { role: "assistant", content: [{ type: "text", text: "working…" }] },
+          }),
+          JSON.stringify({
+            type: "user",
+            timestamp: new Date(Date.now() - 5_000).toISOString(),
+            interruptedMessageId: "m1",
+            message: { role: "user", content: [{ type: "text", text: "[Request interrupted by user]" }] },
+          }),
+          JSON.stringify({ type: "cost-state" }),
+        ].join("\n") + "\n",
+        "utf8",
+      )
+
+      // RACE: the re-Enter heartbeat already wrote a FRESH busy mark (the new
+      // prompt may not be in the transcript yet) when a stale interrupt-check
+      // from the marker write finally runs. The mark postdates the interrupt
+      // — it belongs to the new turn, so the check must NOT undo it.
+      await writeFile(
+        join(dir, "claude-activity.json"),
+        JSON.stringify({ sessions: { "sess-1": { busy: true, at: Date.now() } } }),
+        "utf8",
+      )
+      const stale = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--interrupt-check"], {
+        input: JSON.stringify({ session_id: "sess-1", transcript_path: transcript }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(stale.status).toBe(0)
+      expect((stale.stdout ?? "").trim()).toBe("")
+      expect(await readState()).toEqual({ command: base, busy: true }) // untouched
+
+      // And the timestamp-aware fast typist still paints instantly: the
+      // ledger mark PREDATES the interrupt (the interrupted turn's own
+      // heartbeat wrote it) — a lie the Enter heartbeat corrects.
+      await writeFile(
+        join(dir, "claude-activity.json"),
+        JSON.stringify({ sessions: { "sess-1": { busy: true, at: Date.now() - 60_000 } } }),
+        "utf8",
+      )
+      const enter = spawnSync(process.execPath, [SCHEDULER_BUNDLE, ...args, "--heartbeat"], {
+        input: JSON.stringify({ session_id: "sess-1", transcript_path: transcript }),
+        encoding: "utf8",
+        timeout: 5_000,
+      })
+      expect(enter.status).toBe(0)
+      expect(await readState()).toEqual({ command: `${base} --wf`, busy: true })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it("E2E — the instant-paint flip: a transition rewrites the statusline command, a repeat does not", async () => {
     const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-flip-"))
     try {

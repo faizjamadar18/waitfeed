@@ -244,7 +244,7 @@ describe("runPipeline — story hosts (OpenCode)", () => {
     await runPipeline(
       makeDeps({
         fetchFeeds: fetchOnce([[item("Patched extra item")]]).run,
-        writeStories: async (cache, _items, io) => {
+        writeStories: async (_cache, _items, io) => {
           await io.saveCache({ digestSessionID: "ses_new" })
         },
       }),

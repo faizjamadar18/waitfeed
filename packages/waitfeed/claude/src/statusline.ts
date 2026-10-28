@@ -30,7 +30,7 @@ import {
   isAgyBusy,
 } from "../../core/agy"
 import { readActivityDoc, markActivity } from "./activity"
-import { readTranscriptTail, turnInterrupted } from "./interrupt"
+import { lastInterrupt, readTranscriptTail } from "./interrupt"
 import { parseClaudeState } from "./statusline-state"
 import { readStdinText } from "./stdin"
 
@@ -77,6 +77,9 @@ export async function main(argv: string[]): Promise<void> {
   // interrupt instead — when the ledger says busy but the newest turn event
   // is an interrupt marker, go quiet AND write the idle mark (so the next
   // Enter is a fresh idle→busy transition with its instant-paint flip).
+  // The WHEN guard: a busy mark written AFTER the interrupt belongs to the
+  // next real turn (its prompt may not be in the transcript yet) — healing
+  // it would hide the card the Enter just painted.
   if (isAgyBusy(state)) {
     try {
       const parsed = JSON.parse(payload) as { session_id?: unknown; transcript_path?: unknown }
@@ -85,7 +88,10 @@ export async function main(argv: string[]): Promise<void> {
         typeof parsed?.transcript_path === "string" &&
         parsed.transcript_path.length > 0
       ) {
-        if (turnInterrupted(await readTranscriptTail(parsed.transcript_path))) {
+        const info = lastInterrupt(await readTranscriptTail(parsed.transcript_path))
+        const mark = activityDoc?.sessions?.[parsed.session_id]
+        const freshTurn = info.at !== undefined && typeof mark?.at === "number" && mark.at > info.at
+        if (info.interrupted && !freshTurn) {
           await markActivity(join(dir, "claude-activity.json"), parsed.session_id, false)
           state.agent_state = undefined // interrupted → quiet this render
         }

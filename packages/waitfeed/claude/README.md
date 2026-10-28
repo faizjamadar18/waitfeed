@@ -44,13 +44,26 @@ driven entirely by official hooks:
 | `Notification` (`elicitation_dialog`, `elicitation_url_dialog`) | `--idle` (async) | MCP elicitation is waiting on the user |
 | `PermissionDenied` | `--heartbeat` (async) | denied → control returns to the agent |
 | `Notification` (`idle_prompt` matcher) | `--idle` (async) | bounded quiet after a paused/idle stretch |
+| `SessionStart` | `--watch` | seeds the transcript watcher (`watchPaths` — the instant Esc path) |
+| `FileChanged` | `--interrupt-check` (async) | any transcript write; an Esc-interrupt write quiets + flips instantly |
 
 No hook fires when the user presses **Esc** to interrupt a turn (Stop skips
-interrupts, StopFailure is API-errors only), so the STATUSLINE itself detects
-it: the payload's `transcript_path` records the interrupt as the newest turn
-event (`[Request interrupted by user]`), and a busy-marked session whose
-transcript ends that way goes quiet within one refresh tick — and self-heals
-the ledger to idle, so the next Enter is a fresh instant-paint transition.
+interrupts, StopFailure is API-errors only), but the transcript records the
+interrupt (`[Request interrupted by user]` as the newest turn event), so the
+hide works in three layers:
+
+1. **Instant:** the `SessionStart` hook returns `watchPaths` naming its
+   transcript — Claude Code's filesystem watcher then fires `FileChanged`
+   the moment the interrupt-marker write lands, no matter what wrote it.
+   The hook checks the ledger + transcript tail: busy + interrupted → idle
+   mark + instant-paint flip, all within milliseconds of the Esc press.
+2. **Self-heal:** the statusline runs the same check on every refresh tick
+   while the ledger says busy — the belt for sessions whose watcher is cold
+   (no `SessionStart` seed yet) — and also writes the idle mark itself.
+3. **Fast typist:** a heartbeat that hits Enter before either layer healed
+   the ledger verifies the suspicious busy mark against the transcript
+   first (a stale interrupt is a "lie") and still counts the Enter as a
+   real transition — so the re-Enter card paints instantly too.
 
 Rules: sessions are independent (two Claude windows never wake each other
 up), a busy mark goes stale after 15 minutes (a crashed session can never pin
@@ -82,8 +95,9 @@ always-on mode.
 - Source: `claude/src/` — `statusline.ts` (runner glue), `statusline-state.ts`
   (pure parse/width/busy decisions), `activity.ts` (ledger),
   `flip.ts` (instant-paint command flip), `interrupt.ts` (Esc-interrupt
-  detector), `scheduler.ts`
-  (`--cycle` fetch pipeline + `--heartbeat`/`--idle` ledger writers),
+  detector), `watch.ts` (transcript-watcher seed), `scheduler.ts`
+  (`--cycle` fetch pipeline + `--heartbeat`/`--idle` ledger writers +
+  `--watch`/`--interrupt-check` instant-Esc modes),
   `stdin.ts` (shared stdin collector).
 - Build: `npm run build:claude` from the repo root bundles into
   `claude/dist/*.mjs` (self-contained; the staged directory needs no

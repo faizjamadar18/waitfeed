@@ -9,10 +9,11 @@
     "types": ["node"],
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
+    "allowJs": true,
     "noEmit": true
   },
   "include": [
-    "src/**/*.ts",
+    "tests/**/*.ts",
     "packages/waitfeed/**/*.ts",
     "packages/waitfeed/**/*.tsx"
   ]

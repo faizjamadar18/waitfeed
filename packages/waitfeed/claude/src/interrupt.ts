@@ -45,14 +45,27 @@ function contentText(message: unknown): string {
 }
 
 /**
- * Pure decision over the transcript's LAST lines (newest last, as written).
- * Walking backward: an interrupt marker before any real turn activity
- * (assistant message, user prompt/tool result) means the turn died by user
- * interrupt. Sidechain (subagent) entries never decide the main turn.
- * Undecidable tails (empty, garbage, bookkeeping-only) fail OPEN to live —
- * the card can never get stuck hidden because of a detection failure.
+ * The interrupt verdict over the transcript's LAST lines (newest last, as
+ * written), plus WHEN the interrupt happened. Walking backward: an interrupt
+ * marker before any real turn activity (assistant message, user prompt/tool
+ * result) means the turn died by user interrupt. Sidechain (subagent)
+ * entries never decide the main turn. Undecidable tails (empty, garbage,
+ * bookkeeping-only) fail OPEN to live — the card can never get stuck hidden
+ * because of a detection failure.
+ *
+ * `at` is the interrupt entry's own `timestamp` as epoch ms, or undefined
+ * when it carries none (or a non-ISO one). Callers use it to tell a STALE
+ * busy mark (written before the interrupt — the interrupted turn's own
+ * heartbeat) from a FRESH one (written after it — the next real turn's
+ * heartbeat racing a delayed check; its prompt may not be in the transcript
+ * yet, so the marker-only tail must never undo it).
  */
-export function turnInterrupted(lines: string[]): boolean {
+export interface InterruptInfo {
+  interrupted: boolean
+  at: number | undefined
+}
+
+export function lastInterrupt(lines: string[]): InterruptInfo {
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]
     if (!line || line.length === 0) continue
@@ -64,12 +77,15 @@ export function turnInterrupted(lines: string[]): boolean {
     }
     if (entry.isSidechain === true) continue
     const text = contentText(entry.message)
-    if (text.includes(INTERRUPT_MARKER)) return true
-    if (entry.type === "assistant" || entry.type === "user") return false
+    if (text.includes(INTERRUPT_MARKER)) {
+      const parsed = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : Number.NaN
+      return { interrupted: true, at: Number.isFinite(parsed) ? parsed : undefined }
+    }
+    if (entry.type === "assistant" || entry.type === "user") return { interrupted: false, at: undefined }
     // Bookkeeping types (system, cost-state, last-prompt, ai-title, …) —
     // not turn activity; keep walking toward older entries.
   }
-  return false
+  return { interrupted: false, at: undefined }
 }
 
 /** Read the last lines of a transcript file, capped at TAIL_BYTES. A partial
