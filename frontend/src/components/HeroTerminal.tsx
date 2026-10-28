@@ -19,57 +19,56 @@ interface TechCard {
 interface ScriptScenario {
   prompt: string;
   lines: string[];
-  reply: string;
 }
 
 const TECH_CARDS: TechCard[] = [
-  {
-    channel: "GH",
-    badgeBg: "bg-[#27AD75]",
-    badgeText: "text-[#0A0A0C]",
-    borderAccent: "border-[#27AD75]",
-    title: "astral-sh/uv · Extremely fast Python package manager",
-    score: "▲ 44.2k",
-    time: "1h",
-    copy: "Single binary toolchain written in Rust replaces pip and virtualenv with 10-100x faster package resolution.",
-    url: "https://github.com/astral-sh/uv",
-    domain: "github.com",
-  },
   {
     channel: "HN",
     badgeBg: "bg-[#fcaa2d]",
     badgeText: "text-[#0A0A0C]",
     borderAccent: "border-[#fcaa2d]",
-    title: "Why we migrated from microservices back to a monolith",
-    score: "▲ 1.9k",
-    time: "2h",
-    copy: "Consolidating 24 distributed services into a single modular codebase cut AWS bills by 52% and simplified local debugging.",
-    url: "https://news.ycombinator.com/item?id=39102456",
+    title: "Frontier models now write 40% of code, shifting devs to architecture",
+    score: "▲ 2.8k",
+    time: "1h",
+    copy: "How autonomous agent loops are handling daily boilerplate and test suites, turning software engineers into high-leverage system reviewers.",
+    url: "https://news.ycombinator.com/item?id=39918204",
     domain: "news.ycombinator.com",
   },
   {
-    channel: "DEV",
-    badgeBg: "bg-[#8A63F4]",
-    badgeText: "text-white",
-    borderAccent: "border-[#8A63F4]",
-    title: "Zero-downtime database migrations with PostgreSQL",
-    score: "▲ 580",
-    time: "4h",
-    copy: "Safe schema evolution patterns: non-blocking indexes, column backfilling, and reversible dual-write rollouts.",
-    url: "https://dev.to/postgres/zero-downtime-migrations",
-    domain: "dev.to",
+    channel: "GH",
+    badgeBg: "bg-[#27AD75]",
+    badgeText: "text-[#0A0A0C]",
+    borderAccent: "border-[#27AD75]",
+    title: "morluto/rea · Reverse Engineer Anything with AI agents",
+    score: "▲ 84.6k",
+    time: "1h",
+    copy: "Autonomous binary and protocol reverse-engineering toolkit. Hooks decompilers directly to agent workflows to map complex closed software.",
+    url: "https://github.com/morluto/rea",
+    domain: "github.com",
   },
   {
     channel: "RED",
     badgeBg: "bg-[#FF4500]",
     badgeText: "text-white",
     borderAccent: "border-[#FF4500]",
-    title: "r/programming · Deep dive into CPU cache hierarchy & latency",
-    score: "▲ 1.1k",
-    time: "6h",
-    copy: "Why cache line alignment, memory bandwidth, and data locality matter more for throughput than multi-threading.",
-    url: "https://reddit.com/r/programming",
+    title: "r/technology · Open source AI is matching Big Tech giants",
+    score: "▲ 3.1k",
+    time: "5h",
+    copy: "Community benchmarks show open-weights models now match closed corporate APIs across 85% of real-world everyday developer tasks.",
+    url: "https://reddit.com/r/technology",
     domain: "reddit.com",
+  },
+  {
+    channel: "DEV",
+    badgeBg: "bg-[#8A63F4]",
+    badgeText: "text-white",
+    borderAccent: "border-[#8A63F4]",
+    title: "Automated reasoning is finding and patching zero-day bugs in minutes",
+    score: "▲ 1.1k",
+    time: "3h",
+    copy: "Real-time code analysis tools now detect memory vulnerabilities and supply-chain flaws, automatically writing verified regression-safe fixes.",
+    url: "https://dev.to/security/automated-zero-day-patching",
+    domain: "dev.to",
   },
 ];
 
@@ -86,7 +85,6 @@ const SCRIPTS: ScriptScenario[] = [
       "  ✓ 14 tests passed · mutex verified (310 ms)",
       "Bash · npx tsc --noEmit",
     ],
-    reply: "now add rate limiting to /login",
   },
   {
     prompt: "now add rate limiting to /login",
@@ -100,7 +98,6 @@ const SCRIPTS: ScriptScenario[] = [
       "  ✓ 5 req/min burst limit enforced",
       "Bash · pnpm lint",
     ],
-    reply: "run security audit and build",
   },
   {
     prompt: "run security audit and build",
@@ -114,7 +111,6 @@ const SCRIPTS: ScriptScenario[] = [
       "  ✓ 48 tests passed (0 errors)",
       "Done   all security & build checks passed",
     ],
-    reply: "fix race condition in token refresh",
   },
 ];
 
@@ -125,54 +121,44 @@ const INITIAL_HISTORY = [
   "  ✓ 12 unit tests passed (240 ms)",
 ];
 
-const LINE_DELAYS = [500, 1000, 1600, 2200, 2900, 3700, 4400, 5200];
+const LINE_INTERVALS = [400, 850, 1300, 1800, 2350, 2900, 3500, 4150];
 const STEP_LABELS = ["agent working", "ticker streaming", "you're typing"];
 
 export function HeroTerminal() {
   const [history, setHistory] = useState<string[]>(INITIAL_HISTORY);
-  const [status, setStatus] = useState<"working" | "typing">("working");
-  const [prompt, setPrompt] = useState(SCRIPTS[0].prompt);
+  const [status, setStatus] = useState<"working" | "typing">("typing");
+  const [prompt, setPrompt] = useState("");
   const [scriptIndex, setScriptIndex] = useState(0);
-  const [visibleLineCount, setVisibleLineCount] = useState(5);
+  const [visibleLineCount, setVisibleLineCount] = useState(0);
   const [cardIndex, setCardIndex] = useState(0);
-  const [slotVisible, setSlotVisible] = useState(true);
+  const [slotVisible, setSlotVisible] = useState(false);
   const [inputValue, setInputValue] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const timeAccumRef = useRef<number>(3400);
-  const firedEventsRef = useRef<Set<string>>(new Set(["slot"]));
+  const timeAccumRef = useRef<number>(0);
+  const firedEventsRef = useRef<Set<string>>(new Set());
   const isVisibleRef = useRef<boolean>(true);
   const reducedMotionRef = useRef<boolean>(false);
   const userInteractingRef = useRef<boolean>(false);
   const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const scriptIndexRef = useRef<number>(0);
 
-  const handleTypingStart = useCallback(() => {
-    setSlotVisible(false);
-    setStatus("typing");
-  }, []);
-
   const handleSubmitPrompt = useCallback((newPrompt: string) => {
-    timeAccumRef.current = 0;
-    firedEventsRef.current = new Set(["slot"]);
     userInteractingRef.current = false;
 
-    // Preserve the last prompt and last 2 completed lines into continuous history
-    const prevScript = SCRIPTS[scriptIndexRef.current];
-    setHistory([
-      `> ${prevScript.prompt}`,
-      ...prevScript.lines.slice(-2),
-    ]);
-
-    const nextIdx = (scriptIndexRef.current + 1) % SCRIPTS.length;
-    scriptIndexRef.current = nextIdx;
-    setScriptIndex(nextIdx);
     setPrompt(newPrompt);
     setInputValue("");
     setVisibleLineCount(0);
-    setCardIndex((prev) => (prev + 1) % TECH_CARDS.length);
     setSlotVisible(true);
     setStatus("working");
+
+    const pLen = newPrompt.length;
+    const enterThreshold = 600 + 75 * pLen + 400;
+    timeAccumRef.current = enterThreshold;
+    firedEventsRef.current = new Set(["enter"]);
+    for (let i = 0; i < pLen; i++) {
+      firedEventsRef.current.add(`key${i}`);
+    }
   }, []);
 
   const scheduleResume = useCallback(
@@ -181,7 +167,7 @@ export function HeroTerminal() {
       resumeTimerRef.current = setTimeout(() => {
         const nextPrompt =
           typedText.trim().slice(0, 64) ||
-          SCRIPTS[(scriptIndexRef.current + 1) % SCRIPTS.length].prompt;
+          SCRIPTS[scriptIndexRef.current].prompt;
         handleSubmitPrompt(nextPrompt);
       }, 2400);
     },
@@ -194,13 +180,12 @@ export function HeroTerminal() {
       setInputValue(val);
       userInteractingRef.current = true;
       if (slotVisible) {
-        handleTypingStart();
-      } else {
-        setStatus("typing");
+        setSlotVisible(false);
       }
+      setStatus("typing");
       scheduleResume(val);
     },
-    [slotVisible, handleTypingStart, scheduleResume]
+    [slotVisible, scheduleResume]
   );
 
   const handleFormSubmit = useCallback(
@@ -209,7 +194,7 @@ export function HeroTerminal() {
       if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
       const nextPrompt =
         inputValue.trim().slice(0, 64) ||
-        SCRIPTS[(scriptIndexRef.current + 1) % SCRIPTS.length].prompt;
+        SCRIPTS[scriptIndexRef.current].prompt;
       handleSubmitPrompt(nextPrompt);
     },
     [inputValue, handleSubmitPrompt]
@@ -220,7 +205,13 @@ export function HeroTerminal() {
     if (!container) return;
 
     reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reducedMotionRef.current) return;
+    if (reducedMotionRef.current) {
+      setSlotVisible(true);
+      setPrompt(SCRIPTS[0].prompt);
+      setVisibleLineCount(5);
+      setStatus("working");
+      return;
+    }
 
     let isIntersecting = true;
     const updateVisibility = () => {
@@ -246,39 +237,56 @@ export function HeroTerminal() {
       }
     };
 
-    // Pre-populate so initial view has realistic terminal logs and ticker card
-    timeAccumRef.current = 3400;
-    firedEventsRef.current = new Set(["slot"]);
-    for (let i = 0; i < 5; i++) {
-      firedEventsRef.current.add(`line${i}`);
-    }
-
     const interval = setInterval(() => {
       if (!isVisibleRef.current || userInteractingRef.current) return;
 
       timeAccumRef.current += 100;
       const currentScript = SCRIPTS[scriptIndexRef.current];
+      const pLen = currentScript.prompt.length;
+      const enterThreshold = 600 + 75 * pLen + 400;
 
-      trigger("slot", 200, () => {
-        setSlotVisible(true);
-        setStatus("working");
-      });
-
-      LINE_DELAYS.forEach((delay, idx) => {
-        trigger(`line${idx}`, delay, () => setVisibleLineCount(idx + 1));
-      });
-
-      trigger("card1", 4200, () => setCardIndex((prev) => (prev + 1) % TECH_CARDS.length));
-
-      for (let i = 0; i < currentScript.reply.length; i++) {
-        trigger(`key${i}`, 6800 + 75 * i, () => {
-          if (i === 0) handleTypingStart();
-          setInputValue(currentScript.reply.slice(0, i + 1));
+      // 1. Type prompt character-by-character into the prompt input line
+      for (let i = 0; i < pLen; i++) {
+        trigger(`key${i}`, 600 + 75 * i, () => {
+          setInputValue(currentScript.prompt.slice(0, i + 1));
         });
       }
 
-      trigger("enter", 6800 + 75 * currentScript.reply.length + 800, () => {
-        handleSubmitPrompt(currentScript.reply);
+      // 2. Press Enter: prompt moves to activity log, news panel reveals, agent begins working
+      trigger("enter", enterThreshold, () => {
+        setPrompt(currentScript.prompt);
+        setInputValue("");
+        setStatus("working");
+        setSlotVisible(true);
+      });
+
+      // 3. Execution logs stream in line by line while the news ticker is active
+      LINE_INTERVALS.forEach((offset, idx) => {
+        trigger(`line${idx}`, enterThreshold + offset, () => {
+          setVisibleLineCount(idx + 1);
+        });
+      });
+
+      // 4. Cycle completed: pause to let user read, then transition to next scenario
+      const cycleEnd = enterThreshold + 4150 + 2600;
+      trigger("cycleEnd", cycleEnd, () => {
+        setHistory((prev) => [
+          ...prev.slice(-2),
+          `> ${currentScript.prompt}`,
+          ...currentScript.lines.slice(-2),
+        ]);
+        setPrompt("");
+        setVisibleLineCount(0);
+        setSlotVisible(false);
+        setStatus("typing");
+        setCardIndex((prev) => (prev + 1) % TECH_CARDS.length);
+
+        const nextIdx = (scriptIndexRef.current + 1) % SCRIPTS.length;
+        scriptIndexRef.current = nextIdx;
+        setScriptIndex(nextIdx);
+
+        timeAccumRef.current = 0;
+        firedEventsRef.current = new Set();
       });
     }, 100);
 
@@ -288,7 +296,7 @@ export function HeroTerminal() {
       document.removeEventListener("visibilitychange", updateVisibility);
       if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
     };
-  }, [handleSubmitPrompt, handleTypingStart]);
+  }, [handleSubmitPrompt]);
 
   const currentScript = SCRIPTS[scriptIndex];
   const currentCard = TECH_CARDS[cardIndex];
@@ -332,10 +340,12 @@ export function HeroTerminal() {
               <span className="whitespace-pre">{line}</span>
             </div>
           ))}
-          <div className="shrink-0 truncate text-[#EDEDF0]">
-            <span className="mr-2 text-[#5C5C66]">&gt;</span>
-            {prompt}
-          </div>
+          {prompt ? (
+            <div className="shrink-0 truncate text-[#EDEDF0]">
+              <span className="mr-2 text-[#5C5C66]">&gt;</span>
+              {prompt}
+            </div>
+          ) : null}
           {visibleLines.map((line, idx) => (
             <div
               key={`line-${idx}`}
