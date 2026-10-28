@@ -90,7 +90,7 @@ describe("package integrity (consumer-machine safety)", () => {
       await expect(readFile(join(PKG, target), "utf8"), `export target missing: ${key}`).resolves.toBeTruthy()
     }
     expect(pkg.bin).toBeDefined()
-    expect(pkg.bin.waitfeed).toBe("./bin.mjs")
+    expect(pkg.bin.waitfeed).toMatch(/^(?:\.\/)?bin\.mjs$/)
     const binContent = await readFile(join(PKG, pkg.bin.waitfeed), "utf8")
     expect(binContent.startsWith("#!/usr/bin/env node")).toBe(true)
     for (const listed of pkg.files as string[]) {

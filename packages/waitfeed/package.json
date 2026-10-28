@@ -33,7 +33,7 @@
   "type": "module",
   "main": "./opencode/index.ts",
   "bin": {
-    "waitfeed": "./bin.mjs"
+    "waitfeed": "bin.mjs"
   },
   "exports": {
     ".": "./opencode/index.ts",
