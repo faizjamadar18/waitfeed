@@ -1,8 +1,8 @@
 // CLI onboarding tests — validates multi-agent detection, configuration,
 // and CLI flags for npx waitfeed init.
 import { describe, expect, it } from "vitest"
-import { existsSync } from "node:fs"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { spawnSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -14,6 +14,10 @@ import {
   registerOpenCodePlugin,
   registerAgyPlugin,
   registerClaudePlugin,
+  removeOpenCodePlugin,
+  removeAgyPlugin,
+  removeClaudePlugin,
+  removeWaitFeedData,
   saveWaitFeedUserConfig,
   countLinesRows,
 } from "../packages/waitfeed/bin.mjs"
@@ -227,6 +231,300 @@ describe("Config writers in isolated environments", () => {
       expect(thirdSettings.statusLine?.command.endsWith(" --wf"), "flip variant survives a re-run of init").toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("Removal (full teardown)", () => {
+  const spawnRemove = (home: string) =>
+    spawnSync(process.execPath, [BIN, "remove"], {
+      encoding: "utf8",
+      // Point os.homedir() at a sandbox for the whole child process:
+      // USERPROFILE governs it on Windows, HOME on unix.
+      env: { ...process.env, HOME: home, USERPROFILE: home },
+    })
+
+  it("opencode: register → remove leaves no waitfeed entry; foreign plugins survive", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-rm-oc-"))
+    try {
+      await writeFile(
+        join(dir, "opencode.json"),
+        JSON.stringify({ plugins: ["other-plugin"], model: "some-model" }),
+        "utf8",
+      )
+      await registerOpenCodePlugin(dir)
+      const mid = JSON.parse(await readFile(join(dir, "opencode.json"), "utf8")) as { plugins: string[] }
+      expect(mid.plugins).toContain("waitfeed")
+
+      const res = (await removeOpenCodePlugin(dir)) as { configured: boolean }
+      expect(res.configured).toBe(true)
+      const after = JSON.parse(await readFile(join(dir, "opencode.json"), "utf8")) as {
+        plugins: string[]
+        model?: string
+      }
+      expect(after.plugins).toEqual(["other-plugin"])
+      expect(after.model).toBe("some-model")
+      expect(JSON.stringify(after)).not.toContain("waitfeed")
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("opencode: empty plugins key is dropped (the $schema nicety stays)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-rm-oc2-"))
+    try {
+      await registerOpenCodePlugin(dir) // writes opencode.jsonc: $schema + plugins: ["waitfeed"]
+      const res = (await removeOpenCodePlugin(dir)) as { configured: boolean }
+      expect(res.configured).toBe(true)
+      const after = JSON.parse(await readFile(join(dir, "opencode.jsonc"), "utf8")) as {
+        $schema?: string
+        plugins?: string[]
+      }
+      expect(after.plugins).toBeUndefined()
+      expect(Object.keys(after)).toEqual(["$schema"])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("opencode: a config that held nothing but waitfeed is deleted outright", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-rm-oc3-"))
+    try {
+      await writeFile(join(dir, "opencode.json"), JSON.stringify({ plugins: ["waitfeed"] }), "utf8")
+      const res = (await removeOpenCodePlugin(dir)) as { configured: boolean }
+      expect(res.configured).toBe(true)
+      expect(existsSync(join(dir, "opencode.json"))).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("opencode: missing or malformed config is reported, never rewritten", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-rm-oc4-"))
+    try {
+      const missing = (await removeOpenCodePlugin(dir)) as { configured: boolean }
+      expect(missing.configured).toBe(false)
+
+      const badPath = join(dir, "opencode.json")
+      await writeFile(badPath, "{ not valid json !!", "utf8")
+      const res = (await removeOpenCodePlugin(dir)) as { configured: boolean; unreadable?: boolean }
+      expect(res.configured).toBe(false)
+      expect(res.unreadable).toBe(true)
+      expect(await readFile(badPath, "utf8")).toBe("{ not valid json !!")
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("claude: register → remove deletes statusLine, hook groups and staged bundles; foreign hooks survive", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-cl-"))
+    try {
+      await mkdir(join(home, ".claude"), { recursive: true })
+      const settingsPath = join(home, ".claude", "settings.json")
+      // A hook that does NOT belong to WaitFeed, as a user would have it.
+      await writeFile(
+        settingsPath,
+        JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "node my-own-tool.js" }] }] } }),
+        "utf8",
+      )
+
+      await registerClaudePlugin(home)
+      const mid = JSON.parse(await readFile(settingsPath, "utf8")) as { statusLine?: { command: string } }
+      expect(mid.statusLine).toBeDefined()
+
+      const res = (await removeClaudePlugin(home)) as { configured: boolean }
+      expect(res.configured).toBe(true)
+
+      const after = JSON.parse(await readFile(settingsPath, "utf8")) as {
+        statusLine?: unknown
+        hooks?: Record<string, Array<{ hooks?: Array<{ command: string }> }>>
+      }
+      expect(after.statusLine).toBeUndefined()
+      expect(JSON.stringify(after)).not.toContain("waitfeed")
+      // The user's own hook group survives intact.
+      expect(after.hooks?.Stop?.[0]?.hooks?.[0]?.command).toBe("node my-own-tool.js")
+      // Staged bundles are gone.
+      expect(existsSync(join(home, ".claude", "waitfeed"))).toBe(false)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("claude: a mixed hook entry keeps only the foreign command", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-cl2-"))
+    try {
+      const marker = join(home, ".claude", "waitfeed").replace(/\\/g, "/")
+      await mkdir(join(home, ".claude"), { recursive: true })
+      const settingsPath = join(home, ".claude", "settings.json")
+      await writeFile(
+        settingsPath,
+        JSON.stringify({
+          hooks: {
+            Stop: [
+              {
+                hooks: [
+                  { type: "command", command: `node ${marker}/dist/scheduler.mjs --idle` },
+                  { type: "command", command: "node their-tool.js" },
+                ],
+              },
+            ],
+          },
+        }),
+        "utf8",
+      )
+
+      const res = (await removeClaudePlugin(home)) as { configured: boolean }
+      expect(res.configured).toBe(true)
+      const after = JSON.parse(await readFile(settingsPath, "utf8")) as {
+        hooks?: Record<string, Array<{ hooks?: Array<{ command: string }> }>>
+      }
+      expect(after.hooks?.Stop?.[0]?.hooks?.map((h) => h.command)).toEqual(["node their-tool.js"])
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("claude: the --wf flip variant counts as ours; a foreign statusLine is never touched", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-cl3-"))
+    try {
+      const marker = join(home, ".claude", "waitfeed").replace(/\\/g, "/")
+      await mkdir(join(home, ".claude"), { recursive: true })
+      const settingsPath = join(home, ".claude", "settings.json")
+      await writeFile(
+        settingsPath,
+        JSON.stringify({
+          statusLine: { type: "command", command: `node ${marker}/dist/statusline.mjs --wf`, refreshInterval: 2 },
+        }),
+        "utf8",
+      )
+      const flipped = (await removeClaudePlugin(home)) as { configured: boolean }
+      expect(flipped.configured).toBe(true)
+      expect(existsSync(settingsPath)).toBe(false) // nothing else was in it
+
+      const original = { statusLine: { type: "command", command: "node my-statusline.js" } }
+      await writeFile(settingsPath, JSON.stringify(original), "utf8")
+      const foreign = (await removeClaudePlugin(home)) as { configured: boolean }
+      expect(foreign.configured).toBe(false)
+      expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual(original)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("claude: a malformed settings.json is reported, never rewritten", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-cl4-"))
+    try {
+      await mkdir(join(home, ".claude"), { recursive: true })
+      const settingsPath = join(home, ".claude", "settings.json")
+      await writeFile(settingsPath, "{ broken", "utf8")
+      const res = (await removeClaudePlugin(home)) as { configured: boolean; unreadable?: boolean }
+      expect(res.configured).toBe(false)
+      expect(res.unreadable).toBe(true)
+      expect(await readFile(settingsPath, "utf8")).toBe("{ broken")
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("agy: register → remove deletes statusLine and the staged plugin dir", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-agy-"))
+    try {
+      await registerAgyPlugin(home)
+      const settingsPath = join(home, ".gemini", "antigravity-cli", "settings.json")
+      expect(existsSync(join(home, ".gemini", "config", "plugins", "waitfeed", "plugin.json"))).toBe(true)
+
+      const res = (await removeAgyPlugin(home)) as { configured: boolean }
+      expect(res.configured).toBe(true)
+      expect(existsSync(join(home, ".gemini", "config", "plugins", "waitfeed"))).toBe(false)
+      // settings.json held only the statusLine → deleted outright (empty husk)
+      expect(existsSync(settingsPath)).toBe(false)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("agy: a foreign statusLine is never touched", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-agy2-"))
+    try {
+      await mkdir(join(home, ".gemini", "antigravity-cli"), { recursive: true })
+      const settingsPath = join(home, ".gemini", "antigravity-cli", "settings.json")
+      const original = { statusLine: { type: "command", command: "node my-statusline.js" }, theme: "dark" }
+      await writeFile(settingsPath, JSON.stringify(original), "utf8")
+
+      const res = (await removeAgyPlugin(home)) as { configured: boolean }
+      expect(res.configured).toBe(false)
+      expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual(original)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("removeWaitFeedData deletes the shared data dir and is idempotent", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-rm-data-"))
+    try {
+      await saveWaitFeedUserConfig({ hn: true }, [], dir)
+      expect(existsSync(join(dir, "config.json"))).toBe(true)
+
+      const res = (await removeWaitFeedData(dir)) as { removed: boolean }
+      expect(res.removed).toBe(true)
+      expect(existsSync(dir)).toBe(false)
+
+      const again = (await removeWaitFeedData(dir)) as { removed: boolean }
+      expect(again.removed).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("CLI remove reports per-host results against a faked home (E2E)", () => {
+    const home = mkdtempSync(join(tmpdir(), "wf-rm-e2e-"))
+    try {
+      const res = spawnRemove(home)
+      expect(res.status).toBe(0)
+      expect(res.stdout).toContain("OpenCode: not configured")
+      expect(res.stdout).toContain("Google Antigravity (AGY): not configured")
+      expect(res.stdout).toContain("Claude Code: not configured")
+      expect(res.stdout).toContain("No data folder")
+      expect(res.stdout).toContain("WaitFeed fully removed")
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+
+  it("full round-trip: register everything → CLI remove leaves zero waitfeed traces", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-roundtrip-"))
+    try {
+      const dataDir = join(home, ".config", "waitfeed")
+      await saveWaitFeedUserConfig({ hn: true, devto: true, github: true, reddit: true }, [], dataDir)
+      await registerOpenCodePlugin(join(home, ".config", "opencode"))
+      await registerAgyPlugin(home)
+      await registerClaudePlugin(home)
+
+      const res = spawnRemove(home)
+      expect(res.status).toBe(0)
+      expect(res.stdout).toContain("OpenCode: integration removed")
+      expect(res.stdout).toContain("Google Antigravity (AGY): integration removed")
+      expect(res.stdout).toContain("Claude Code: integration removed")
+
+      expect(existsSync(dataDir)).toBe(false)
+      expect(existsSync(join(home, ".claude", "waitfeed"))).toBe(false)
+      expect(existsSync(join(home, ".gemini", "config", "plugins", "waitfeed"))).toBe(false)
+
+      // And not a single leftover file under the faked home mentions waitfeed.
+      const walk = (dir: string): string[] =>
+        existsSync(dir)
+          ? readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+              e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
+            )
+          : []
+      const files = walk(home)
+      expect(files.length).toBeGreaterThan(0) // sanity: the scan actually looked
+      for (const file of files) {
+        const text = await readFile(file, "utf8").catch(() => "")
+        expect(text.toLowerCase()).not.toContain("waitfeed")
+      }
+    } finally {
+      await rm(home, { recursive: true, force: true })
     }
   })
 })

@@ -34,6 +34,21 @@ one — staging self-contained bundles and writing each host's config
 - **Antigravity** — the wizard stages the statusline bundles and plugin
   config for `agy`
 
+## Uninstall
+
+```bash
+npx waitfeed remove
+```
+
+Removes the integration from every agent — the config entries and the
+staged files — and then deletes `~/.config/waitfeed/` (the news cache and
+your channel choices). Nothing of WaitFeed is left configured anywhere;
+`npx waitfeed init` afterwards starts the onboarding fresh. `--keep-data`
+keeps that folder instead. Plain `npm uninstall waitfeed` only removes the
+npm package and never touches the agent integrations — that is what
+`remove` is for. If you installed the package globally, finish with
+`npm uninstall -g waitfeed`.
+
 ## What it does
 
 | Host | Where the card lives | The card | Reader |

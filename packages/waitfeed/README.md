@@ -49,6 +49,24 @@ To configure OpenCode by hand, add `waitfeed` to `plugins` in your
 }
 ```
 
+## Uninstall
+
+```bash
+npx waitfeed remove
+```
+
+Removes the integration from every agent — the config entries and the
+staged bundle files — and then deletes `~/.config/waitfeed/` (the news
+cache and your channel choices). Nothing of WaitFeed is left configured
+anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
+
+- Keep the data folder but remove the integrations:
+  `npx waitfeed remove --keep-data`.
+- Plain `npm uninstall waitfeed` only removes the npm package — it never
+  touches the agent integrations, which is exactly what `remove` is for.
+  If you installed the package globally, finish with
+  `npm uninstall -g waitfeed`.
+
 ## Use
 
 **OpenCode**

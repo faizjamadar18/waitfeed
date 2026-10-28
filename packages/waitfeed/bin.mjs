@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * WaitFeed CLI Onboarding Wizard (npx waitfeed init)
+ * WaitFeed CLI — onboarding wizard + removal (npx waitfeed init | remove)
  *
  * 100% local, zero-backend, keyless setup for AI coding agents.
  * Supports OpenCode, Google Antigravity (AGY), and Claude Code (extensible provider architecture).
@@ -9,7 +9,7 @@
 
 import { execSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import readline from "node:readline"
@@ -364,6 +364,137 @@ async function registerClaudePlugin(customHome) {
     alreadyConfigured,
     settingsExisted,
   }
+}
+
+// --- Removal (the exact reverse of the register helpers above) ---
+// Removal is held to a stricter standard than registration: it never
+// rewrites — let alone deletes — a config file it could not fully parse,
+// and it removes ONLY entries it can positively identify as WaitFeed's.
+// A foreign statusLine, plugin, or hook group always survives untouched.
+
+// Returns the parsed config object, null when the file does not exist, or
+// undefined when it exists but cannot be understood (malformed JSON).
+async function readJsonConfig(configPath) {
+  if (!existsSync(configPath)) return null
+  try {
+    const clean = stripJsoncComments(await readFile(configPath, "utf8"))
+    const parsed = JSON.parse(clean)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// Writes a cleaned config back; deletes the file outright when nothing is
+// left in it — "removed" should not leave empty JSON husks behind.
+async function writeJsonConfig(configPath, parsed) {
+  if (Object.keys(parsed).length === 0) {
+    await rm(configPath, { force: true })
+    return
+  }
+  await writeFile(configPath, JSON.stringify(parsed, null, 2) + "\n", "utf8")
+}
+
+async function removeOpenCodePlugin(customDir) {
+  const opencodeDir = customDir || join(homedir(), ".config", "opencode")
+  const configPath = resolveOpenCodeConfigPath(opencodeDir)
+  const parsed = await readJsonConfig(configPath)
+  if (parsed === null) return { configured: false, path: configPath }
+  if (parsed === undefined) return { configured: false, unreadable: true, path: configPath }
+
+  const plugins = Array.isArray(parsed.plugins) ? parsed.plugins : []
+  if (!plugins.includes("waitfeed")) return { configured: false, path: configPath }
+
+  const remaining = plugins.filter((p) => p !== "waitfeed")
+  if (remaining.length > 0) parsed.plugins = remaining
+  else delete parsed.plugins
+  await writeJsonConfig(configPath, parsed)
+  return { configured: true, path: configPath }
+}
+
+async function removeAgyPlugin(customHome) {
+  const home = customHome || homedir()
+  const pluginDir = join(home, ".gemini", "config", "plugins", "waitfeed")
+  const settingsPath = join(home, ".gemini", "antigravity-cli", "settings.json")
+  const marker = pluginDir.replace(/\\/g, "/")
+
+  const settings = await readJsonConfig(settingsPath)
+  if (settings === null) return { configured: false, path: settingsPath }
+  if (settings === undefined) return { configured: false, unreadable: true, path: settingsPath }
+
+  const command =
+    settings.statusLine && typeof settings.statusLine === "object" && typeof settings.statusLine.command === "string"
+      ? settings.statusLine.command
+      : ""
+  if (!command.includes(marker)) return { configured: false, path: settingsPath }
+
+  delete settings.statusLine
+  await writeJsonConfig(settingsPath, settings)
+  await rm(pluginDir, { recursive: true, force: true })
+  return { configured: true, path: settingsPath }
+}
+
+async function removeClaudePlugin(customHome) {
+  const home = customHome || homedir()
+  const pluginDir = join(home, ".claude", "waitfeed")
+  const settingsPath = join(home, ".claude", "settings.json")
+  const marker = pluginDir.replace(/\\/g, "/")
+
+  const settings = await readJsonConfig(settingsPath)
+  if (settings === null) return { configured: false, path: settingsPath }
+  if (settings === undefined) return { configured: false, unreadable: true, path: settingsPath }
+
+  let touched = false
+
+  // statusLine: remove only when it points into the staged waitfeed dir —
+  // init's flip variant appends " --wf" at runtime, same marker either way.
+  if (settings.statusLine && typeof settings.statusLine === "object") {
+    const command = typeof settings.statusLine.command === "string" ? settings.statusLine.command : ""
+    if (command.includes(marker)) {
+      delete settings.statusLine
+      touched = true
+    }
+  }
+
+  // hooks: strip every hook whose command calls the waitfeed scheduler.
+  // Entries that lose all their hooks disappear, events that lose all their
+  // entries disappear, and anything else in settings.hooks survives.
+  if (settings.hooks && typeof settings.hooks === "object") {
+    for (const event of Object.keys(settings.hooks)) {
+      const entries = settings.hooks[event]
+      if (!Array.isArray(entries)) continue
+      const cleaned = []
+      for (const entry of entries) {
+        if (!entry || !Array.isArray(entry.hooks)) {
+          cleaned.push(entry)
+          continue
+        }
+        const kept = entry.hooks.filter((h) => !(h && typeof h.command === "string" && h.command.includes(marker)))
+        if (kept.length === 0) touched = true
+        else if (kept.length < entry.hooks.length) {
+          touched = true
+          cleaned.push({ ...entry, hooks: kept })
+        } else cleaned.push(entry)
+      }
+      if (cleaned.length > 0) settings.hooks[event] = cleaned
+      else if (entries.length > 0) delete settings.hooks[event]
+    }
+    if (Object.keys(settings.hooks).length === 0) delete settings.hooks
+  }
+
+  if (!touched) return { configured: false, path: settingsPath }
+
+  await writeJsonConfig(settingsPath, settings)
+  await rm(pluginDir, { recursive: true, force: true })
+  return { configured: true, path: settingsPath }
+}
+
+// The shared data dir — config.json, the news cache, the cycle lock.
+async function removeWaitFeedData(customDir) {
+  const dir = customDir || join(homedir(), ".config", "waitfeed")
+  if (!existsSync(dir)) return { removed: false, dir }
+  await rm(dir, { recursive: true, force: true })
+  return { removed: true, dir }
 }
 
 // --- WaitFeed Shared Config Utilities ---
@@ -754,8 +885,8 @@ async function runInit() {
   console.log(`  ${c.dim}│${c.reset}`)
 
   // 5. Save Shared User Preferences & Register Integrations
-  await saveWaitFeedUserConfig(sources, rssUrls)
-  console.log(`  ${c.green}✓${c.reset} Preferences saved`)
+  const configPath = await saveWaitFeedUserConfig(sources, rssUrls)
+  console.log(`  ${c.green}✓${c.reset} Preferences saved ${c.dim}·${c.reset} ${c.white}${configPath}${c.reset}`)
 
   if (selectedAgents.opencode) {
     await registerOpenCodePlugin()
@@ -782,25 +913,36 @@ async function runInit() {
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}full test suites without human intervention.               │${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}> ${c.cyan}swebench.com${c.reset}${c.dim}                                             │${c.reset}`)
   console.log(`  ${c.dim}│  └───────────────────────────────────────────────────────────────┘${c.reset}`)
-  console.log(`  ${c.dim}│  ↳ Renders above prompt in OpenCode, and in AGY/Claude Code statuslines${c.reset}`)
+  console.log(`  ${c.dim}│  ▸ Renders above prompt in OpenCode, and in AGY/Claude Code statuslines${c.reset}`)
   console.log(`  ${c.dim}│${c.reset}`)
 
-  // 7. Completion Box & Tailored Instructions
-  console.log(`  ${c.cyan}◇ What to do next ─────────────────────────────────────────────────┐${c.reset}`)
+  // 7. Next-steps box. ONE width drives every row so corners always line
+  // up: text pads to NEXT_INNER via stripAnsi (ANSI codes have no width),
+  // and both borders derive from the same number. Plain hyphens inside the
+  // box — `—` is ambiguous-width on CJK terminals and would shift the edge.
+  const NEXT_INNER = 62 // text columns between the vertical strokes
+  const nextRow = (text) => {
+    const pad = " ".repeat(Math.max(0, NEXT_INNER - stripAnsi(text).length))
+    console.log(`  ${c.dim}│${c.reset} ${text}${pad}${c.dim}│${c.reset}`)
+  }
+  console.log(`  ${c.cyan}◇ Next steps ${"─".repeat(NEXT_INNER - 11)}┐${c.reset}`)
   if (selectedAgents.opencode) {
-    console.log(`  ${c.dim}│${c.reset} • ${c.bold}OpenCode:${c.reset} Start ${c.white}opencode${c.reset} — ticker appears when agent works.  ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset}   Type ${c.bold}/news${c.reset} anytime to open the fullscreen reader.             ${c.dim}│${c.reset}`)
+    nextRow(`• ${c.bold}OpenCode:${c.reset} Start ${c.white}opencode${c.reset} - ticker appears when agent works.`)
+    nextRow(`  Type ${c.bold}/news${c.reset} anytime to open the fullscreen reader.`)
   }
-  if (selectedAgents.agy) {
-    console.log(`  ${c.dim}│${c.reset} • ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} — statusline ticker rotates.    ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset}   Ctrl+Click origin links to open stories in your browser.        ${c.dim}│${c.reset}`)
+  if (selectedAgents.agy && selectedAgents.claude) {
+    nextRow(`• ${c.bold}Antigravity (AGY) / Claude Code:${c.reset} Start ${c.white}agy${c.reset} or ${c.white}claude${c.reset} - the`)
+    nextRow(`  statusline ticker rotates.`)
+  } else if (selectedAgents.agy) {
+    nextRow(`• ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} - statusline ticker rotates.`)
+  } else if (selectedAgents.claude) {
+    nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - statusline ticker rotates.`)
   }
-  if (selectedAgents.claude) {
-    console.log(`  ${c.dim}│${c.reset} • ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} — statusline ticker rotates.    ${c.dim}│${c.reset}`)
-    console.log(`  ${c.dim}│${c.reset}   Ctrl+Click origin links to open stories in your browser.        ${c.dim}│${c.reset}`)
+  if (selectedAgents.agy || selectedAgents.claude) {
+    nextRow(`  Ctrl+Click origin links to open stories in your browser.`)
   }
-  console.log(`  ${c.dim}│${c.reset} • Start typing your prompt anytime — the ticker vanishes!         ${c.dim}│${c.reset}`)
-  console.log(`  ${c.cyan}└──────────────────────────────────────────────────────────────────┘${c.reset}`)
+  nextRow(`• Start typing your prompt anytime - the ticker vanishes!`)
+  console.log(`  ${c.cyan}└${"─".repeat(NEXT_INNER + 1)}┘${c.reset}`)
   console.log()
   console.log(`  ${c.green}✓ WaitFeed setup complete! Happy coding.${c.reset}`)
   console.log()
@@ -809,12 +951,49 @@ async function runInit() {
   }
 }
 
+// --- Removal flow (user-facing mirror of runInit) ---
+async function runRemove({ keepData = false } = {}) {
+  console.log()
+  console.log(`  ${c.bold}Removing WaitFeed from this machine...${c.reset}`)
+  console.log()
+
+  const hostResult = (label, res) => {
+    if (res.configured) {
+      console.log(`  ${c.green}✓${c.reset} ${label}: ${c.white}integration removed${c.reset}`)
+    } else if (res.unreadable) {
+      console.log(`  ${c.yellow}◆${c.reset} ${label}: could not read ${res.path} - left untouched`)
+    } else {
+      console.log(`  ${c.dim}◇ ${label}: not configured${c.reset}`)
+    }
+  }
+
+  hostResult("OpenCode", await removeOpenCodePlugin())
+  hostResult("Google Antigravity (AGY)", await removeAgyPlugin())
+  hostResult("Claude Code", await removeClaudePlugin())
+
+  const dataRes = await removeWaitFeedData()
+  if (keepData) {
+    console.log(`  ${c.dim}◇ Data kept (--keep-data): ${dataRes.dir}${c.reset}`)
+  } else if (dataRes.removed) {
+    console.log(`  ${c.green}✓${c.reset} Removed ${c.white}${dataRes.dir}${c.reset}`)
+  } else {
+    console.log(`  ${c.dim}◇ No data folder at ${dataRes.dir}${c.reset}`)
+  }
+
+  console.log()
+  console.log(
+    `  ${c.green}✓${c.reset} ${c.bold}WaitFeed fully removed.${c.reset} Run ${c.bold}npx waitfeed init${c.reset} to set it up again.`
+  )
+  console.log()
+}
+
 function printHelp() {
   console.log(`
   ${c.bold}WaitFeed${c.reset} - Make Every Agent Wait Count
 
   ${c.bold}Usage:${c.reset}
     npx waitfeed init      Run the interactive setup wizard
+    npx waitfeed remove    Remove WaitFeed from every agent and delete its data
     npx waitfeed --help    Show this help message
     npx waitfeed --version Show version
 `)
@@ -839,6 +1018,12 @@ async function main() {
     return
   }
 
+  if (arg === "remove" || arg === "uninstall") {
+    const keepData = process.argv.slice(3).includes("--keep-data")
+    await runRemove({ keepData })
+    return
+  }
+
   // Default behavior or "init": run the onboarding flow
   await runInit()
 }
@@ -851,6 +1036,10 @@ export {
   registerOpenCodePlugin,
   registerAgyPlugin,
   registerClaudePlugin,
+  removeOpenCodePlugin,
+  removeAgyPlugin,
+  removeClaudePlugin,
+  removeWaitFeedData,
   saveWaitFeedUserConfig,
   resolveOpenCodeConfigPath,
   stripJsoncComments,

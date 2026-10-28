@@ -47,10 +47,10 @@ const FAQS: FaqItem[] = [
       "Yes. Pick your preferred channels during npx waitfeed init, toggle them anytime in the /news sources menu, or add up to 10 custom RSS/Atom feeds in your config.",
   },
   {
-    id: "pricing-privacy",
-    question: "Do I need any accounts, API keys, or subscriptions?",
+    id: "uninstall-remove",
+    question: "How do I uninstall WaitFeed or remove the ticker?",
     answer:
-      "None. WaitFeed is 100% keyless, private, and local. There are no accounts to create, no tracking, and zero ads.",
+      "Just run npx waitfeed remove. It cleanly unregisters WaitFeed from all configured agents (OpenCode, Claude Code, and Antigravity), restores your original configuration files untouched, and deletes the local cache directory so nothing is left behind.",
   },
 ];
 
