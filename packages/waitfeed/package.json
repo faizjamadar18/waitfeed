@@ -45,6 +45,7 @@
     "core/",
     "agy/",
     "claude/",
+    "claude-mod/",
     "tsconfig.json",
     "LICENSE",
     "README.md"

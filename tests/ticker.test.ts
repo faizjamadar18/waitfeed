@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest"
 import {
   decodeEntities,
   dropJunk,
+  dropNonEnglish,
   formatAgo,
   formatDuration,
   formatMeta,
+  hasForeignScript,
   headline,
   headlineParts,
   isContextDuplicate,
@@ -199,6 +201,35 @@ describe("dropJunk", () => {
     const clean = item({ title: "Real headline with words" })
     const kept = dropJunk([junk, repo, bareRepo, clean])
     expect(kept.map((k) => k.id)).toEqual([repo.id, bareRepo.id, clean.id])
+  })
+})
+
+describe("dropNonEnglish", () => {
+  it("keeps English items, including accented and emoji-touched ones", () => {
+    const kept = [
+      item({ title: "Python jettisons the native JIT, at least for now" }),
+      item({ title: "The café test — how Müller ships code 🔧", context: "A deep dive with proofs" }),
+      item({ title: "Resolving the Ω(n) bound in practice" }),
+    ]
+    expect(dropNonEnglish(kept).map((k) => k.id)).toEqual(kept.map((k) => k.id))
+  })
+  it("drops items whose title or context carries a non-English script", () => {
+    const foreign = [
+      item({ title: "卸掉国产安卓手机系统里的广告" }),
+      item({ title: "rddmwddr/android-ad-cleaner", context: "卸掉国产安卓手机系统里的广告、热搜、资讯推荐和营销" }),
+      item({ title: "smithjohn/tonjiang-lab", context: "Free interactive 3D science lessons for high school 铜匠实验" }),
+      item({ title: "Привет мир from the systems feed" }),
+      item({ title: "한국 개발자 시스템 정리" }),
+      item({ title: "واجهة المستخدم للمطورين today" }),
+      item({ title: "यह एक सिस्टम पोस्ट है" }),
+    ]
+    expect(dropNonEnglish(foreign)).toEqual([])
+  })
+  it("caps: a CJK glyph in either field kills the line even with one letter titles", () => {
+    expect(hasForeignScript("café")).toBe(false)
+    expect(hasForeignScript("铜")).toBe(true)
+    expect(hasForeignScript("clean", "still clean")).toBe(false)
+    expect(hasForeignScript("clean", "广告 inside")).toBe(true)
   })
 })
 

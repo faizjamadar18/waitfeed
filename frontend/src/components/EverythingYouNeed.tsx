@@ -19,16 +19,16 @@ const TABS: AgentTab[] = [
       "Ambient developer stream during reasoning and tool runs. Clears instantly the millisecond you type.",
   },
   {
-    id: "agy",
-    name: "Antigravity",
-    description:
-      "Native statusline integration delivering high-signal briefs directly inside your agent loop.",
-  },
-  {
     id: "opencode",
     name: "OpenCode",
     description:
       "A live ticker above your prompt, plus /news to catch up on anything you missed.",
+  },
+  {
+    id: "agy",
+    name: "Antigravity",
+    description:
+      "Native statusline integration delivering high-signal briefs directly inside your agent loop.",
   },
 ];
 
@@ -461,16 +461,16 @@ export function EverythingYouNeed() {
                     {activeTab === 0
                       ? "FIG. 001 · CLAUDE CODE INTEGRATION"
                       : activeTab === 1
-                        ? "FIG. 002 · ANTIGRAVITY STATUSLINE"
-                        : "FIG. 003 · OPENCODE COMPOSER"}
+                        ? "FIG. 002 · OPENCODE COMPOSER"
+                        : "FIG. 003 · ANTIGRAVITY STATUSLINE"}
                   </motion.span>
                 </AnimatePresence>
                 <span className="invisible select-none pointer-events-none" aria-hidden="true">
                   {activeTab === 0
                     ? "FIG. 001 · CLAUDE CODE INTEGRATION"
                     : activeTab === 1
-                      ? "FIG. 002 · ANTIGRAVITY STATUSLINE"
-                      : "FIG. 003 · OPENCODE COMPOSER"}
+                      ? "FIG. 002 · OPENCODE COMPOSER"
+                      : "FIG. 003 · ANTIGRAVITY STATUSLINE"}
                 </span>
               </div>
               <span>RUNTIME ADAPTERS</span>
@@ -656,8 +656,8 @@ export function EverythingYouNeed() {
                           {activeTab === 0
                             ? "claude · ~/projects/waitfeed"
                             : activeTab === 1
-                              ? "antigravity · ~/projects/waitfeed"
-                              : "opencode · ~/projects/waitfeed"}
+                              ? "opencode · ~/projects/waitfeed"
+                              : "antigravity · ~/projects/waitfeed"}
                         </motion.span>
                       </AnimatePresence>
                     </div>
@@ -691,8 +691,8 @@ export function EverythingYouNeed() {
                       style={{ willChange: "opacity" }}
                     >
                       {activeTab === 0 && <ClaudeCodeTerminalContent />}
-                      {activeTab === 1 && <AntigravityTerminalContent />}
-                      {activeTab === 2 && <OpenCodeTerminalContent />}
+                      {activeTab === 1 && <OpenCodeTerminalContent />}
+                      {activeTab === 2 && <AntigravityTerminalContent />}
                     </motion.div>
                   </AnimatePresence>
                 </div>
@@ -723,15 +723,15 @@ export function EverythingYouNeed() {
                         {activeTab === 0
                           ? "Claude Opus 5.5 · $0.04"
                           : activeTab === 1
-                            ? "? for shortcuts"
-                            : "OpenTUI Solid v2.4"}
+                            ? "OpenTUI Solid v2.4"
+                            : "? for shortcuts"}
                       </span>
                       <span>
                         {activeTab === 0
                           ? "82% context"
                           : activeTab === 1
-                            ? "Gemini Argon 4 · high"
-                            : "53 tests passed"}
+                            ? "53 tests passed"
+                            : "Gemini Argon 4 · high"}
                       </span>
                     </motion.div>
                   </AnimatePresence>

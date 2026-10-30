@@ -247,6 +247,27 @@ async function registerClaudePlugin(customHome) {
     }
   }
 
+  // 1b. Stage the /news pane — a Claude "mod" (a plugin whose hooks module
+  // draws in the interface). Claude Code loads it from the path the docs
+  // list in CLAUDE_CODE_PLUGIN_DIRS ("Environment, or env in
+  // ~/.claude/settings.json"; `;`-separated on Windows).
+  const modSourceDir = fileURLToPath(new URL("./claude-mod", import.meta.url))
+  const modDestDir = join(pluginDir, "claude-mod")
+  const modFiles = [
+    [".claude-plugin", "plugin.json"],
+    ["hooks", "hooks.json"],
+    ["hooks", "register.js"],
+    ["README.md"],
+  ]
+  for (const rel of modFiles) {
+    const src = join(modSourceDir, ...rel)
+    if (existsSync(src)) {
+      await mkdir(join(modDestDir, ...rel.slice(0, -1)), { recursive: true })
+      await copyFile(src, join(modDestDir, ...rel))
+      stagedCount++
+    }
+  }
+
   // 2. Configure statusLine & SessionStart hook in ~/.claude/settings.json
   let settings = {}
   let settingsExisted = false
@@ -355,6 +376,28 @@ async function registerClaudePlugin(customHome) {
   // left up by an interrupted (Esc) turn.
   addHook("Notification", idleCommand, { matcher: "idle_prompt", async: true })
 
+  // The env entry persists the pane across launches that cannot take a
+  // --plugin-dir flag. Split and join on the SAME per-platform separator the
+  // docs name, so a drive-letter colon ("C:/their/tools") survives intact.
+  const dirSep = process.platform === "win32" ? ";" : ":"
+  const ourModPath = modDestDir.replace(/\\/g, "/")
+  const existingDirs =
+    settings.env && typeof settings.env === "object" && typeof settings.env.CLAUDE_CODE_PLUGIN_DIRS === "string"
+      ? settings.env.CLAUDE_CODE_PLUGIN_DIRS
+      : ""
+  const keptDirs = existingDirs
+    .split(dirSep)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .filter((p) => p.replace(/\\/g, "/") !== ourModPath)
+  keptDirs.push(ourModPath)
+  if (keptDirs.join(dirSep) !== existingDirs) {
+    settings.env = {
+      ...(settings.env && typeof settings.env === "object" ? settings.env : {}),
+      CLAUDE_CODE_PLUGIN_DIRS: keptDirs.join(dirSep),
+    }
+  }
+
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
 
   return {
@@ -453,6 +496,23 @@ async function removeClaudePlugin(customHome) {
     if (command.includes(marker)) {
       delete settings.statusLine
       touched = true
+    }
+  }
+
+  // env: take our CLAUDE_CODE_PLUGIN_DIRS entry back out. Same platform
+  // separator; foreign plugin dirs and other env keys survive untouched.
+  if (settings.env && typeof settings.env === "object" && typeof settings.env.CLAUDE_CODE_PLUGIN_DIRS === "string") {
+    const dirSep = process.platform === "win32" ? ";" : ":"
+    const below = join(pluginDir, "claude-mod").replace(/\\/g, "/")
+    const entries = settings.env.CLAUDE_CODE_PLUGIN_DIRS.split(dirSep)
+      .map((p) => p.trim())
+      .filter(Boolean)
+    const kept = entries.filter((p) => p.replace(/\\/g, "/") !== below)
+    if (kept.length !== entries.length) {
+      touched = true
+      if (kept.length === 0) delete settings.env.CLAUDE_CODE_PLUGIN_DIRS
+      else settings.env.CLAUDE_CODE_PLUGIN_DIRS = kept.join(dirSep)
+      if (Object.keys(settings.env).length === 0) delete settings.env
     }
   }
 
@@ -842,7 +902,7 @@ async function runInit() {
     {
       key: "claude",
       name: "Claude Code",
-      desc: "Statusline hook & dwell-clock",
+      desc: "Statusline + /news pane",
       enabled: defaultClaude,
     },
   ]
@@ -901,6 +961,7 @@ async function runInit() {
   if (selectedAgents.claude) {
     await registerClaudePlugin()
     console.log(`  ${c.green}✓${c.reset} Claude Code integration active`)
+    console.log(`  ${c.dim}│  Type /news in Claude Code for the reader pane (needs Claude Code v2.1.295+).${c.reset}`)
   }
   console.log(`  ${c.dim}│${c.reset}`)
 
@@ -933,10 +994,12 @@ async function runInit() {
   if (selectedAgents.agy && selectedAgents.claude) {
     nextRow(`• ${c.bold}Antigravity (AGY) / Claude Code:${c.reset} Start ${c.white}agy${c.reset} or ${c.white}claude${c.reset} - the`)
     nextRow(`  statusline ticker rotates.`)
+    nextRow(`  In Claude Code, type ${c.bold}/news${c.reset} to read headlines in a pane (v2.1.295+).`)
   } else if (selectedAgents.agy) {
     nextRow(`• ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} - statusline ticker rotates.`)
   } else if (selectedAgents.claude) {
     nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - statusline ticker rotates.`)
+    nextRow(`  Type ${c.bold}/news${c.reset} to read headlines in a pane (v2.1.295+).`)
   }
   if (selectedAgents.agy || selectedAgents.claude) {
     nextRow(`  Ctrl+Click origin links to open stories in your browser.`)

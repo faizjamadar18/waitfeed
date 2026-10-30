@@ -99,11 +99,14 @@ function makeDeps(over: Partial<PipelineDeps> = {}): PipelineDeps {
 
 /** Enrichment fake that honors the same options the real one does. Contexts
  * are long enough (≥ DESCRIPTION_MIN = 80) that isStoryable passes, which is
- * exactly what the real enrich works toward for story hosts. */
+ * exactly what the real enrich works toward for story hosts. Records the
+ * item ids each call received, so tests can pin that enrichment never sees
+ * items that must die on arrival. */
 function makeEnrich() {
-  const calls: Array<{ slotsLeft?: () => number; maxFetch?: number; capturedSlots: number | null }> = []
+  const calls: Array<{ items: string[]; slotsLeft?: () => number; maxFetch?: number; capturedSlots: number | null }> = []
   const run: PipelineDeps["enrich"] = async (items, opts) => {
     calls.push({
+      items: items.map((it) => it.id),
       slotsLeft: opts?.slotsLeft,
       maxFetch: opts?.maxFetch,
       capturedSlots: opts?.slotsLeft ? opts.slotsLeft() : null,
@@ -436,5 +439,50 @@ describe("runPipeline — shared mechanics", () => {
     const written = await readWritten()
     expect(written.fetchedAt).toBe(BASE)
     expect(written.items).toEqual([])
+  })
+})
+
+describe("English-only ingestion", () => {
+  it("foreign items never enrich and never cache — even when they rode in an older cache", async () => {
+    // Both leak shapes observed on the live reader: a repo line whose context
+    // is entirely another script, and English text ending in foreign glyphs.
+    // The saved one also pins the pruning of items already in the cache.
+    const savedForeign = item("rddmwddr/android-ad-cleaner", {
+      context: "卸掉国产安卓手机系统里的广告、热搜、资讯推荐和营销",
+      url: "https://github.com/rddmwddr/android-ad-cleaner",
+    })
+    const freshForeign = item("smithjohn/tonjiang-lab", {
+      context: "Free interactive 3D science lessons for high school 铜匠实验",
+      url: "https://github.com/smithjohn/tonjiang-lab",
+    })
+    const english = item("A faster way to compute signed 64-bit floor division")
+    await writeCacheDoc(cachePath, {
+      items: [savedForeign, english],
+      fetchedAt: BASE - 2 * HOUR,
+      summaries: {},
+      llmUnavailable: false,
+    })
+    const enrich = makeEnrich()
+    await runPipeline(makeDeps({ fetchFeeds: fetchOnce([[freshForeign]]).run, enrich: enrich.run }))
+
+    const written = await readWritten()
+    const ids = written.items.map((it) => it.id)
+    expect(ids).not.toContain(savedForeign.id)
+    expect(ids).not.toContain(freshForeign.id)
+    expect(ids).toContain(english.id)
+    // the expensive layers never touch what dies on arrival
+    expect(enrich.calls.length).toBeGreaterThan(0)
+    const seen = enrich.calls.flatMap((call) => call.items)
+    expect(seen).not.toContain(savedForeign.id)
+    expect(seen).not.toContain(freshForeign.id)
+  })
+
+  it("foreign titles in other scripts die too, English with accents survives", async () => {
+    const cyrillic = item("Привет мир from the systems feed")
+    const korean = item("한국 개발자 시스템 정리")
+    const accented = item("The café test — how Müller ships code")
+    await runPipeline(makeDeps({ fetchFeeds: fetchOnce([[cyrillic, korean, accented]]).run }))
+    const titles = (await readWritten()).items.map((it) => it.title)
+    expect(titles).toEqual([accented.title])
   })
 })

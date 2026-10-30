@@ -210,6 +210,18 @@ describe("Config writers in isolated environments", () => {
       expect(sessionStartCommands.some((c) => c.includes("--watch")), "SessionStart → --watch").toBe(true)
       expect(commandsOf("FileChanged").some((c) => c.includes("--interrupt-check")), "FileChanged → --interrupt-check").toBe(true)
 
+      // The /news pane ships inside the staged dir, and init persists it via
+      // the env var the mods docs list for runs that can't take --plugin-dir
+      // ("Environment, or env in ~/.claude/settings.json").
+      const modDir = join(res.pluginDir, "claude-mod")
+      for (const rel of [".claude-plugin/plugin.json", "hooks/hooks.json", "hooks/register.js", "README.md"]) {
+        expect(existsSync(join(modDir, ...rel.split("/"))), `staged: ${rel}`).toBe(true)
+      }
+      const env = (settings as { env?: Record<string, string> }).env ?? {}
+      expect(env.CLAUDE_CODE_PLUGIN_DIRS, "the pane dir rides CLAUDE_CODE_PLUGIN_DIRS").toContain(
+        res.pluginDir.replace(/\\/g, "/") + "/claude-mod",
+      )
+
       // Second run is idempotent — the hook set comes back byte-identical.
       const second = await registerClaudePlugin(dir)
       expect(second.alreadyConfigured).toBe(true)
@@ -329,8 +341,11 @@ describe("Removal (full teardown)", () => {
       )
 
       await registerClaudePlugin(home)
-      const mid = JSON.parse(await readFile(settingsPath, "utf8")) as { statusLine?: { command: string } }
+      const mid = JSON.parse(await readFile(settingsPath, "utf8")) as { statusLine?: { command: string }; env?: Record<string, string> }
       expect(mid.statusLine).toBeDefined()
+      expect((mid.env ?? {}).CLAUDE_CODE_PLUGIN_DIRS, "the pane env entry was staged").toContain(
+        join(home, ".claude", "waitfeed", "claude-mod").replace(/\\/g, "/"),
+      )
 
       const res = (await removeClaudePlugin(home)) as { configured: boolean }
       expect(res.configured).toBe(true)
@@ -406,6 +421,29 @@ describe("Removal (full teardown)", () => {
       const foreign = (await removeClaudePlugin(home)) as { configured: boolean }
       expect(foreign.configured).toBe(false)
       expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual(original)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("claude: removal cleans our CLAUDE_CODE_PLUGIN_DIRS entry and keeps foreign plugin dirs", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-rm-cl5-"))
+    try {
+      await registerClaudePlugin(home)
+      const settingsPath = join(home, ".claude", "settings.json")
+      const mid = JSON.parse(await readFile(settingsPath, "utf8")) as { env?: Record<string, string> }
+      const ours = join(home, ".claude", "waitfeed", "claude-mod").replace(/\\/g, "/")
+      const SEP = process.platform === "win32" ? ";" : ":"
+      // The drive-letter colon must survive: on Windows the separator is `;`.
+      mid.env = { CLAUDE_CODE_PLUGIN_DIRS: "C:/their/tools" + SEP + ours, HOME: "C:/Users/them" }
+      await writeFile(settingsPath, JSON.stringify(mid), "utf8")
+
+      const res = (await removeClaudePlugin(home)) as { configured: boolean }
+      expect(res.configured, "an env entry of ours counts as configured").toBe(true)
+      const after = JSON.parse(await readFile(settingsPath, "utf8")) as { env?: Record<string, string> }
+      expect(after.env?.CLAUDE_CODE_PLUGIN_DIRS).toBe("C:/their/tools")
+      expect(after.env?.HOME).toBe("C:/Users/them")
+      expect(existsSync(join(home, ".claude", "waitfeed", "claude-mod"))).toBe(false)
     } finally {
       await rm(home, { recursive: true, force: true })
     }

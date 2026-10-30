@@ -23,7 +23,7 @@ import type { ChannelKey, WaitFeedConfig } from "./config"
 import type { EnrichOptions } from "./enrich"
 import type { FetchAllResult } from "./feeds"
 import { isStoryable } from "./llm"
-import { dropJunk, mergeItems, retainMerge } from "./ticker"
+import { dropJunk, dropNonEnglish, mergeItems, retainMerge } from "./ticker"
 import type { FeedItem } from "./types"
 
 /** How long a fresh cache suppresses fetching: 30 minutes per feed cycle. */
@@ -181,7 +181,12 @@ export async function runPipeline(deps: PipelineDeps): Promise<void> {
 
     const { groups, status } = await deps.fetchFeeds(cfg.sources, cfg.rssUrls)
     const fetched = mergeItems(groups, maxItems)
-    const merged = retainMerge(cache.items, fetched, { ttlMs: RETAIN_TTL_MS, cap: maxItems, now: now() })
+    // English-only, cheapest-first: right after the merge, BEFORE enrich —
+    // foreign items (fresh or already saved in the cache) cost no digest
+    // work and reach no host. See ticker.dropNonEnglish.
+    const merged = dropNonEnglish(
+      retainMerge(cache.items, fetched, { ttlMs: RETAIN_TTL_MS, cap: maxItems, now: now() }),
+    )
     if (deps.writeStories) {
       // Story mode shows ONLY story-complete items, so enrichment keeps a
       // live check: it must not spend page visits past the visible target.

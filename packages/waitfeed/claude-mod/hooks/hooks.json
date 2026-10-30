@@ -1,0 +1,4 @@
+{
+  "description": "The WaitFeed hooks module: the /news pane and the above-prompt ticker card",
+  "modules": ["./register.js"]
+}

@@ -154,6 +154,24 @@ export function dropJunk(items: FeedItem[]): FeedItem[] {
   return items.filter((it) => !isJunkTitle(it.title))
 }
 
+/** English-only feed policy. A title or context carrying ANY character from a
+ * non-English script (Cyrillic, Arabic, Hebrew, Devanagari, Bengali, Tamil,
+ * Thai, Hangul, Kana, Han) is not English — accented Latin (café, ü), emoji
+ * and math symbols (Ω, Δ) stay welcome. Applied the moment items arrive (and
+ * to every merged cycle, which also prunes foreign items already in the
+ * cache), BEFORE enrich and digest work: foreign headlines cost the pipeline
+ * nothing and render nowhere. */
+const FOREIGN_SCRIPT =
+  /[\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0900-\u0BFF\u0E00-\u0E7F\u1100-\u11FF\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]/
+
+export function hasForeignScript(...texts: Array<string | undefined>): boolean {
+  return texts.some((t) => typeof t === "string" && FOREIGN_SCRIPT.test(t))
+}
+
+export function dropNonEnglish(items: FeedItem[]): FeedItem[] {
+  return items.filter((it) => !hasForeignScript(it.title, it.context))
+}
+
 /** Smart short source label. Shows the full `host/path` when it fits the
  * width budget; otherwise keeps the host and the LAST path segment and marks
  * the skipped middle with "…" ("github.com/…/esp32-iphone-agent"). Only the

@@ -40,6 +40,11 @@ watcher. Renders only READ the cache; they never fetch.
 ## Working agreements
 
 - TDD for behavior changes: Red (a failing contract) → Green → keep the contract.
+- **Design one interaction past the literal ask.** Before implementing, enumerate
+  the conflicts a change creates with keys, focus, and sizing, and state the
+  decision visibly: what moves a cursor whose natural keys (↑/↓) are already
+  bound, what the on-screen hint must say, what overrides what at the
+  edges. A shipped UI only promises what the visible hint says.
 - Do NOT run verifications on every prompt cycle; full runs (`npx tsc --noEmit`, `npx vitest run`, lint) only on explicit request or at a release.
 - Zero-warning standard: no unused imports/variables, standard utility classes, no stray files.
 - Keep changes small and consistent; this is a public open-source repo (MIT).

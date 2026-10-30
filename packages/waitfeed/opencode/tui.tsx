@@ -7,8 +7,9 @@
 // The rotation is no-repeat first: an unseen card plays before any seen one,
 // and shown cards drift to the back of the line instead of looping instantly.
 // Slot B (prompt.footer.status): a short "✓ done in Xm · N headlines seen"
-// summary after a run. `/news` opens the full reader panel (esc closes,
-// f toggles fullscreen).
+// summary after a run. `/news` opens the NATIVE OpenCode popup: type to
+// search, the [Sources] row toggles channels by selection, and the honest
+// SEEN/UPCOMING piles come from the reader ledger. No custom key handling.
 //
 // One consistent look, never mixed: while the LLM layer is on, only items
 // whose story is ready become visible (headline + story + link). When the
@@ -18,39 +19,44 @@
 // The TUI never fetches feeds itself: the server-side plugin owns the
 // pipeline and writes ~/.config/waitfeed/cache.json; this side polls the
 // file. Zero keys, zero cloud, and typing is never intercepted.
-import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
+import { Show, createSignal } from "solid-js"
 import { spawn } from "node:child_process"
 import { appendFile, readFile, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { Plugin } from "@opencode/plugin/tui"
-import type { PanelInput } from "@opencode/plugin/tui/context"
-import type { KeyEvent } from "@opentui/core"
 import {
   CHANNEL_BADGES,
   CHANNEL_KEYS,
   CHANNEL_NAMES,
   DEFAULT_CONFIG,
   channelForSource,
-  configExists,
   loadConfig,
   saveConfig,
   type ChannelKey,
   type WaitFeedConfig,
 } from "../core/config"
-import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel, truncate } from "../core/ticker"
+import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel } from "../core/ticker"
+import {
+  emptyReaderState,
+  groupItems,
+  itemKey,
+  loadReaderState,
+  markItem,
+  saveReaderState,
+  type ReaderState,
+} from "./reader-state"
 import type { FeedItem } from "../core/types"
 
-const BUILD = "2026-10-24-v17-no-category-ghosts"
+const BUILD = "2026-10-29-v22-no-glanced-label"
 
 const CACHE_POLL_MS = 5_000
 const SUMMARY_MS = 6_000
-/** Reader rows — generous on purpose: the reader is where a headline that
- * rotated away gets re-read, so browsing should feel roomy. */
-const PANEL_ITEMS = 12
+/** Ticker-glance writes batch behind this debounce: one save per rotation
+ * lull, never one disk write per shown card. Reads still save instantly. */
+const GLANCE_SAVE_DELAY_MS = 2_000
 /** Fixed text-grade colors — consistent across user themes. */
 const MUTED = "#7d8590"
-const SELECT_COLOR = "#f0883e"
 const BADGE_STYLE: Record<string, string> = {
   HN: "#ff6600",
   DEV: "#8a63f4",
@@ -60,14 +66,6 @@ const BADGE_STYLE: Record<string, string> = {
   RSS: "#d29922",
 }
 const badgeColor = (source: string): string => BADGE_STYLE[source] ?? MUTED
-
-function columns(): number {
-  try {
-    return process.stdout.columns ?? 100
-  } catch {
-    return 100
-  }
-}
 
 interface CacheFile {
   items: FeedItem[]
@@ -141,6 +139,44 @@ export default Plugin.define({
         return key !== undefined && on.has(key)
       })
     }
+
+    // --- reader memory (survives restarts; the ledger only records facts
+    // the software can prove): read = a keypress on the item, glanced = a
+    // full dwell on the ticker. Reads save at once; glance writes batch.
+    // The SEEN/UPCOMING piles are derived from here, never stored. ---
+    const readerStatePath = join(dataDir(), "reader-state.json")
+    const [rstate, setRstate] = createSignal<ReaderState>(emptyReaderState())
+    void loadReaderState(readerStatePath).then((s) => setRstate(s))
+
+    let glanceSaveTimer: ReturnType<typeof setTimeout> | undefined
+    const persistReader = async (): Promise<void> => {
+      try {
+        await saveReaderState(readerStatePath, rstate())
+      } catch (err) {
+        void debugLog(`reader save FAILED: ${(err as Error)?.message ?? ""}`)
+      }
+    }
+
+    const markGlanced = (it: FeedItem): void => {
+      const key = itemKey(it)
+      if (rstate().glanced[key]) return
+      setRstate(markItem(rstate(), "glanced", key))
+      if (glanceSaveTimer) clearTimeout(glanceSaveTimer)
+      glanceSaveTimer = setTimeout(() => void persistReader(), GLANCE_SAVE_DELAY_MS)
+    }
+
+    const markRead = (it: FeedItem | undefined): void => {
+      if (!it) return
+      const key = itemKey(it)
+      if (rstate().read[key]) return
+      setRstate(markItem(rstate(), "read", key))
+      if (glanceSaveTimer) clearTimeout(glanceSaveTimer) // the immediate save covers the pending glance too
+      void persistReader()
+    }
+
+    /** Reader piles: SEEN (a mark of either kind exists) first, UPCOMING
+     * (still waiting in line) below — derived live, never stored. */
+    const readerGroups = () => groupItems(visible(), rstate())
 
     /** No-repeat rotation. An unseen card is always the first choice
      * (newest-first); cards already shown this session drift to the BACK of
@@ -237,6 +273,11 @@ export default Plugin.define({
       if (shownId) {
         shownAt.set(shownId, ++presentationNo)
         shownTimestamps.set(shownId, Date.now())
+        // A full dwell on screen is a glance — recorded so the reader's SEEN
+        // pile stays honest after a restart. Rotation behavior itself is
+        // untouched: same tick, same marks, no gating added.
+        const glanced = visible().find((it) => it.id === shownId)
+        if (glanced) markGlanced(glanced)
       }
       pinnedId = undefined
       bumpRotation((n) => n + 1)
@@ -380,52 +421,6 @@ export default Plugin.define({
       )
     }
 
-    /** Reader row: one line per item (marker + badge + truncated title + score + age);
-     * when selected, an inline drawer expands beneath it displaying the summary (↳ ...)
-     * and source link (> ...). Inactive rows stay compact and clean. */
-    const ReaderRow = (props: { item?: FeedItem; selected: boolean; titleW: number }) => {
-      const it = props.item
-      if (!it) return null
-      const ago = () => formatAgo(it.time)
-      const score = (): string | undefined =>
-        typeof it.score === "number" && it.score > 0
-          ? `▲ ${it.score > 999 ? `${(it.score / 1000).toFixed(1)}k` : it.score}`
-          : undefined
-      const body = () => bodyOf(it)
-      return (
-        <box flexDirection="column">
-          <box flexDirection="row" gap={1}>
-            <Show when={props.selected} fallback={<text fg={MUTED}>{" "}</text>}>
-              <text fg={SELECT_COLOR}>{"▸"}</text>
-            </Show>
-            <text fg={badgeColor(it.source)}>{`[${it.source}]`}</text>
-            <text width={props.titleW}>{truncate(it.title, props.titleW)}</text>
-            <Show when={score()}>
-              <text fg={MUTED}>{score()}</text>
-            </Show>
-            <Show when={ago()}>
-              <text fg={MUTED}>{`· ${ago()}`}</text>
-            </Show>
-          </box>
-          <Show when={props.selected}>
-            <box flexDirection="column" paddingLeft={2}>
-              <Show when={body()}>
-                <text fg={MUTED} width={Math.max(40, columns() - 9)}>
-                  {`↳ ${body()}`}
-                </text>
-              </Show>
-              <Show when={it.url}>
-                <text fg={MUTED}>
-                  {`  > `}
-                  <a href={it.url}>{linkLabel(it.url, 60)}</a>
-                </text>
-              </Show>
-            </box>
-          </Show>
-        </box>
-      )
-    }
-
     // --- Slot A: the live ticker, visible only while the agent EXECUTES ---
     // Hidden when the session is idle and when the agent is waiting on the
     // user (a question or a permission request) — that moment belongs to the
@@ -454,7 +449,7 @@ export default Plugin.define({
       const ms = since ? Date.now() - since : 0
       const dur = ms > 5_000 ? ` in ${formatDuration(ms)}` : ""
       void debugLog(`execution succeeded sid=${sid ?? "?"} busyWindow=${ms}ms seen=${seen}`)
-      setSummary(`✓ done${dur} · ${seen} headlines seen`)
+      setSummary(`✓ done${dur} · ${seen} headlines seen · ${readerGroups().upcoming.length} new in /news`)
       if (summaryTimer) clearTimeout(summaryTimer)
       summaryTimer = setTimeout(() => setSummary(null), SUMMARY_MS)
     })
@@ -505,11 +500,17 @@ export default Plugin.define({
         )
     }
 
+    // --- /news opens the NATIVE OpenCode popup (same as previously): the
+    // host provides the search bar, scrolling and description text. On top
+    // of it: the [Sources] row (opens a second popup where selecting a
+    // source flips it — no keys), and two section rows, SEEN and UPCOMING,
+    // filled from the reader ledger. Choosing a headline opens its link and
+    // records the read; pressing nothing else ever intercepts the keys. ---
     const openFeedToggleMenu = async (): Promise<void> => {
-      const toggleOptions: { title: string; value: string; description: string }[] = CHANNEL_KEYS.map((key, i) => {
+      const toggleOptions: { title: string; value: string; description: string }[] = CHANNEL_KEYS.map((key) => {
         const isEnabled = cfg().sources[key]
         return {
-          title: `${i + 1}. [${CHANNEL_BADGES[key]}] ${CHANNEL_NAMES[key]} — currently ${isEnabled ? "ON (click to turn OFF)" : "OFF (click to turn ON)"}`,
+          title: `[${CHANNEL_BADGES[key]}] ${CHANNEL_NAMES[key]} — currently ${isEnabled ? "ON (select to turn OFF)" : "OFF (select to turn ON)"}`,
           value: key,
           description: isEnabled
             ? `Feeds from ${CHANNEL_NAMES[key]} will be hidden from the ticker and reader.`
@@ -522,24 +523,30 @@ export default Plugin.define({
         description: "Return to the news reader.",
       })
 
-      const selectPromise = context.ui.dialog.select<string>({
+      const chosenPromise = context.ui.dialog.select<string>({
         title: "WaitFeed — Sources (Toggle On/Off)",
         placeholder: "Select a source to toggle ON/OFF...",
         options: toggleOptions,
-        ...({ size: "large" } as Record<string, unknown>),
       })
+      // Same rule as the reader: size on the active dialog at open time only.
+      try {
+        context.ui.dialog.set({ size: "large" })
+      } catch {
+        // not active yet — the retry below covers it
+      }
       setTimeout(() => {
         try {
           context.ui.dialog.set({ size: "large" })
         } catch {
           // ignore
         }
-      }, 10)
-      const chosenKey = await selectPromise
+      }, 0)
+
+      const chosenKey = await chosenPromise
 
       if (chosenKey && chosenKey !== "__back__") {
         toggleChannel(chosenKey as ChannelKey)
-        await openNewsDialog()
+        await openFeedToggleMenu() // stay in the menu so several switches happen in one visit
       } else if (chosenKey === "__back__") {
         await openNewsDialog()
       }
@@ -558,97 +565,73 @@ export default Plugin.define({
         })
         return
       }
+      const g = readerGroups()
 
-      // Group into:
-      // 1) Recently on Ticker (items shown on the ticker during this run),
-      //    sorted in REVERSE order of appearance (most recently seen at the top!)
-      // 2) Unseen / Other stories, sorted chronologically.
-      const tickerItems: FeedItem[] = []
-      const otherItems: FeedItem[] = []
-
-      for (const it of currentItems) {
-        if (shownTimestamps.has(it.id) || it.id === pinnedId) {
-          tickerItems.push(it)
-        } else {
-          otherItems.push(it)
+      /** One popup row per item: badge + title, the native description text
+       * (body only — the link opens on Enter), and an honest footer — your
+       * own read time when it exists, then score and age.
+       * `category` makes the host draw a real bold section header with a
+       * spacing line above the group — no fake rows needed. */
+      type NewsOption = { title: string; value: string; description?: string; footer?: string; category?: string }
+      const optionFor = (it: FeedItem): NewsOption => {
+        const key = itemKey(it)
+        const state = rstate()
+        const score =
+          typeof it.score === "number" && it.score > 0
+            ? `▲ ${it.score > 999 ? `${(it.score / 1000).toFixed(1)}k` : it.score}`
+            : ""
+        const ago = it.time ? formatAgo(it.time) : ""
+        // Row footer = score + age only. The auto "glanced" label was
+        // bookkeeping — printing it on every row ate headline width; the
+        // ledger keeps deciding the SEEN/UPCOMING piles. A row you OPENED
+        // yourself still shows its read time.
+        const readAt = state.read[key]
+        const when = readAt ? `read ${formatAgo(readAt)}` : ""
+        const footer = [when, score, ago].filter(Boolean).join(" · ")
+        return {
+          title: `[${it.source}] ${it.title}`,
+          value: it.url,
+          description: bodyOf(it) || undefined,
+          footer: footer.length > 0 ? footer : undefined,
         }
       }
 
-      // Sort ticker items: newest presentation first (most recently on screen)
-      tickerItems.sort((a, b) => {
-        const timeA = shownTimestamps.get(a.id) ?? 0
-        const timeB = shownTimestamps.get(b.id) ?? 0
-        return timeB - timeA
-      })
-
-      const formatSourceBadge = (source: string): string => {
-        const upper = source.toUpperCase()
-        if (upper === "R/PROG" || upper === "REDDIT") return "REDDIT"
-        return upper
-      }
-
-      const options: {
-        title: string
-        value: string
-        description?: string
-        footer?: string
-      }[] = []
-
-      const channelStatus = CHANNEL_KEYS.map(
-        (k) => `${CHANNEL_BADGES[k]}: ${cfg().sources[k] ? "ON" : "OFF"}`,
-      ).join(" · ")
-
-      // 1. Channel Filter Option at top:
+      // Channel switcher first — selecting it opens the toggle popup.
+      const options: NewsOption[] = []
       options.push({
-        title: `[Sources] ${channelStatus}`,
+        title: `[Sources] ${CHANNEL_KEYS.map((k) => `${CHANNEL_BADGES[k]}: ${cfg().sources[k] ? "ON" : "OFF"}`).join(" · ")}`,
         value: "__toggle_feeds__",
         description: "Select to turn Hacker News, Dev.to, GitHub, or Reddit ON/OFF.",
       })
 
-      // 2. Recently on Ticker (Skipped & Seen)
-      for (const it of tickerItems) {
-        const b = bodyOf(it)
-        const seenTime = shownTimestamps.get(it.id)
-        const seenDiff = seenTime ? Date.now() - seenTime : 0
-        const seenStr = seenDiff < 45_000 ? "Just on ticker" : `Seen ${formatAgo(seenTime!)}`
-        const score = typeof it.score === "number" && it.score > 0 ? `▲ ${it.score}` : ""
-        const footerParts = [seenStr, score].filter(Boolean).join(" · ")
-        options.push({
-          title: `[${formatSourceBadge(it.source)}] ${it.title}`,
-          value: it.url,
-          description: b.length > 0 ? b : undefined,
-          footer: footerParts.length > 0 ? footerParts : undefined,
-        })
+      // SEEN and UPCOMING are native section headers: the host prints the
+      // category bold above its pile, with one blank line above each header —
+      // that is the gap after [Sources] and between the two piles.
+      if (g.seen.length > 0) {
+        const seenCategory = `SEEN — already brought to you (${g.seen.length})`
+        for (const it of g.seen) options.push({ ...optionFor(it), category: seenCategory })
+      }
+      if (g.upcoming.length > 0) {
+        const upcomingCategory = `UPCOMING — new to you (${g.upcoming.length})`
+        for (const it of g.upcoming) options.push({ ...optionFor(it), category: upcomingCategory })
       }
 
-      // 3. Other Stories
-      for (const it of otherItems) {
-        const b = bodyOf(it)
-        const ago = it.time ? formatAgo(it.time) : ""
-        const score = typeof it.score === "number" && it.score > 0 ? `▲ ${it.score}` : ""
-        const footerParts = [score, ago].filter(Boolean).join(" · ")
-        options.push({
-          title: `[${formatSourceBadge(it.source)}] ${it.title}`,
-          value: it.url,
-          description: b.length > 0 ? b : undefined,
-          footer: footerParts.length > 0 ? footerParts : undefined,
-        })
-      }
-
-      const selectPromise = context.ui.dialog.select<string>({
+      // Width: the size is a presentation option of the ACTIVE dialog —
+      // select() args ignore it (no `size` field in the option types). Set it
+      // exactly when the popup opens: synchronous (before the first paint),
+      // then once more next tick in case activation lags that same tick.
+      // Nothing fires later — late re-measures of a live dialog cut its top.
+      const chosenPromise = context.ui.dialog.select<string>({
         title: storyMode()
-          ? `WaitFeed — News Reader (${currentItems.length} stories ready)`
-          : `WaitFeed — Tech Headlines (${currentItems.length} items)`,
+          ? `WaitFeed — News Reader (seen ${g.seen.length} · upcoming ${g.upcoming.length})`
+          : `WaitFeed — Tech Headlines (seen ${g.seen.length} · upcoming ${g.upcoming.length})`,
         placeholder: "Type to search headlines or sources (hn, gh, dev, reddit)...",
         options,
-        ...({ size: "xlarge" } as Record<string, unknown>),
       })
-
-      // Apply xlarge size to the active dialog
       try {
         context.ui.dialog.set({ size: "xlarge" })
       } catch {
-        // ignore
+        // not active yet — the retry below covers it
       }
       setTimeout(() => {
         try {
@@ -656,27 +639,20 @@ export default Plugin.define({
         } catch {
           // ignore
         }
-      }, 10)
-      setTimeout(() => {
-        try {
-          context.ui.dialog.set({ size: "xlarge" })
-        } catch {
-          // ignore
-        }
-      }, 50)
+      }, 0)
 
-      const chosen = await selectPromise
+      const chosen = await chosenPromise
 
       if (!chosen) return
-
       if (chosen === "__toggle_feeds__") {
         await openFeedToggleMenu()
-      } else {
+      } else if (chosen.length > 0) {
         openUrl(chosen)
+        markRead(currentItems.find((it) => it.url === chosen)) // opening it is proof the user chose to read it
       }
     }
 
-    // --- /news command + native OpenCode reader dialog ---
+    // --- /news command → the native popup above ---
     context.keymap.layer(() => ({
       mode: "global",
       priority: 10,
@@ -697,230 +673,11 @@ export default Plugin.define({
       bindings: ["waitfeed.news"],
     }))
 
-    const NewsPanel = (props: { panel: PanelInput }) => {
-      const [cursor, setCursor] = createSignal(0)
-
-      // Ensure the panel takes focus immediately on open
-      try {
-        props.panel.focus()
-      } catch {
-        // focus is best-effort on some host presentations
-      }
-
-      // Isolate keyboard input: push "waitfeed.reader" mode so OpenCode host
-      // prompt/composer does not intercept arrow keys or number keys.
-      const popMode = context.keymap.mode.push("waitfeed.reader")
-      onCleanup(() => {
-        popMode()
-      })
-
-      const closePanel = (): void => {
-        void debugLog("close panel via escape")
-        try {
-          props.panel.close()
-        } catch {
-          context.ui.panel.close()
-        }
-      }
-
-      // First run: materialize config.json on first open so setup has a real
-      // file from day one; the key presses below then persist instantly.
-      void (async () => {
-        if (!(await configExists())) await saveConfig(cfg())
-      })()
-
-      /** Reader list — visible() already applies story mode + channel switches. */
-      const readerList = (): FeedItem[] => visible()
-      /** Cursor bounds clamp to what is actually on screen. */
-      const shownMax = (): number => Math.max(0, Math.min(readerList().length, PANEL_ITEMS) - 1)
-      const at = (): number => Math.min(cursor(), shownMax())
-
-      let lastMove = 0
-      const move = (delta: number): void => {
-        const now = Date.now()
-        if (now - lastMove < 30) return
-        lastMove = now
-        const max = shownMax()
-        const next = Math.min(max, Math.max(0, cursor() + delta))
-        void debugLog(`cursor -> ${next}/${max}`)
-        setCursor(next)
-        try {
-          context.renderer.requestRender()
-        } catch {
-          // ignore
-        }
-      }
-
-
-
-      // Direct OpenTUI renderer keyboard listener.
-      // Active for the lifetime of NewsPanel (onCleanup cleanly removes it).
-      // Calls preventDefault() and stopPropagation() so keystrokes are handled
-      // immediately without leaking into the host composer input.
-      const handleKey = (key: KeyEvent): void => {
-        if (key.eventType === "release") return
-        if (key.ctrl) return // allow Ctrl+C to pass through to host
-
-        const name = (key.name ?? "").toLowerCase()
-        const seq = key.sequence ?? ""
-
-        void debugLog(`keypress: name=${name} seq=${JSON.stringify(seq)}`)
-
-        if (name === "escape" || seq === "\x1B") {
-          key.preventDefault()
-          key.stopPropagation()
-          closePanel()
-          return
-        }
-        if (name === "up" || name === "k" || seq === "k" || seq === "\x1B[A" || seq === "\x1BOA") {
-          key.preventDefault()
-          key.stopPropagation()
-          move(-1)
-          return
-        }
-        if (name === "down" || name === "j" || seq === "j" || seq === "\x1B[B" || seq === "\x1BOB") {
-          key.preventDefault()
-          key.stopPropagation()
-          move(1)
-          return
-        }
-        if (name === "enter" || name === "return" || name === "linefeed" || seq === "\r" || seq === "\n") {
-          key.preventDefault()
-          key.stopPropagation()
-          const it = readerList()[at()]
-          if (it && it.url && it.url.length > 0) openUrl(it.url)
-          return
-        }
-        if (name === "f" || seq === "f") {
-          key.preventDefault()
-          key.stopPropagation()
-          void debugLog("fullscreen toggle")
-          try {
-            props.panel.toggleFullscreen()
-          } catch {
-            // ignore
-          }
-          return
-        }
-      }
-
-      context.renderer.keyInput.on("keypress", handleKey)
-      onCleanup(() => {
-        context.renderer.keyInput.off("keypress", handleKey)
-      })
-
-      // Secondary keymap layer registered with OpenCode host in "waitfeed.reader" mode
-      context.keymap.layer(() => ({
-        mode: "waitfeed.reader",
-        priority: 100,
-        commands: [
-          {
-            id: "waitfeed.news.close",
-            bind: "escape",
-            run: () => closePanel(),
-          },
-          {
-            id: "waitfeed.news.fullscreen",
-            bind: "f",
-            run: () => {
-              void debugLog("fullscreen toggle")
-              try {
-                props.panel.toggleFullscreen()
-              } catch {
-                // ignore
-              }
-            },
-          },
-          { id: "waitfeed.news.up", bind: "up", run: () => move(-1) },
-          { id: "waitfeed.news.vim-up", bind: "k", run: () => move(-1) },
-          { id: "waitfeed.news.down", bind: "down", run: () => move(1) },
-          { id: "waitfeed.news.vim-down", bind: "j", run: () => move(1) },
-          {
-            id: "waitfeed.news.open",
-            bind: "enter",
-            run: () => {
-              const it = readerList()[at()]
-              if (it && it.url && it.url.length > 0) openUrl(it.url)
-            },
-          },
-        ],
-        bindings: [
-          "waitfeed.news.close",
-          "waitfeed.news.fullscreen",
-          "waitfeed.news.up",
-          "waitfeed.news.vim-up",
-          "waitfeed.news.down",
-          "waitfeed.news.vim-down",
-          "waitfeed.news.open",
-        ],
-      }))
-
-      createEffect(() => {
-        const rows = visible().length
-        const on = cfg().sources
-        void debugLog(
-          `panel state: rows=${rows} cursor=${cursor()} ` +
-            `hn=${on.hn ? 1 : 0} dev=${on.devto ? 1 : 0} gh=${on.github ? 1 : 0} r=${on.reddit ? 1 : 0}`,
-        )
-      })
-      const header = (): string =>
-        storyMode()
-          ? `WAITFEED — AI digests · ${visible().length} ready`
-          : `WAITFEED — tech headlines · ${items().length} items · AI digest off`
-      const emptyMessage = (): string =>
-        items().length === 0
-          ? "waiting for the first feed fetch…"
-          : "writing stories for fresh headlines — the first ones land in seconds…"
-      const chips = (): string =>
-        CHANNEL_KEYS.map(
-          (k) => `${CHANNEL_KEYS.indexOf(k) + 1} ${CHANNEL_BADGES[k]} ${cfg().sources[k] ? "on" : "off"}`,
-        ).join(" · ")
-      const controls = "enter open · up/down (j/k) move · f fullscreen · esc close"
-      const titleW = (): number => Math.max(30, columns() - 24)
-      const rows = () => visible().slice(0, PANEL_ITEMS)
-
-      return (
-        <box flexDirection="column">
-          <Show when={header()}>
-            {(h) => <text fg="#ff6600">{h()}</text>}
-          </Show>
-          <Show when={chips()}>
-            {(c) => <text fg={MUTED}>{c()}</text>}
-          </Show>
-          <text fg={MUTED}>{controls}</text>
-          <Show when={!cfg().setupDone}>
-            <text fg={MUTED}>
-              {"first run — switches above save to ~/.config/waitfeed/config.json"}
-            </text>
-          </Show>
-          <Show when={rows().length > 0} fallback={<text fg={MUTED}>{emptyMessage()}</text>}>
-            <For each={rows()}>
-              {(it, i) => (
-                <ReaderRow
-                  item={it}
-                  selected={i() === at()}
-                  titleW={titleW()}
-                />
-              )}
-            </For>
-          </Show>
-        </box>
-      )
-    }
-
-    context.ui.slot({
-      append: "session.panel",
-      render: (panel) => (
-        <Show when={panel.name === "waitfeed.news"}>
-          <NewsPanel panel={panel} />
-        </Show>
-      ),
-    })
-
     return () => {
       clearInterval(pollTimer)
       if (rotateTimer) clearInterval(rotateTimer)
       if (summaryTimer) clearTimeout(summaryTimer)
+      if (glanceSaveTimer) clearTimeout(glanceSaveTimer)
     }
   },
 })

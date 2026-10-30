@@ -108,7 +108,7 @@ describe("ticker card layout (field-bug guard from 1.0.1, narrow terminal)", () 
   it("the slot card sizes nothing from the global terminal width", async () => {
     const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
     const start = src.indexOf("const NewsParagraph")
-    const end = src.indexOf("const ReaderRow")
+    const end = src.indexOf("// --- Slot A")
     expect(start).toBeGreaterThan(-1)
     expect(end).toBeGreaterThan(start)
     const card = src.slice(start, end)

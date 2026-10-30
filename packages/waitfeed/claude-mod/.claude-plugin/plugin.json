@@ -1,0 +1,7 @@
+{
+  "name": "waitfeed",
+  "version": "0.1.0",
+  "description": "News while Claude works: a rotating card above the prompt, and /news opens the reader pane",
+  "author": { "name": "faizjamadar18" },
+  "homepage": "https://github.com/faizjamadar18/waitfeed#readme"
+}
