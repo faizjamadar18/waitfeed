@@ -1,6 +1,6 @@
 {
   "name": "waitfeed",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "While your AI coding agent works: a slim news ticker above the input box (OpenCode) or in the statusline (Claude Code, Antigravity). No ads, no keys, no server.",
   "keywords": [
     "opencode",
