@@ -1,11 +1,11 @@
 # WaitFeed
 
-> While your agent works, a slim news ticker appears above the prompt or in
-> the statusline.
+> While your agent works, a slim news ticker appears above the prompt
+> (OpenCode, Claude Code) or in the statusline (Antigravity).
 > It's gone the moment the agent stops — which is when you start typing.
 > `/feed` opens the fullscreen reader.
-> One key hides the card while the agent works (`Ctrl+O` in OpenCode;
-> `npx waitfeed toggle` anywhere).
+> One key hides the card while the agent works (`Ctrl+O` in OpenCode,
+> `Ctrl+N` in Claude Code; `npx waitfeed toggle` anywhere).
 > **No ads. No accounts. No server. No API keys.**
 
 Every card is real news — a headline, a short blurb from the fetched data,
@@ -22,9 +22,10 @@ One package, three terminal AI coding agents:
   invented) by your own session's model. The story pool holds 60 ready
   cards so the ticker never loops the same handful.
 - **[Claude Code](https://claude.com/claude-code)** — the same card in the
-  statusline row: instant on Enter, gone the moment you press **Esc** or the
-  agent waits on you, quiet on the splash screen. Headline mode (the feed's
-  own description — this host has no keyless LLM path); full behavior in
+  band above the prompt: shown only while Claude works, gone the moment the
+  turn ends, you press **Esc**, or the agent waits on you. Headline mode (the
+  feed's own description — this host has no keyless LLM path); a `/feed`
+  reader pane too. Full behavior in
   [`claude/README.md`](claude/README.md).
 - **Google Antigravity (AGY)** — the same card in the agent statusline,
   shown while the agent is working (`working`/`tool_use`/`reviewing`) and
@@ -90,15 +91,17 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
 
 **Claude Code** (full behavior in [`claude/README.md`](claude/README.md))
 
-- The card appears in the statusline the moment you submit a prompt, and
-  hides when the turn ends, when the agent waits on a question or a
-  permission, or when you press **Esc** to interrupt. At idle there is
-  nothing — the statusline is Claude's own.
+- The card rides the band above the prompt: it appears the moment Claude
+  starts working, and hides when the turn ends, when the agent waits on a
+  question or a permission, or when you press **Esc** to interrupt. At idle
+  there is nothing — the band is Claude's own.
+- **`Ctrl+N`** folds the band and hides just the card (the host's own
+  `abovePrompt:toggle`; its default `Ctrl+X Ctrl+A` does the same). While
+  folded, Claude shows its own one-row "band hidden" hint.
 - **`npx waitfeed hide`** dismisses the card mid-run; **`npx waitfeed show`**
   resumes it. Nothing ever renders at idle.
-- Every busy↔idle transition repaints **instantly** (a settings flip, not
-  the refresh tick); Esc hides within milliseconds via the transcript
-  watcher.
+- **`/feed`** opens the reader pane: arrows move, **Enter** opens the link
+  and marks it read, **Esc** closes.
 - Channels are shared with OpenCode; without it, toggle them by editing
   `~/.config/waitfeed/config.json`.
 
@@ -144,8 +147,8 @@ Nothing else ever leaves your machine.
 ## Requirements
 
 - One or more of: **OpenCode** (v2 plugin API — npm plugin packages load via
-  `plugins` in `opencode.json(c)`), **Claude Code** (statusLine + hooks), or
-  **Google Antigravity** (`agy` statusline).
+  `plugins` in `opencode.json(c)`), **Claude Code** (mods + hooks, v2.1.295+),
+  or **Google Antigravity** (`agy` statusline).
 - Node 20+ (npm may warn about `@opentui/core` engine ranges — that is
   OpenCode's own TUI dependency and runs inside OpenCode's runtime;
   installation via `npm install` is not the intended use)

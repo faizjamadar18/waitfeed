@@ -223,14 +223,26 @@ async function registerAgyPlugin(customHome) {
   }
 }
 
-// --- Claude Code keybindings (ctrl+n → /waitfeed) ---
+// --- Claude Code keybindings (ctrl+n → the card's own toggle) ---
 // Claude Code reads ~/.claude/keybindings.json (docs: code.claude.com/docs/en/
-// keybindings). We add ONE Chat binding — ctrl+n → command:waitfeed — and merge
-// around whatever is already there. A key the user already bound to something
-// else is never clobbered; we just leave it and report the conflict.
+// keybindings). We add ONE Chat binding — ctrl+n → command:waitfeed, the mod's
+// own "/waitfeed" command — and merge around whatever is already there. The
+// mod owns the flip and redraws, so the same key always reverses the card.
+// (The host's band collapse, ctrl+x ctrl+a, cannot be read or undone by a mod,
+// which is why the card no longer rides it.) The key is instant and writes no
+// file. A key the user already bound to something else is never clobbered; we
+// just leave it and report the conflict.
 const CLAUDE_KEYBINDINGS_SCHEMA = "https://www.schemastore.org/claude-code-keybindings.json"
 const CLAUDE_TOGGLE_KEY = "ctrl+n"
 const CLAUDE_TOGGLE_ACTION = "command:waitfeed"
+// Actions an older WaitFeed wrote here; removal still recognises them so a
+// legacy install cleans up after itself.
+const CLAUDE_LEGACY_TOGGLE_ACTIONS = ["abovePrompt:toggle", "command:news"]
+
+/** True for the action we write now, or one a legacy install left behind. */
+const isOurToggleAction = (action) =>
+  action === CLAUDE_TOGGLE_ACTION || CLAUDE_LEGACY_TOGGLE_ACTIONS.includes(action)
+
 
 async function registerClaudeKeybindings(home) {
   const path = join(home, ".claude", "keybindings.json")
@@ -257,7 +269,7 @@ async function registerClaudeKeybindings(home) {
   }
 
   const existing = chat.bindings[CLAUDE_TOGGLE_KEY]
-  if (existing !== undefined && existing !== CLAUDE_TOGGLE_ACTION) {
+  if (existing !== undefined && !isOurToggleAction(existing)) {
     // Someone else owns ctrl+n — never take it away from them.
     return { path, configured: false, conflict: true }
   }
@@ -280,7 +292,7 @@ async function removeClaudeKeybindings(home) {
   let touched = false
   for (const block of doc.bindings) {
     if (!block || typeof block !== "object" || !block.bindings || typeof block.bindings !== "object") continue
-    if (block.bindings[CLAUDE_TOGGLE_KEY] === CLAUDE_TOGGLE_ACTION) {
+    if (isOurToggleAction(block.bindings[CLAUDE_TOGGLE_KEY])) {
       delete block.bindings[CLAUDE_TOGGLE_KEY]
       touched = true
     }
@@ -317,11 +329,11 @@ async function registerClaudePlugin(customHome) {
 
   await mkdir(distDir, { recursive: true })
 
-  // 1. Stage shipped plugin assets into ~/.claude/waitfeed
+  // 1. Stage shipped plugin assets into ~/.claude/waitfeed. The card lives in
+  // the mod's band now, so the only runner is the data-cycle scheduler.
   const sourceClaudeDir = fileURLToPath(new URL("./claude", import.meta.url))
   const filesToStage = [
     { src: join(sourceClaudeDir, "dist", "scheduler.mjs"), dest: join(distDir, "scheduler.mjs") },
-    { src: join(sourceClaudeDir, "dist", "statusline.mjs"), dest: join(distDir, "statusline.mjs") },
   ]
 
   let stagedCount = 0
@@ -332,7 +344,7 @@ async function registerClaudePlugin(customHome) {
     }
   }
 
-  // 1b. Stage the /news pane — a Claude "mod" (a plugin whose hooks module
+  // 1b. Stage the /feed pane — a Claude "mod" (a plugin whose hooks module
   // draws in the interface). Claude Code loads it from the path the docs
   // list in CLAUDE_CODE_PLUGIN_DIRS ("Environment, or env in
   // ~/.claude/settings.json"; `;`-separated on Windows).
@@ -353,7 +365,7 @@ async function registerClaudePlugin(customHome) {
     }
   }
 
-  // 2. Configure statusLine & SessionStart hook in ~/.claude/settings.json
+  // 2. Configure the SessionStart data cycle in ~/.claude/settings.json.
   let settings = {}
   let settingsExisted = false
   if (existsSync(settingsPath)) {
@@ -367,43 +379,47 @@ async function registerClaudePlugin(customHome) {
     }
   }
 
-  const targetStatuslinePath = join(distDir, "statusline.mjs").replace(/\\/g, "/")
   const targetSchedulerPath = join(distDir, "scheduler.mjs").replace(/\\/g, "/")
-  const desiredStatuslineCommand = `node ${targetStatuslinePath}`
   const cycleCommand = `node ${targetSchedulerPath} --cycle`
-  const heartbeatCommand = `node ${targetSchedulerPath} --heartbeat`
-  const idleCommand = `node ${targetSchedulerPath} --idle`
-  const watchCommand = `node ${targetSchedulerPath} --watch`
-  const interruptCheckCommand = `node ${targetSchedulerPath} --interrupt-check`
 
-  // The statusline re-runs on a timer because event-only updates never
-  // re-render. At 2s the timer covers every transition the events can't
-  // paint: Enter (nothing re-runs the statusline at prompt submit — the card
-  // must not wait for the first assistant message), the moment a
-  // question/permission wait ends, and the busy→idle repaint after Stop.
-  const statuslineRefreshSeconds = 2
-
-  // The hook flips the stored command between two behavior-identical
-  // variants (" --wf" suffix) to repaint instantly on busy↔idle transitions
-  // — both variants count as configured, so a re-run of init never flips it
-  // back (a rewrite would itself trigger an instant statusline re-run).
-  const alreadyConfigured =
-    settings.statusLine &&
-    typeof settings.statusLine === "object" &&
-    (settings.statusLine.command === desiredStatuslineCommand ||
-      settings.statusLine.command === `${desiredStatuslineCommand} --wf`) &&
-    settings.statusLine.refreshInterval === statuslineRefreshSeconds
-
-  if (!alreadyConfigured) {
-    settings.statusLine = {
-      type: "command",
-      command: desiredStatuslineCommand,
-      refreshInterval: statuslineRefreshSeconds,
+  // The card used to live in the status line, backed by a per-session activity
+  // ledger, an instant-paint flip and an Esc-interrupt watcher — all of that
+  // is gone now (the band reads the host's own `isWorking`). A stale entry
+  // would run a bundle that no longer ships, so init prunes our own leftovers
+  // first: the statusLine whose command points into the staged dir, and every
+  // hook group of ours that is not the data cycle. Foreign status lines and
+  // hooks are matched by the staged dir and always survive untouched.
+  const stageMarker = pluginDir.replace(/\\/g, "/")
+  let changed = false
+  if (settings.statusLine && typeof settings.statusLine === "object") {
+    const command = typeof settings.statusLine.command === "string" ? settings.statusLine.command : ""
+    if (command.includes(stageMarker)) {
+      delete settings.statusLine
+      changed = true
     }
   }
 
-  if (!settings.hooks || typeof settings.hooks !== "object") {
-    settings.hooks = {}
+  if (!settings.hooks || typeof settings.hooks !== "object") settings.hooks = {}
+  for (const event of Object.keys(settings.hooks)) {
+    const entries = settings.hooks[event]
+    if (!Array.isArray(entries)) continue
+    const cleaned = []
+    for (const entry of entries) {
+      if (!entry || !Array.isArray(entry.hooks)) {
+        cleaned.push(entry)
+        continue
+      }
+      const kept = entry.hooks.filter(
+        (h) => !(h && typeof h.command === "string" && h.command.includes(stageMarker) && h.command !== cycleCommand),
+      )
+      if (kept.length === entry.hooks.length) cleaned.push(entry)
+      else {
+        changed = true
+        if (kept.length > 0) cleaned.push({ ...entry, hooks: kept })
+      }
+    }
+    if (cleaned.length > 0) settings.hooks[event] = cleaned
+    else delete settings.hooks[event]
   }
 
   // One matcher group per WaitFeed hook handler, added only when absent so
@@ -424,43 +440,18 @@ async function registerClaudePlugin(customHome) {
     })
   }
 
-  // Data cycle on session start (fetch → enrich → cache, headline mode)…
+  // The ONLY WaitFeed hook: fetch → enrich → cache (headline mode) when a
+  // session starts. The card's busy/idle gating is the host's now — the band
+  // renders only while a model turn runs — so there is no ledger to write and
+  // nothing to watch.
+  const hadCycle =
+    Array.isArray(settings.hooks.SessionStart) &&
+    settings.hooks.SessionStart.some(
+      (entry) => Array.isArray(entry?.hooks) && entry.hooks.some((h) => h && h.command === cycleCommand),
+    )
   addHook("SessionStart", cycleCommand)
-  // …plus the quiet-at-startup marker: SessionStart also marks the session
-  // idle, so the card never shows on the splash screen (AGY parity).
-  addHook("SessionStart", idleCommand)
-  // The transcript watcher: SessionStart seeds it; FileChanged turns the
-  // interrupt-marker write (Esc — no hook of its own) into an instant hide.
-  addHook("SessionStart", watchCommand)
-  // Heartbeats: the session is actively working while a prompt or a tool
-  // event is in flight. Async — they never delay the prompt or the tools.
-  for (const event of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure"]) {
-    addHook(event, heartbeatCommand, { async: true })
-  }
-  // Turn and session boundaries quiet the card again.
-  addHook("Stop", idleCommand, { async: true })
-  addHook("StopFailure", idleCommand, { async: true })
-  // FileChanged hook for transcript changes: checks if an Esc interrupt occurred
-  addHook("FileChanged", interruptCheckCommand, { async: true })
-  // SessionEnd hooks share a 1.5-second budget — run this one synchronously
-  // (the ledger write takes ~100 ms).
-  addHook("SessionEnd", idleCommand)
-  // Waiting on the user is not executing: a permission prompt or the
-  // question tool starts → quiet immediately (the next refresh tick paints
-  // it). PreToolUse fires BEFORE the question tool blocks, so the card hides
-  // while the question is up, and PostToolUse's heartbeat brings it back
-  // after the answer.
-  addHook("PermissionRequest", idleCommand, { async: true })
-  addHook("PreToolUse", idleCommand, { matcher: "AskUserQuestion", async: true })
-  // MCP elicitation dialogs are questions to the user — same rule.
-  addHook("Notification", idleCommand, { matcher: "elicitation_dialog", async: true })
-  addHook("Notification", idleCommand, { matcher: "elicitation_url_dialog", async: true })
-  // A DENIED permission hands control back to the agent — busy again.
-  addHook("PermissionDenied", heartbeatCommand, { async: true })
-  // The 60s idle notification also quiets the card, bounding a news panel
-  // left up by an interrupted (Esc) turn.
-  addHook("Notification", idleCommand, { matcher: "idle_prompt", async: true })
 
+  const alreadyConfigured = !changed && hadCycle
   // The env entry persists the pane across launches that cannot take a
   // --plugin-dir flag. Split and join on the SAME per-platform separator the
   // docs name, so a drive-letter colon ("C:/their/tools") survives intact.
@@ -485,9 +476,11 @@ async function registerClaudePlugin(customHome) {
 
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
 
-  // Ensure any legacy ctrl+n keybinding is cleaned up so Claude Code stays purely autonomous.
+  // Bind ctrl+n to the mod's own /waitfeed toggle — the instant, file-free
+  // show/hide for the card. A key the user bound to something else is left
+  // alone (the host default ctrl+x ctrl+a still collapses the band either way).
   try {
-    await removeClaudeKeybindings(home)
+    await registerClaudeKeybindings(home)
   } catch {
     // best-effort
   }
@@ -581,8 +574,9 @@ async function removeClaudePlugin(customHome) {
   let touched = false
 
   if (settings) {
-    // statusLine: remove only when it points into the staged waitfeed dir —
-    // init's flip variant appends " --wf" at runtime, same marker either way.
+    // statusLine: a legacy WaitFeed install (the card used to live there).
+    // Remove it only when the command points into the staged waitfeed dir; the
+    // old instant-paint flip appended " --wf" at runtime, same marker either way.
     if (settings.statusLine && typeof settings.statusLine === "object") {
       const command = typeof settings.statusLine.command === "string" ? settings.statusLine.command : ""
       if (command.includes(marker)) {
@@ -701,29 +695,7 @@ async function setNewsMode(mode, customDir, host) {
   }
   await mkdir(dir, { recursive: true })
   await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf8")
-  if (!host || host === "claude") {
-    await flipClaudeSettings()
-  }
   return { configPath, mode, host }
-}
-
-async function flipClaudeSettings(home) {
-  try {
-    const settingsPath = join(home || homedir(), ".claude", "settings.json")
-    if (!existsSync(settingsPath)) return
-    const raw = await readFile(settingsPath, "utf8")
-    const clean = stripJsoncComments(raw)
-    if (!clean) return
-    const settings = JSON.parse(clean)
-    const command = settings?.statusLine?.command
-    if (!settings.statusLine || typeof command !== "string" || !command.includes("statusline.mjs")) return
-    const suffix = " --wf"
-    const next = command.endsWith(suffix) ? command.slice(0, -suffix.length) : command + suffix
-    settings.statusLine.command = next
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
-  } catch {
-    // best-effort
-  }
 }
 
 async function toggleNewsMode(customDir, host) {
@@ -1149,7 +1121,7 @@ async function runInit() {
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}full test suites without human intervention.               │${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}> ${c.cyan}swebench.com${c.reset}${c.dim}                                             │${c.reset}`)
   console.log(`  ${c.dim}│  └───────────────────────────────────────────────────────────────┘${c.reset}`)
-  console.log(`  ${c.dim}│  ▸ Renders above prompt in OpenCode, and in AGY/Claude Code statuslines${c.reset}`)
+  console.log(`  ${c.dim}│  ▸ Renders above prompt in OpenCode and Claude Code, in the AGY statusline${c.reset}`)
   console.log(`  ${c.dim}│${c.reset}`)
 
   // 7. Next-steps box. ONE width drives every row so corners always line
@@ -1167,24 +1139,19 @@ async function runInit() {
     nextRow(`  Type ${c.bold}/feed${c.reset} anytime to open the fullscreen reader.`)
     nextRow(`  Press ${c.bold}Ctrl+O${c.reset} to show/hide the card, even while the agent works.`)
   }
-  if (selectedAgents.agy && selectedAgents.claude) {
-    nextRow(`• ${c.bold}Antigravity (AGY) / Claude Code:${c.reset} Start ${c.white}agy${c.reset} or ${c.white}claude${c.reset} - the`)
-    nextRow(`  statusline ticker rotates only while the agent works; at idle the`)
-    nextRow(`  terminal stays your own (nothing renders).`)
-    nextRow(`  In Claude Code, type ${c.bold}/feed${c.reset} to read headlines in a pane (v2.1.295+).`)
+  if (selectedAgents.claude) {
+    nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - the news card rides the band`)
+    nextRow(`  above the prompt, rotating while the agent works; at idle`)
+    nextRow(`  the terminal stays your own (nothing renders).`)
+    nextRow(`  Press ${c.bold}Ctrl+N${c.reset} to show/hide just this card (works mid-run).`)
+    nextRow(`  Type ${c.bold}/feed${c.reset} to read headlines in a pane (v2.1.295+).`)
     nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card from any shell.`)
-  } else if (selectedAgents.agy) {
+  }
+  if (selectedAgents.agy) {
     nextRow(`• ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} - the statusline ticker rotates only`)
     nextRow(`  while the agent works; at idle the terminal stays your own.`)
     nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card.`)
-  } else if (selectedAgents.claude) {
-    nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - the statusline ticker rotates only while`)
-    nextRow(`  the agent works; at idle the terminal stays your own.`)
-    nextRow(`  Type ${c.bold}/feed${c.reset} to read headlines in a pane (v2.1.295+).`)
-    nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card.`)
-  }
-  if (selectedAgents.agy || selectedAgents.claude) {
-    nextRow(`  Ctrl+Click origin links to open stories in your browser.`)
+    nextRow(`  The AGY card's origin link opens with a Ctrl+Click.`)
   }
   nextRow(`• The ticker appears while your agent works - it is quiet when you are.`)
   console.log(`  ${c.cyan}└${"─".repeat(NEXT_INNER + 1)}┘${c.reset}`)

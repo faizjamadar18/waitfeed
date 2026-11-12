@@ -1,9 +1,10 @@
-// Claude Code mod contract tests — pins the shipped /news pane to the mods
-// syntax of the docs fetched 2026-10-29 (code.claude.com/docs/en/plugins/mods):
-// event names as string literals, `$` calls written in full, no imports at all
-// (a hooks module has no Node.js APIs — file/env/process access goes through
-// the mods API), the shared cache + ledger reads, and the observational
-// gating ("only while the agent executes").
+// Claude Code mod contract tests — pins the shipped /feed pane and the
+// AbovePrompt news card to the mods syntax of the docs fetched 2026-10-29
+// (code.claude.com/docs/en/plugins/mods): event names as string literals, `$`
+// calls written in full, no imports at all (a hooks module has no Node.js
+// APIs — file/env/process access goes through the mods API), the shared cache
+// + ledger reads, and the observational gating ("only while the agent
+// executes" — the host's own `isWorking`).
 import { describe, expect, it } from "vitest"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
@@ -100,26 +101,65 @@ describe("the /feed command opens the reader pane", () => {
   })
 })
 
-describe("autonomous lifecycle — no manual toggle command needed", () => {
+describe("the host owns the toggle — the mod registers none", () => {
   it("does not register a manual /waitfeed toggle command", async () => {
     const src = await registerSrc()
     expect(src).not.toContain("name: 'waitfeed',")
     expect(src).not.toContain("on('command.run', { command: 'waitfeed' }")
   })
 
-  it("does not register a keystroke toggle handler", async () => {
+  it("does not register a keystroke toggle handler — ctrl+n is the host's abovePrompt:toggle", async () => {
     const src = await registerSrc()
     expect(src).not.toContain("toggleNews")
     expect(src).not.toContain("writeNewsMode")
   })
 })
 
-describe("ticker rendering ownership", () => {
-  it("ticker card is delegated to the terminal statusline, not rendered as a duplicate AbovePrompt mod", async () => {
+describe("the news card rides the AbovePrompt band", () => {
+  it("registers the band render hook, keyed on the AbovePrompt component", async () => {
     const src = await registerSrc()
-    expect(src).not.toContain("component: 'AbovePrompt'")
+    expect(src).toContain("on('ui.render', { component: 'AbovePrompt' }")
+    // The card left the status line entirely — no runner of ours draws there.
+    expect(src, "the mod must not mention a statusline").not.toContain("statusline")
   })
-  it("dwell timer invalidates UI periodically for active components", async () => {
+
+  it("gates on the host's own busy truth — never the old activity ledger", async () => {
+    const src = await registerSrc()
+    expect(src).toContain("e.props.isWorking")
+    expect(src).toContain("e.props.hasSurvey")
+    expect(src).toContain("e.props.isCollapsed")
+    expect(src).not.toContain("claude-activity")
+    expect(src).not.toContain("claude-rotation")
+  })
+
+  it("the shared newsMode switch can still silence it mid-run", async () => {
+    const src = await registerSrc()
+    expect(src).toContain("function newsModeOf(cfg)")
+    expect(src).toContain("newsModeOf(newsConfig) === 'hide'")
+  })
+
+  it("keeps the exact per-channel hues the other hosts paint", async () => {
+    const src = await registerSrc()
+    for (const hex of ["#ff6600", "#3fb950", "#8a63f4", "#e36ba0", "#d29922"]) {
+      expect(src, `missing hue ${hex}`).toContain(hex)
+    }
+  })
+
+  it("draws one wrapping paragraph of nested Text runs, so a long headline never truncates", async () => {
+    const src = await registerSrc()
+    // The badge/title/meta are nested Text runs inside ONE wrapping Text.
+    expect(src).toMatch(/Text\(\{\s*children: \[\s*Text\(/)
+    expect(src).toContain("dimColor: true")
+    expect(src, "the description is bounded like every host").toContain("const DESC_MAX_ROWS = 3")
+  })
+
+  it("the origin row is a plain pressable button, not a URL-printing Link", async () => {
+    const src = await registerSrc()
+    expect(src).toContain("label: LINK_MARKER + linkTextOf(url)")
+    expect(src, "no Link element — it would print the full URL after the label").not.toMatch(/\bLink\s*\(/)
+  })
+
+  it("dwell timer invalidates UI periodically for the band", async () => {
     const src = await registerSrc()
     expect(src).toContain("const TICKER_DWELL_MS = 20_000")
     expect(src).toContain("$.ui.invalidate('ui.render')")

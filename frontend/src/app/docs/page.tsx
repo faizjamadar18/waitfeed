@@ -4,9 +4,9 @@ import { Footer } from "@/components/Footer";
 import { DocsPageContent } from "@/components/docs/DocsPageContent";
 
 export const metadata: Metadata = {
-  title: "Documentation — WaitFeed",
+  title: "Docs — WaitFeed",
   description:
-    "Complete technical reference for WaitFeed: shared cache pipeline, keyless feed ingestion, CLI wizard, and OpenCode, Claude Code, and Google Antigravity adapters.",
+    "Simple, step-by-step guide to installing and using WaitFeed with OpenCode, Claude Code, and Google Antigravity.",
 };
 
 export default function DocsPage() {

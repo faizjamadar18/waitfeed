@@ -151,82 +151,52 @@ describe("Config writers in isolated environments", () => {
     }
   })
 
-  it("registerClaudePlugin stages bundles and registers the full statusLine + hook set", async () => {
+  it("registerClaudePlugin stages the cycle bundle + mod and only the SessionStart cycle hook", async () => {
     const dir = await mkdtemp(join(tmpdir(), "claude-home-"))
     try {
       const res = await registerClaudePlugin(dir)
-      expect(existsSync(join(res.pluginDir, "dist", "statusline.mjs"))).toBe(true)
+      // The card lives in the mod's band now: the only Node runner staged is
+      // the data cycle. There is no statusline bundle any more.
       expect(existsSync(join(res.pluginDir, "dist", "scheduler.mjs"))).toBe(true)
+      expect(existsSync(join(res.pluginDir, "dist", "statusline.mjs"))).toBe(false)
       expect(existsSync(res.settingsPath)).toBe(true)
 
       const settings = JSON.parse(await readFile(res.settingsPath, "utf8")) as {
-        statusLine?: { type: string; command: string; refreshInterval?: number }
+        statusLine?: unknown
         hooks?: Record<string, Array<{ matcher?: string; hooks?: Array<{ type: string; command: string; async?: boolean }> }>>
+        env?: Record<string, string>
       }
-      // The statusline re-runs on a timer so the ledger transitions actually
-      // paint — event-only updates never re-render. At 2s the timer ALSO
-      // covers the two waits the events can't paint: Enter (no statusline
-      // trigger at submit — the card must not wait for the first assistant
-      // message) and the moment a question/permission wait ends.
-      expect(settings.statusLine).toBeDefined()
-      expect(settings.statusLine?.type).toBe("command")
-      expect(settings.statusLine?.command).toContain("statusline.mjs")
-      expect(settings.statusLine?.refreshInterval).toBe(2)
+      // No statusLine of ours — the band replaced it.
+      expect(settings.statusLine, "the card rides the band, not the statusline").toBeUndefined()
 
-      // The full hook set: heartbeats mark busy while the agent works; the
-      // turn/session/notification boundaries mark idle.
+      // The ONLY WaitFeed hook: the SessionStart data cycle. Busy/idle gating
+      // is the host's own `isWorking` now, so there is no ledger to feed.
       const hooks = settings.hooks ?? {}
       const commandsOf = (event: string): string[] =>
         (hooks[event] ?? []).flatMap((g) => (g.hooks ?? []).map((h) => h.command ?? ""))
-      for (const event of ["UserPromptSubmit", "PostToolUse", "PostToolUseFailure"]) {
-        const commands = commandsOf(event)
-        expect(commands.some((c) => c.includes("--heartbeat")), `${event} → --heartbeat`).toBe(true)
+      expect(commandsOf("SessionStart").some((c) => c.includes("--cycle"))).toBe(true)
+      const allCommands = Object.keys(hooks).flatMap((event) => commandsOf(event))
+      for (const stale of ["--heartbeat", "--idle", "--watch", "--interrupt-check"]) {
+        expect(allCommands.some((c) => c.includes(stale)), `stale ledger flag ${stale}`).toBe(false)
       }
-      // Turn/session boundaries quiet the card; so does the agent asking for
-      // permission — waiting on the user is not executing.
-      for (const event of ["Stop", "StopFailure", "SessionEnd", "PermissionRequest"]) {
-        const commands = commandsOf(event)
-        expect(commands.some((c) => c.includes("--idle")), `${event} → --idle`).toBe(true)
-      }
-      // The question tool waits on the user the moment it starts — PreToolUse
-      // fires BEFORE the tool blocks, so the card quiets while it asks.
-      const askQuiet = (hooks.PreToolUse ?? []).some(
-        (g) => g.matcher === "AskUserQuestion" && (g.hooks ?? []).some((h) => h.command?.includes("--idle")),
-      )
-      expect(askQuiet, "PreToolUse AskUserQuestion → --idle").toBe(true)
-      // MCP elicitation dialogs are questions to the user too.
-      for (const matcher of ["elicitation_dialog", "elicitation_url_dialog"]) {
-        const elicitation = (hooks.Notification ?? []).filter((g) => g.matcher === matcher)
-        expect(elicitation.some((g) => (g.hooks ?? []).some((h) => h.command?.includes("--idle"))), matcher).toBe(true)
-      }
-      // A DENIED permission hands control back to the agent — busy again.
-      const deniedCommands = commandsOf("PermissionDenied")
-      expect(deniedCommands.some((c) => c.includes("--heartbeat")), "PermissionDenied → --heartbeat").toBe(true)
-      // The 60s idle notification also quiets the card (bounded Esc-interrupt ghost).
-      const idleNotifications = (hooks.Notification ?? []).filter((g) => g.matcher === "idle_prompt")
-      expect(idleNotifications.some((g) => (g.hooks ?? []).some((h) => h.command?.includes("--idle")))).toBe(true)
 
-      // SessionStart keeps BOTH the data cycle and the quiet-at-startup marker.
-      const sessionStartCommands = commandsOf("SessionStart")
-      expect(sessionStartCommands.some((c) => c.includes("--cycle"))).toBe(true)
-      expect(sessionStartCommands.some((c) => c.includes("--idle"))).toBe(true)
-      // The transcript watcher: SessionStart seeds it; FileChanged turns the
-      // interrupt-marker write (Esc — no hook of its own) into an instant
-      // hide: ledger idle + the instant-paint flip.
-      expect(sessionStartCommands.some((c) => c.includes("--watch")), "SessionStart → --watch").toBe(true)
-      expect(commandsOf("FileChanged").some((c) => c.includes("--interrupt-check")), "FileChanged → --interrupt-check").toBe(true)
-
-      // The /news pane ships inside the staged dir, and init persists it via
+      // The /feed pane ships inside the staged dir, and init persists it via
       // the env var the mods docs list for runs that can't take --plugin-dir
       // ("Environment, or env in ~/.claude/settings.json").
       const modDir = join(res.pluginDir, "claude-mod")
       for (const rel of [".claude-plugin/plugin.json", "hooks/hooks.json", "hooks/register.js", "README.md"]) {
         expect(existsSync(join(modDir, ...rel.split("/"))), `staged: ${rel}`).toBe(true)
       }
-      const env = (settings as { env?: Record<string, string> }).env ?? {}
+      const env = settings.env ?? {}
       expect(env.CLAUDE_CODE_PLUGIN_DIRS, "the pane dir rides CLAUDE_CODE_PLUGIN_DIRS").toContain(
         res.pluginDir.replace(/\\/g, "/") + "/claude-mod",
       )
+
+      // init also binds ctrl+n to the host's own band collapse.
+      const kb = JSON.parse(await readFile(join(dir, ".claude", "keybindings.json"), "utf8")) as {
+        bindings?: Array<{ context?: string; bindings?: Record<string, string> }>
+      }
+      expect(kb.bindings?.find((b) => b.context === "Chat")?.bindings?.["ctrl+n"]).toBe("abovePrompt:toggle")
 
       // Second run is idempotent — the hook set comes back byte-identical.
       const second = await registerClaudePlugin(dir)
@@ -235,18 +205,44 @@ describe("Config writers in isolated environments", () => {
         hooks?: Record<string, Array<{ hooks?: Array<{ command: string }> }>>
       }
       expect(secondSettings.hooks).toEqual(hooks)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 
-      // The hook flips the stored command at runtime (" --wf" suffix) to
-      // repaint the card instantly on busy↔idle transitions; init must treat
-      // that as configured — a rewrite back would itself trigger an instant
-      // statusline re-run on every init.
-      const withFlip = JSON.parse(await readFile(res.settingsPath, "utf8")) as { statusLine?: { command: string } }
-      withFlip.statusLine!.command += " --wf"
-      await writeFile(res.settingsPath, JSON.stringify(withFlip, null, 2) + "\n", "utf8")
-      const third = await registerClaudePlugin(dir)
-      expect(third.alreadyConfigured).toBe(true)
-      const thirdSettings = JSON.parse(await readFile(res.settingsPath, "utf8")) as { statusLine?: { command: string } }
-      expect(thirdSettings.statusLine?.command.endsWith(" --wf"), "flip variant survives a re-run of init").toBe(true)
+  it("registerClaudePlugin prunes a legacy statusLine and the stale ledger hooks", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "claude-legacy-"))
+    try {
+      const marker = join(dir, ".claude", "waitfeed").replace(/\\/g, "/")
+      await mkdir(join(dir, ".claude"), { recursive: true })
+      await writeFile(
+        join(dir, ".claude", "settings.json"),
+        JSON.stringify({
+          statusLine: { type: "command", command: `node ${marker}/dist/statusline.mjs`, refreshInterval: 2 },
+          hooks: {
+            SessionStart: [{ hooks: [{ type: "command", command: `node ${marker}/dist/scheduler.mjs --idle` }] }],
+            Stop: [
+              { hooks: [{ type: "command", command: `node ${marker}/dist/scheduler.mjs --idle` }] },
+              { hooks: [{ type: "command", command: "node their-tool.js" }] },
+            ],
+          },
+        }),
+        "utf8",
+      )
+
+      await registerClaudePlugin(dir)
+      const after = JSON.parse(await readFile(join(dir, ".claude", "settings.json"), "utf8")) as {
+        statusLine?: unknown
+        hooks?: Record<string, Array<{ hooks?: Array<{ command: string }> }>>
+      }
+      expect(after.statusLine, "our legacy statusLine is pruned").toBeUndefined()
+      // Stop: our stale --idle group is gone; the foreign group survives.
+      const stop = (after.hooks?.Stop ?? []).flatMap((g) => (g.hooks ?? []).map((h) => h.command))
+      expect(stop).toEqual(["node their-tool.js"])
+      // SessionStart: the old --idle is replaced by the cycle (never both).
+      const ss = (after.hooks?.SessionStart ?? []).flatMap((g) => (g.hooks ?? []).map((h) => h.command))
+      expect(ss.some((c) => c.includes("--cycle"))).toBe(true)
+      expect(ss.some((c) => c.includes("--idle"))).toBe(false)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -260,14 +256,14 @@ describe("Claude Code ctrl+n keybinding wiring (merged, never clobbered)", () =>
       bindings?: Array<{ context?: string; bindings?: Record<string, string> }>
     }
 
-  it("writes ctrl+n → command:waitfeed into a Chat block, and is idempotent", async () => {
+  it("writes ctrl+n → abovePrompt:toggle into a Chat block, and is idempotent", async () => {
     const home = await mkdtemp(join(tmpdir(), "wf-kb-"))
     try {
       const first = await registerClaudeKeybindings(home)
       expect(first.configured).toBe(true)
       const doc = await readKb(home)
       const chat = doc.bindings?.find((b) => b.context === "Chat")
-      expect(chat?.bindings?.["ctrl+n"]).toBe("command:waitfeed")
+      expect(chat?.bindings?.["ctrl+n"]).toBe("abovePrompt:toggle")
 
       const second = await registerClaudeKeybindings(home)
       expect(second.alreadyConfigured).toBe(true)
@@ -484,7 +480,7 @@ describe("Removal (full teardown)", () => {
     }
   })
 
-  it("claude: register → remove deletes statusLine, hook groups and staged bundles; foreign hooks survive", async () => {
+  it("claude: register → remove deletes the hook group, env entry and staged bundles; foreign hooks survive", async () => {
     const home = await mkdtemp(join(tmpdir(), "wf-rm-cl-"))
     try {
       await mkdir(join(home, ".claude"), { recursive: true })
@@ -498,7 +494,7 @@ describe("Removal (full teardown)", () => {
 
       await registerClaudePlugin(home)
       const mid = JSON.parse(await readFile(settingsPath, "utf8")) as { statusLine?: { command: string }; env?: Record<string, string> }
-      expect(mid.statusLine).toBeDefined()
+      expect(mid.statusLine, "no statusLine — the card rides the band").toBeUndefined()
       expect((mid.env ?? {}).CLAUDE_CODE_PLUGIN_DIRS, "the pane env entry was staged").toContain(
         join(home, ".claude", "waitfeed", "claude-mod").replace(/\\/g, "/"),
       )
@@ -555,7 +551,7 @@ describe("Removal (full teardown)", () => {
     }
   })
 
-  it("claude: the --wf flip variant counts as ours; a foreign statusLine is never touched", async () => {
+  it("claude: a legacy statusline variant counts as ours; a foreign statusLine is never touched", async () => {
     const home = await mkdtemp(join(tmpdir(), "wf-rm-cl3-"))
     try {
       const marker = join(home, ".claude", "waitfeed").replace(/\\/g, "/")

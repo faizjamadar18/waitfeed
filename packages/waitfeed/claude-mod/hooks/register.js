@@ -1,22 +1,29 @@
 // WaitFeed — Claude Code mod: news while your agent works.
 //
 // While Claude executes, the band above the prompt shows the same rotating
-// news card the other hosts render. Type /news and the reader pane opens:
+// news card the other hosts render. Type /feed and the reader pane opens:
 // press a headline and the link opens in your browser while the row is
-// marked read. Everything renders FROM the shared cache
+// marked read. Press ctrl+n (bound by `waitfeed init` to this mod's own
+// /waitfeed command) to hide the card, and press it again to bring it back:
+// the mod owns the toggle, so it always reverses — the host's own ctrl+x
+// ctrl+a is a separate switch that collapses the whole band. Everything
+// renders FROM the shared cache
 // (~/.config/waitfeed/cache.json) that the fetch pipeline keeps fresh —
 // this mod never fetches. Strictly observational: it draws, and it never
 // touches prompts, tools, or Claude's behavior.
 //
 // Written to the mods docs (code.claude.com/docs/en/plugins/mods, fetched
-// 2026-10-29): every event name is a string literal, every `$` call is
-// written in full and `$` only reaches the top-level functions of this
-// file, and there are NO inbound module paths — a hooks module has no
-// Node.js APIs, so files, env, processes and timers all go through the
-// mods API ($.fs, $.env, $.process, $.clock) and drawing goes through $.ui.
+// 2026-10-29) and the build's own type declarations (the copy Claude Code
+// writes at install, checked 2026-11-12 against v2.1.322): every event name
+// is a string literal, every `$` call is written in full and `$` only reaches
+// the top-level functions of this file, and there are NO inbound module paths
+// — a hooks module has no Node.js APIs, so files, env, processes and timers
+// all go through the mods API ($.fs, $.env, $.process, $.clock) and drawing
+// goes through $.ui.
 //
-// Needs Claude Code v2.1.295+ (rows of buttons with children). Verified
-// live on 2.1.311; see the companion README and the tests in the repo.
+// Needs Claude Code v2.1.295+ (rows of buttons with children) and v2.1.290+
+// for the AbovePrompt band. Verified live on 2.1.311; see the companion
+// README and the tests in the repo.
 //
 // The pane is a sticky-cursor list, built on the mods events the build's
 // type declarations (claude-code.d.ts, the 2.1.277 copy on GitHub) name:
@@ -38,6 +45,7 @@ const MARK_MAX_AGE_MS = 36 * 60 * 60 * 1000
 // Module state — renders READ these; only refresh() and markRead() WRITE,
 // and both are top-level functions this file owns, as validation requires.
 let cacheItems = []
+let newsConfig = null
 let seen = { read: {}, glanced: {} }
 let cursor = 0
 // The cursor: where the focus ring sits, starting (and resuming a fresh
@@ -45,6 +53,9 @@ let cursor = 0
 // order, refilled at every render of our pane.
 let ringKey = 'up-0'
 let rowKeys = []
+// The band card's own show/hide, flipped by ctrl+n through /waitfeed. It lives
+// in this session only; the shared `newsMode` switch still works from any host.
+let cardHidden = false
 
 /** The dedupe key — the same url/id rule every host groups by. */
 function itemKeyOf(it) {
@@ -133,6 +144,13 @@ async function refresh($) {
     data = null
   }
   cacheItems = Array.isArray(data && data.items) ? data.items.filter((it) => it && it.title) : []
+  let cfg = null
+  try {
+    cfg = await parseFile($, dir + '/config.json')
+  } catch {
+    cfg = null
+  }
+  newsConfig = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : null
   let ledger = null
   try {
     ledger = await parseFile($, dir + '/reader-state.json')
@@ -191,6 +209,113 @@ async function openLink($, url) {
   }
 }
 
+// --- The band card (the ticker above the prompt) ---------------------------
+//
+// The same rotating card the other hosts draw, now in Claude Code's band
+// instead of the status line: the channel-colored badge, the clean headline,
+// the muted score/age meta, the muted description, and the origin link. It
+// renders FROM the shared cache only — never a fetch — and rides the host's
+// own busy truth (`e.props.isWorking`) instead of the old activity ledger.
+// The shared `newsMode` switch can still silence it mid-run.
+
+/** The ticker bar every host draws before the badge. */
+const BAR = '▍'
+/** How many rows the description may take — the other hosts' cap. */
+const DESC_MAX_ROWS = 3
+/** The origin row's marker — the other hosts print `> label`. */
+const LINK_MARKER = '> '
+
+/** Per-channel badge hues — the exact hexes the OpenCode news panel uses
+ * (core/agy.ts mirrors these as xterm-256). An unmapped source falls back to
+ * the muted gray those panels also use (dimColor). Claude Code's band takes a
+ * raw color (a name or hex) for `Text.color`, so the hexes ride through. */
+const CHANNEL_COLOR = {
+  HN: '#ff6600', // HN orange
+  GH: '#3fb950', // GitHub green
+  DEV: '#8a63f4', // Dev.to violet
+  REDDIT: '#e36ba0', // Reddit pink
+  'R/PROG': '#e36ba0', // Reddit channel alias
+  RSS: '#d29922', // RSS amber
+}
+
+/** Which channel a stored source belongs to — the shared reader/channel
+ * rule (core/config.ts channelForSource). Undefined for the always-on RSS
+ * pseudo-channel and anything unknown. */
+function channelKeyOf(source) {
+  if (source === 'HN') return 'hn'
+  if (source === 'DEV') return 'devto'
+  if (source === 'GH') return 'github'
+  if (source === 'REDDIT' || source === 'R/PROG') return 'reddit'
+  return undefined
+}
+
+/** Channels the user switched off vanish, RSS always shows — the same filter
+ * every host applies (core/agy.ts agyVisibleItems). */
+function visibleItems(items, cfg) {
+  if (!cfg || !cfg.sources || typeof cfg.sources !== 'object') return items
+  return items.filter((it) => {
+    if (it.source === 'RSS') return true
+    const key = channelKeyOf(it.source)
+    return key !== undefined && cfg.sources[key] === true
+  })
+}
+
+/** The effective newsMode for this host (core/config.ts getHostNewsMode): the
+ * per-host override wins, the shared mode is the fallback, `auto` the
+ * default. Only `hide` silences the card mid-run. */
+function newsModeOf(cfg) {
+  const modes = cfg && cfg.newsModes && typeof cfg.newsModes === 'object' ? cfg.newsModes : null
+  const host = modes ? modes.claude : undefined
+  if (host === 'auto' || host === 'show' || host === 'hide') return host
+  const shared = cfg ? cfg.newsMode : undefined
+  if (shared === 'auto' || shared === 'show' || shared === 'hide') return shared
+  return 'auto'
+}
+
+/** "▲ 4.0k · 2h" — the shared ticker meta (core/ticker.ts formatMeta): points
+ * first, age second, either half optional. */
+function tickerMeta(it) {
+  const bits = []
+  const score = it.score
+  if (typeof score === 'number' && score > 0) {
+    bits.push('▲ ' + (score > 999 ? (score / 1000).toFixed(1) + 'k' : String(score)))
+  }
+  const at = it.time
+  if (at) {
+    const s = Math.max(0, Math.floor((Date.now() - at) / 1000))
+    if (s < 60) bits.push('now')
+    else if (s < 3600) bits.push(Math.floor(s / 60) + 'm')
+    else if (s < 86400) bits.push(Math.floor(s / 3600) + 'h')
+    else bits.push(Math.floor(s / 86400) + 'd')
+  }
+  return bits.join(' · ')
+}
+
+/** The link label — host + path, scheme dropped (the full URL stays the open
+ * target; only the drawn text shortens). */
+function linkTextOf(url) {
+  try {
+    const u = new URL(url)
+    return u.host + (u.pathname === '/' ? '' : u.pathname) + u.search
+  } catch {
+    return url
+  }
+}
+
+/** The description, bounded to the other hosts' three rows: the stored text
+ * is collapsed to prose and cut at a word boundary with an ellipsis — the
+ * view shrinks, the stored data never does. */
+function descTextOf(it, bodyColumns) {
+  const raw = typeof it.context === 'string' ? it.context.replace(/\s+/g, ' ').trim() : ''
+  if (!raw) return ''
+  const columns = typeof bodyColumns === 'number' && bodyColumns > 0 ? bodyColumns : 80
+  const budget = Math.max(40, Math.floor(columns) * DESC_MAX_ROWS)
+  if (raw.length <= budget) return raw
+  const cut = raw.slice(0, budget)
+  const at = cut.lastIndexOf(' ')
+  return (at > 0 ? cut.slice(0, at) : cut) + '...'
+}
+
 export function register(on) {
   // Runs before your first prompt, and again after every reload.
   on('session.start', async ($, e, next) => {
@@ -203,6 +328,19 @@ export function register(on) {
       })
     } catch {
       // A taken command name must not kill the rest of the session start.
+    }
+    // /waitfeed — the card's own show/hide. ctrl+n is bound to this command
+    // (see `waitfeed init`), so the key is a plain command run: the mod flips
+    // its own flag and redraws, and the same key always reverses it. It must
+    // be immediate so the key works mid-turn, while the card is showing.
+    try {
+      await $.command.register({
+        name: 'waitfeed',
+        description: 'Show or hide the WaitFeed news card',
+        immediate: true,
+      })
+    } catch {
+      // Same: a taken name must not kill the rest of the session start.
     }
     try {
       await refresh($)
@@ -235,9 +373,68 @@ export function register(on) {
     return {}
   })
 
-  // The news ticker card is rendered cleanly in Claude Code's statusline row
-  // (using direct terminal ANSI with matching OpenCode theme colors and OSC-8 links).
-  // The mod owns the /news reader pane below and the /waitfeed toggle command.
+  // Runs when you press ctrl+n (the /waitfeed command): flip the card's own
+  // show/hide and redraw the band. Nothing prints, no file changes — the same
+  // instant, reversible toggle OpenCode's ctrl+o gives, on the one key.
+  on('command.run', { command: 'waitfeed' }, async ($) => {
+    cardHidden = !cardHidden
+    $.ui.invalidate('ui.render')
+    return {}
+  })
+
+  // The band above the prompt: the rotating news card, while the agent works.
+  // Claude Code fires `ui.render` for the band on every redraw and on our own
+  // `$.ui.invalidate` (the 20 s dwell tick, or ctrl+n). Four switches can take
+  // the card and we pass on each: the engine's own survey (`hasSurvey`), a
+  // band the person collapsed (`isCollapsed` — the host's ctrl+x ctrl+a, which
+  // a mod can neither read nor undo), our own ctrl+n toggle (`cardHidden`),
+  // and the shared `newsMode === 'hide'`. Otherwise the card rides the model
+  // turn itself (`isWorking`), never the old activity ledger.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey || e.props.isCollapsed) return next(e)
+    if (cardHidden) return next(e)
+    if (!e.props.isWorking) return next(e)
+    if (newsModeOf(newsConfig) === 'hide') return next(e)
+    const list = visibleItems(cacheItems, newsConfig)
+    if (list.length === 0) return next(e)
+    const it = list[((cursor % list.length) + list.length) % list.length]
+    if (!it) return next(e)
+
+    const { Box, Text, Link } = $.ui.resolve(e)
+    const hue = CHANNEL_COLOR[it.source]
+    const badge = BAR + ' [' + (it.source || 'RSS') + '] '
+    const title = String(it.title || it.id || '').replace(/\s+/g, ' ').trim()
+    const meta = tickerMeta(it)
+    // ONE wrapping paragraph — badge (channel hue), clean title, muted meta —
+    // so a long headline wraps instead of truncating, exactly like the card
+    // the other hosts draw. The meta rides inline here; the band wraps, so
+    // there is no right edge to justify against.
+    const children = [
+      Text({
+        children: [
+          Text(hue ? { children: [badge], color: hue } : { children: [badge] }),
+          Text({ children: [title] }),
+          Text({ children: meta ? '  ' + meta : '', dimColor: true }),
+        ],
+      }),
+    ]
+    const desc = descTextOf(it, e.props.bodyColumns)
+    if (desc) children.push(Text({ children: [desc], dimColor: true }))
+    const url = typeof it.url === 'string' ? it.url.trim() : ''
+    if (url) {
+      // A real terminal hyperlink, not a Button: a band Button only fires its
+      // onPress while the band holds keyboard focus (or with a hotkey/action
+      // binding), so a click fell through to the terminal and it read the bare
+      // "www." label as a file path instead of opening the browser. Link draws
+      // the label as an OSC 8 hyperlink the terminal opens, and keeps the
+      // origin row to one clean line. (The reader pane keeps its own Button +
+      // openLink path, so openLink stays in use.)
+      children.push(Link({ href: url, label: LINK_MARKER + linkTextOf(url) }))
+    }
+    // Keep the card tight against the prompt input: zero bottom padding,
+    // margin, and gap of our own; one row of breathing room above the card.
+    return Box({ flexDirection: 'column', marginTop: 1, paddingBottom: 0, marginBottom: 0, gap: 0, children })
+  })
 
   // The pane: one pressable row per headline, its description under it.
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {

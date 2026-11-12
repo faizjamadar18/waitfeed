@@ -1,13 +1,13 @@
 # WaitFeed
 
 > While your AI coding agent works, a slim news ticker appears in your
-> terminal — above the prompt in **OpenCode**, in the **Claude Code** or
+> terminal — above the prompt in **OpenCode** and **Claude Code**, in the
 > **Google Antigravity** statusline.
 > It's gone the moment the agent stops — which is when you start typing.
 > `/feed` opens a fullscreen reader.
-> One key hides the card while the agent works (`Ctrl+O` in OpenCode;
-> `npx waitfeed toggle` anywhere). **100% local. No ads, no accounts, no
-> server, no API keys.**
+> One key hides the card while the agent works (`Ctrl+O` in OpenCode,
+> `Ctrl+N` in Claude Code; `npx waitfeed toggle` anywhere). **100% local.
+> No ads, no accounts, no server, no API keys.**
 
 ## Why
 
@@ -31,8 +31,9 @@ one — staging self-contained bundles and writing each host's config
   ```jsonc
   { "plugins": ["waitfeed"] }
   ```
-- **Claude Code** — the wizard writes the `statusLine` command and the hook
-  set into `~/.claude/settings.json` (details:
+- **Claude Code** — the wizard stages the mod (the news card in the band
+  above the prompt, plus the `/feed` reader) and the data-cycle hook, and
+  binds `Ctrl+N` to hide the card (details:
   [`packages/waitfeed/claude/README.md`](packages/waitfeed/claude/README.md))
 - **Antigravity** — the wizard stages the statusline bundles and plugin
   config for `agy`
@@ -57,14 +58,14 @@ npm package and never touches the agent integrations — that is what
 | Host | Where the card lives | The card | Reader |
 | --- | --- | --- | --- |
 | OpenCode | above the prompt | headline + story written *only* from the fetched description + origin link | `/feed` fullscreen reader — j/k move, Enter opens the link, keys 1–4 toggle channels |
-| Claude Code | statusline row | headline + feed description + origin link | channel toggles via `config.json` |
+| Claude Code | band above the prompt | headline + feed description + origin link | `/feed` pane — arrows move, Enter opens the link; channel toggles via `config.json` |
 | Antigravity (AGY) | agent statusline | headline + feed description + origin link | channel toggles via `config.json` |
 
 - **Show or hide it on demand.** While the agent works, one action flips the
-  card: **`Ctrl+O`** in OpenCode, and **`npx waitfeed hide` / `show` /
-  `toggle`** from any shell for Claude Code and AGY. Dismiss the ticker to
-  focus on code — even mid-run — and bring it back. Nothing renders at idle
-  on any host, so the terminal is your own between turns.
+  card: **`Ctrl+O`** in OpenCode, **`Ctrl+N`** in Claude Code, and
+  **`npx waitfeed hide` / `show` / `toggle`** from any shell. Dismiss the
+  ticker to focus on code — even mid-run — and bring it back. Nothing
+  renders at idle on any host, so the terminal is your own between turns.
 - **One data dir, every agent.** All adapters read the same
   `~/.config/waitfeed/cache.json`; one fetch pipeline feeds every agent on
   the machine, and a channel disabled anywhere is disabled everywhere.
@@ -107,10 +108,10 @@ shown on [npm](https://www.npmjs.com/package/waitfeed).
      │
      ├─ opencode/   OpenTUI Solid slot renders the cards; /feed reader;
      │              stories generated in-session by the user's own model
-     ├─ claude/     statusLine renders the card; official hooks feed a
-     │              per-session activity ledger; a settings flip re-runs the
-     │              statusline instantly on busy↔idle; a transcript watcher
-     │              makes Esc-interrupts instant (Claude fires no hook then)
+     ├─ claude/ · claude-mod/
+     │              the mod draws the card in the band above the prompt
+     │              (only while Claude works — the host's own isWorking) and
+     │              the /feed reader pane; claude/ runs the data cycle
      └─ agy/        statusline renders the card from the agent_state JSON
 ```
 
@@ -131,7 +132,7 @@ Design decisions worth reading the code for:
 ```
 packages/waitfeed/     the npm package — publish root (package.json, LICENSE)
   core/                host-agnostic pipeline & rendering decisions
-  opencode/ · claude/ · agy/       the three host adapters
+  opencode/ · claude/ · claude-mod/ · agy/   the host adapters
   bin.mjs              `npx waitfeed init` onboarding wizard
 tests/                 9 suites: unit + built-bundle E2E (plain Node spawns)
 frontend/              the Next.js landing page (links here from hero & navbar)
@@ -161,7 +162,7 @@ config.
 
 WaitFeed is an independent open-source project and is not affiliated with
 OpenCode, Anthropic, or Google. It uses OpenCode's public plugin API and
-Claude Code's statusLine/hooks interface.
+Claude Code's mods/hooks interface.
 
 ## License
 

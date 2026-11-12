@@ -1,15 +1,5 @@
 // WaitFeed Claude Code adapter public exports.
+//
+// The card lives in the mod's AbovePrompt band (claude-mod/register.js); the
+// only Node adapter left is the data-cycle scheduler.
 export { schedulerDeps } from "./scheduler"
-export { parseClaudeState, CLAUDE_STATUSLINE_MARGIN } from "./statusline-state"
-export {
-  applyActivity,
-  emptyActivityDoc,
-  markActivity,
-  markActivityTransition,
-  readActivityDoc,
-  CLAUDE_BUSY_STALE_MS,
-  CLAUDE_SESSION_PRUNE_MS,
-  type ClaudeActivity,
-  type ClaudeActivityDoc,
-} from "./activity"
-export { FLIP_SUFFIX, baseCommand, flipStatuslineCommand } from "./flip"

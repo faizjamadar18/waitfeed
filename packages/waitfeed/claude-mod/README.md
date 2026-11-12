@@ -23,15 +23,20 @@ Both sites render FROM the shared data; nothing here fetches.
 
 ## Show / hide on demand
 
-The shared `newsMode` stored in `~/.config/waitfeed/config.json` — the same
-switch the OpenCode `Ctrl+O` binding and the shell commands write — flips the
-card off (`hide`) or back to normal (`auto`, which shows it only while the
-agent works). Claude Code runs WaitFeed autonomously: `init` removes any
-legacy `ctrl+n → command:waitfeed` keybinding rather than binding a key, so no
-keystroke is ever intercepted. From a shell, `npx waitfeed hide` / `show` /
-`toggle` writes the same field. The write is a read-modify-write of the one
-field, so channel/dwell settings survive and a concurrent host write loses at
-most `newsMode`. Nothing renders at idle — the statusline is Claude's own.
+Two independent switches:
+
+- **`Ctrl+N`** (bound by `npx waitfeed init` to the host's own
+  `abovePrompt:toggle`) folds the band and hides just the card — instantly and
+  with no file write. The host default `Ctrl+X Ctrl+A` does the same with no
+  binding at all. While folded, Claude shows its own one-row "band hidden"
+  hint. A key the user already bound to something else is never taken.
+- The shared `newsMode` in `~/.config/waitfeed/config.json` — the same switch
+  the OpenCode `Ctrl+O` binding and the shell commands write — flips the card
+  off (`hide`) or back to normal (`auto`, which shows it only while the agent
+  works). From a shell, `npx waitfeed hide` / `show` / `toggle` writes the
+  same field. The write is a read-modify-write of the one field, so
+  channel/dwell settings survive and a concurrent host write loses at most
+  `newsMode`. Nothing renders at idle — the band is Claude's own.
 
 ## The sticky-cursor pane (how the keys behave)
 
@@ -67,7 +72,7 @@ window") and re-expressed as cursor moves.
 ## Data rules (host parity)
 
 - The card and the pane read `~/.config/waitfeed/cache.json` — the same
-  fetch → enrich → junk-drop → cache pipeline the OpenCode plugin and the
+  fetch → enrich → junk-drop → cache pipeline the OpenCode plugin and the AGY
   statusline scheduler run. The band's 20 s dwell timer re-reads the file
   and advances the card; `$.ui.invalidate('ui.render')` asks for redraws.
 - The seen ledger is the SHARED `~/.config/waitfeed/reader-state.json`
