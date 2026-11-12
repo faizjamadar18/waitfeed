@@ -1,8 +1,124 @@
 "use client";
 
 import { useState, useCallback, type ReactNode } from "react";
-import { ASCII_BANNER_ROWS } from "@/data/docsData";
+import { ASCII_BANNER_ROWS, type EditorKey } from "@/data/docsData";
+import {
+  AntigravityIcon,
+  ClaudeIcon,
+  OpenCodeIcon,
+} from "@/components/Icons";
 import { cn } from "@/lib/utils";
+
+export function EditorIcon({
+  editor,
+  className = "w-3.5 h-3.5",
+}: {
+  editor: EditorKey;
+  className?: string;
+}) {
+  if (editor === "opencode") return <OpenCodeIcon className={className} />;
+  if (editor === "claude") return <ClaudeIcon className={className} />;
+  return <AntigravityIcon className={className} />;
+}
+
+function CopyClipboardIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg
+      role="presentation"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="5.5" y="5.5" width="7" height="7" rx="1.2" />
+      <path d="M10.5 3.5H4a1.2 1.2 0 0 0-1.2 1.2v6.5" />
+    </svg>
+  );
+}
+
+function CheckTickIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg
+      role="presentation"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <polyline points="3 8.5 6.5 12 13 4" />
+    </svg>
+  );
+}
+
+function AnchorLinkIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg
+      role="presentation"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M6.5 9.5a3.2 3.2 0 0 0 4.5.2l2-2a3.2 3.2 0 0 0-4.5-4.5L7.4 4.3" />
+      <path d="M9.5 6.5a3.2 3.2 0 0 0-4.5-.2l-2 2a3.2 3.2 0 0 0 4.5 4.5l1.1-1.1" />
+    </svg>
+  );
+}
+
+function MacTrafficLights() {
+  return (
+    <div className="flex items-center gap-1.5 shrink-0" aria-hidden="true">
+      <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F56] ring-1 ring-inset ring-black/20" />
+      <span className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E] ring-1 ring-inset ring-black/20" />
+      <span className="h-2.5 w-2.5 rounded-full bg-[#27C93F] ring-1 ring-inset ring-black/20" />
+    </div>
+  );
+}
+
+function CopySnippetButton({
+  copied,
+  onClick,
+  ariaLabel,
+}: {
+  copied: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className={cn(
+        "group shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-decima text-[10px] uppercase tracking-wider transition-all cursor-pointer",
+        copied
+          ? "border-[#27AD75]/50 bg-[#27AD75]/10 text-[#27AD75]"
+          : "border-[#262630] bg-[#16161C] hover:bg-[#1C1C24] hover:border-[#fcaa2d]/50 text-[#A1A1AA] hover:text-[#EDEDF0]"
+      )}
+    >
+      {copied ? (
+        <>
+          <CheckTickIcon className="w-3 h-3 text-[#27AD75]" />
+          <span>Copied</span>
+        </>
+      ) : (
+        <>
+          <CopyClipboardIcon className="w-3.5 h-3.5 transition-transform duration-150 group-hover:scale-105" />
+          <span>Copy</span>
+        </>
+      )}
+    </button>
+  );
+}
 
 export function InlineCode({
   children,
@@ -24,12 +140,81 @@ export function InlineCode({
 }
 
 /**
+ * Light, Vercel-style inline copyable command pill for capability bars and
+ * reference tables where a heavy macOS terminal window would add clutter.
+ */
+export function CopyableCommandChip({
+  command,
+  className,
+}: {
+  command: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = command;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+  }, [command]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? `Copied ${command}` : `Copy command ${command}`}
+      title={copied ? "Copied!" : `Copy ${command}`}
+      className={cn(
+        "group inline-flex items-center gap-2 px-2.5 py-1 rounded-xs border border-[#e3e2d8] bg-[#fffef2] hover:border-[#fcaa2d] text-left transition-colors cursor-pointer shrink-0",
+        copied && "border-[#27AD75]/60 bg-[#27AD75]/5",
+        className
+      )}
+    >
+      <span className="font-mono text-[11px] text-[#a36404] select-none">$</span>
+      <code className="font-mono text-[12px] text-[#191918] whitespace-nowrap">
+        {command}
+      </code>
+      <span
+        className={cn(
+          "inline-flex items-center justify-center w-3.5 h-3.5 shrink-0 transition-colors",
+          copied
+            ? "text-[#166e49]"
+            : "text-[#191918]/40 group-hover:text-[#191918]"
+        )}
+      >
+        {copied ? (
+          <CheckTickIcon className="w-3 h-3" />
+        ) : (
+          <CopyClipboardIcon className="w-3 h-3" />
+        )}
+      </span>
+    </button>
+  );
+}
+
+/**
  * Renders the authentic 3D ASCII startup banner from `packages/waitfeed/bin.mjs`
  * with exact 24-bit gradient stops (`#ffd9a0` -> `#ff8a1f` -> `#c4500a`) and
  * 40% brightness shadow edges (`╗`, `║`, `╔`, `═`, `╚`, `╝`).
  */
 export function AsciiWaitFeedBanner({
-  version = "1.2.0",
+  version = "1.3.0",
   compact = false,
 }: {
   version?: string;
@@ -139,21 +324,17 @@ export function TerminalCommand({
   return (
     <div
       className={cn(
-        "rounded-sm border border-[#1E1E22] bg-[#0A0A0C] text-[#EDEDF0] overflow-hidden shadow-sm",
+        "rounded-xl border border-[#23232C] bg-[#0A0A0D] text-[#EDEDF0] overflow-hidden shadow-[0_18px_40px_-18px_rgba(25,25,24,0.34),inset_0_1px_0_rgba(255,255,255,0.06)]",
         className
       )}
     >
-      {/* Top Window Bar */}
-      <div className="flex items-center justify-between gap-3 px-3.5 py-2 border-b border-[#1E1E22] bg-[#111114]">
+      {/* macOS Titlebar */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[#1D1D25] bg-[#16161B]">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center gap-1.5 shrink-0" aria-hidden="true">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F56]/85" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]/85" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#27C93F]/85" />
-          </div>
+          <MacTrafficLights />
 
           {tabs && tabs.length > 0 ? (
-            <div className="flex items-center gap-1 overflow-x-auto">
+            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0A0A0D] border border-[#1E1E26] overflow-x-auto">
               {tabs.map((tab, idx) => {
                 const isActive = idx === activeIdx;
                 return (
@@ -162,9 +343,9 @@ export function TerminalCommand({
                     type="button"
                     onClick={() => setActiveIdx(idx)}
                     className={cn(
-                      "px-2.5 py-1 rounded-xs font-decima text-[10px] uppercase tracking-wider transition-colors cursor-pointer shrink-0",
+                      "px-2.5 py-1 rounded-md font-decima text-[10px] uppercase tracking-wider transition-all cursor-pointer shrink-0",
                       isActive
-                        ? "bg-[#1C1C21] text-[#fcaa2d] border border-[#2D2D35]"
+                        ? "bg-[#1C1C23] text-[#fcaa2d] border border-[#2E2E38] shadow-xs"
                         : "text-[#8A8A94] hover:text-[#EDEDF0] border border-transparent"
                     )}
                   >
@@ -174,31 +355,21 @@ export function TerminalCommand({
               })}
             </div>
           ) : (
-            <span className="font-mono text-[11px] text-[#8A8A94] truncate">
+            <span className="font-sans text-[12px] font-medium text-[#C8C8D2] truncate">
               {title}
             </span>
           )}
         </div>
 
-        <button
-          type="button"
+        <CopySnippetButton
+          copied={copied}
           onClick={handleCopy}
-          aria-label={copied ? "Copied command" : "Copy command"}
-          className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xs border border-[#23232A] bg-[#16161B] hover:border-[#fcaa2d]/60 text-[#A1A1AA] hover:text-[#EDEDF0] font-decima text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
-        >
-          {copied ? (
-            <>
-              <span className="text-[#27AD75]">✓</span>
-              <span className="text-[#27AD75]">Copied</span>
-            </>
-          ) : (
-            <span>Copy</span>
-          )}
-        </button>
+          ariaLabel={copied ? "Copied command" : "Copy command"}
+        />
       </div>
 
       {/* Command Body */}
-      <div className="px-4 py-3.5 overflow-x-auto flex flex-col gap-1.5">
+      <div className="px-4 py-3.5 overflow-x-auto flex flex-col gap-1.5 bg-[radial-gradient(120%_80%_at_50%_0%,rgba(252,170,45,0.03),transparent)]">
         <div className="font-mono text-[13px] leading-relaxed flex items-baseline gap-2.5 whitespace-pre">
           <span className="select-none text-[#fcaa2d] font-bold">
             {promptSymbol}
@@ -218,6 +389,7 @@ export function TerminalCommand({
 interface TerminalWindowProps {
   title: string;
   badge?: string;
+  icon?: ReactNode;
   copyText?: string;
   children: ReactNode;
   footer?: ReactNode;
@@ -231,6 +403,7 @@ interface TerminalWindowProps {
 export function TerminalWindow({
   title,
   badge,
+  icon,
   copyText,
   children,
   footer,
@@ -250,52 +423,44 @@ export function TerminalWindow({
   return (
     <div
       className={cn(
-        "rounded-sm border border-[#1E1E22] bg-[#0A0A0C] text-[#EDEDF0] overflow-hidden shadow-md",
+        "rounded-xl border border-[#23232C] bg-[#0A0A0D] text-[#EDEDF0] overflow-hidden shadow-[0_18px_40px_-18px_rgba(25,25,24,0.34),inset_0_1px_0_rgba(255,255,255,0.06)]",
         className
       )}
     >
-      <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-[#1E1E22] bg-[#111114]">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex items-center gap-1.5 shrink-0" aria-hidden="true">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F56]/85" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]/85" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#27C93F]/85" />
+      {/* macOS Titlebar */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[#1D1D25] bg-[#16161B]">
+        <div className="flex items-center gap-3 min-w-0">
+          <MacTrafficLights />
+          <div className="flex items-center gap-1.5 min-w-0">
+            {icon}
+            <span className="font-sans text-[12px] font-medium text-[#C8C8D2] truncate">
+              {title}
+            </span>
           </div>
-          <span className="font-mono text-[11px] text-[#8A8A94] truncate ml-1">
-            {title}
-          </span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           {badge && (
-            <span className="font-decima text-[9.5px] uppercase tracking-wider px-2 py-0.5 rounded-xs bg-[#18181D] border border-[#26262E] text-[#fcaa2d]">
+            <span className="font-decima text-[9.5px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#18181F] border border-[#282834] text-[#fcaa2d]">
               {badge}
             </span>
           )}
           {copyText && (
-            <button
-              type="button"
+            <CopySnippetButton
+              copied={copied}
               onClick={handleCopy}
-              aria-label={copied ? "Copied snippet" : "Copy snippet"}
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xs border border-[#23232A] bg-[#16161B] hover:border-[#fcaa2d]/60 text-[#A1A1AA] hover:text-[#EDEDF0] font-decima text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
-            >
-              {copied ? (
-                <>
-                  <span className="text-[#27AD75]">✓</span>
-                  <span className="text-[#27AD75]">Copied</span>
-                </>
-              ) : (
-                <span>Copy</span>
-              )}
-            </button>
+              ariaLabel={copied ? "Copied snippet" : "Copy snippet"}
+            />
           )}
         </div>
       </div>
 
-      <div className="p-4 sm:p-5 overflow-x-auto">{children}</div>
+      <div className="p-4 sm:p-5 overflow-x-auto bg-[radial-gradient(120%_70%_at_50%_0%,rgba(252,170,45,0.03),transparent)]">
+        {children}
+      </div>
 
       {footer && (
-        <div className="border-t border-[#1E1E22] bg-[#0E0E12] px-4 py-2.5">
+        <div className="border-t border-[#1D1D25] bg-[#0E0E13] px-4 py-2.5">
           {footer}
         </div>
       )}
@@ -346,9 +511,19 @@ export function DocsSectionHeader({
           onClick={handleCopyAnchor}
           title="Copy section link"
           aria-label={`Copy link to ${id}`}
-          className="shrink-0 font-decima text-[10px] uppercase tracking-wider px-2 py-1 rounded-xs border border-transparent hover:border-[#e3e2d8] hover:bg-[#f3f2e7] text-[#191918]/40 hover:text-[#191918] transition-colors cursor-pointer"
+          className="shrink-0 inline-flex items-center gap-1.5 font-decima text-[10px] uppercase tracking-wider px-2 py-1 rounded-xs border border-transparent hover:border-[#e3e2d8] hover:bg-[#f3f2e7] text-[#191918]/45 hover:text-[#191918] transition-colors cursor-pointer"
         >
-          {copiedAnchor ? "copied" : `#${id}`}
+          {copiedAnchor ? (
+            <>
+              <CheckTickIcon className="w-3 h-3 text-[#27AD75]" />
+              <span className="text-[#27AD75]">copied</span>
+            </>
+          ) : (
+            <>
+              <AnchorLinkIcon className="w-3 h-3" />
+              <span>#{id}</span>
+            </>
+          )}
         </button>
       </div>
 

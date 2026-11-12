@@ -135,16 +135,17 @@ const INITIAL_HISTORY = [
 ];
 
 const LINE_INTERVALS = [400, 850, 1300, 1800, 2350, 2900, 3500, 4150];
-const STEP_LABELS = ["agent working", "ticker streaming", "you're typing"];
+const STEP_LABELS = ["agent working", "ticker streaming", "ctrl+n / ctrl+o toggle"];
 
 export function HeroTerminal() {
   const [history, setHistory] = useState<string[]>(INITIAL_HISTORY);
-  const [status, setStatus] = useState<"working" | "typing">("typing");
+  const [status, setStatus] = useState<"working" | "idle">("idle");
   const [prompt, setPrompt] = useState("");
   const [scriptIndex, setScriptIndex] = useState(0);
   const [visibleLineCount, setVisibleLineCount] = useState(0);
   const [cardIndex, setCardIndex] = useState(0);
   const [slotVisible, setSlotVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [inputValue, setInputValue] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -162,6 +163,7 @@ export function HeroTerminal() {
     setPrompt(newPrompt);
     setInputValue("");
     setVisibleLineCount(0);
+    setDismissed(false);
     setSlotVisible(true);
     setStatus("working");
 
@@ -192,13 +194,29 @@ export function HeroTerminal() {
       const val = e.target.value;
       setInputValue(val);
       userInteractingRef.current = true;
-      if (slotVisible) {
-        setSlotVisible(false);
-      }
-      setStatus("typing");
       scheduleResume(val);
     },
-    [slotVisible, scheduleResume]
+    [scheduleResume]
+  );
+
+  const handleToggleFeed = useCallback(() => {
+    if (status !== "working") return;
+    firedEventsRef.current.add("hotkeyHide");
+    firedEventsRef.current.add("hotkeyShow");
+    setDismissed((prev) => !prev);
+  }, [status]);
+
+  const handleTerminalKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === "n" || key === "o") {
+          e.preventDefault();
+          handleToggleFeed();
+        }
+      }
+    },
+    [handleToggleFeed]
   );
 
   const handleFormSubmit = useCallback(
@@ -220,6 +238,7 @@ export function HeroTerminal() {
     reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reducedMotionRef.current) {
       setSlotVisible(true);
+      setDismissed(false);
       setPrompt(SCRIPTS[0].prompt);
       setVisibleLineCount(5);
       setStatus("working");
@@ -270,6 +289,7 @@ export function HeroTerminal() {
         setPrompt(currentScript.prompt);
         setInputValue("");
         setStatus("working");
+        setDismissed(false);
         setSlotVisible(true);
       });
 
@@ -280,8 +300,16 @@ export function HeroTerminal() {
         });
       });
 
-      // 4. Cycle completed: pause to let user read, then transition to next scenario
-      const cycleEnd = enterThreshold + 4150 + 2600;
+      // 4. Briefly demonstrate hotkey hide & restore mid-run
+      trigger("hotkeyHide", enterThreshold + 4550, () => {
+        setDismissed(true);
+      });
+      trigger("hotkeyShow", enterThreshold + 5750, () => {
+        setDismissed(false);
+      });
+
+      // 5. Cycle completed: pause to let user read, then transition to next scenario
+      const cycleEnd = enterThreshold + 4150 + 2800;
       trigger("cycleEnd", cycleEnd, () => {
         setHistory((prev) => [
           ...prev.slice(-2),
@@ -291,7 +319,8 @@ export function HeroTerminal() {
         setPrompt("");
         setVisibleLineCount(0);
         setSlotVisible(false);
-        setStatus("typing");
+        setDismissed(false);
+        setStatus("idle");
         setCardIndex((prev) => (prev + 1) % TECH_CARDS.length);
 
         const nextIdx = (scriptIndexRef.current + 1) % SCRIPTS.length;
@@ -314,13 +343,16 @@ export function HeroTerminal() {
   const currentScript = SCRIPTS[scriptIndex];
   const currentCard = TECH_CARDS[cardIndex];
   const visibleLines = currentScript.lines.slice(0, visibleLineCount);
-  const activeStepIndices = status === "working" ? [0, 1] : [2];
+  const tickerOpen = slotVisible && !dismissed;
+  const activeStepIndices =
+    status === "working" ? (dismissed ? [0, 2] : [0, 1]) : [];
 
   return (
     <div
       ref={containerRef}
       role="group"
-      aria-label="Demo: tech ticker shows while agent works and clears when you type"
+      aria-label="Demo: tech ticker shows while agent works and toggles with ctrl+n or ctrl+o"
+      onKeyDown={handleTerminalKeyDown}
       className="w-full select-none"
     >
       {/* Terminal Frame */}
@@ -378,11 +410,11 @@ export function HeroTerminal() {
           )}
         </div>
 
-        {/* Ticker Slot Area (Collapsible, vanishes on type with zero empty gap) */}
+        {/* Ticker Slot Area (Collapsible, toggles via ctrl+n / ctrl+o hotkey) */}
         <div
           className={cn(
             "transition-all duration-300 ease-out overflow-hidden text-[11px]",
-            slotVisible
+            tickerOpen
               ? "max-h-28 border-t border-[#1E1E22] px-4 py-2.5 opacity-100"
               : "max-h-0 border-t-0 border-transparent px-4 py-0 opacity-0 pointer-events-none"
           )}
@@ -453,8 +485,25 @@ export function HeroTerminal() {
         </form>
 
         {/* Bottom Statusbar */}
-        <div className="flex items-center justify-between border-t border-[#1E1E22] px-4 py-2 text-[9px] text-white/40 font-decima uppercase tracking-wider">
+        <div className="flex items-center justify-between gap-2 border-t border-[#1E1E22] px-4 py-2 text-[9px] text-white/40 font-decima uppercase tracking-wider">
           <span>Claude Opus 5.5 · $0.04</span>
+          {status === "working" ? (
+            <button
+              type="button"
+              onClick={handleToggleFeed}
+              className={cn(
+                "cursor-pointer rounded-xs border px-1.5 py-0.5 transition-colors",
+                dismissed
+                  ? "border-[#fcaa2d]/60 bg-[#fcaa2d]/10 text-[#fcaa2d]"
+                  : "border-[#2A2A32] bg-[#141418] text-[#8A8A94] hover:border-[#fcaa2d]/50 hover:text-[#EDEDF0]"
+              )}
+              title="Toggle feed card (Ctrl+N or Ctrl+O)"
+            >
+              {dismissed ? "feed hidden · ctrl+n / ctrl+o show" : "ctrl+n / ctrl+o hide feed"}
+            </button>
+          ) : (
+            <span className="hidden sm:inline text-[#5C5C66]">idle · feed quiet</span>
+          )}
           <span>82% context</span>
         </div>
       </div>

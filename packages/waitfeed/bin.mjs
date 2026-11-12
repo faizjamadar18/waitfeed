@@ -1228,7 +1228,7 @@ async function main() {
       const pkg = JSON.parse(await readFile(pkgPath, "utf8"))
       console.log(`waitfeed v${pkg.version}`)
     } catch {
-      console.log("waitfeed v1.2.0")
+      console.log("waitfeed v1.3.0")
     }
     return
   }

@@ -7,7 +7,8 @@ import { RELACE_EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import {
   AsciiWaitFeedBanner,
-  TerminalCommand,
+  CopyableCommandChip,
+  EditorIcon,
   TerminalWindow,
 } from "./DocsPrimitives";
 
@@ -25,7 +26,6 @@ export function SetupBannerPreview() {
   return (
     <TerminalWindow
       title="zsh — npx waitfeed init"
-      badge="Interactive Setup"
       copyText="npx waitfeed init"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -168,15 +168,23 @@ export function SetupBannerPreview() {
   );
 }
 
-export function EditorGuideTabs() {
-  const [selected, setSelected] = useState<EditorKey>("opencode");
+export function EditorGuideTabs({
+  selected: controlledSelected,
+  onSelect,
+}: {
+  selected?: EditorKey;
+  onSelect?: (key: EditorKey) => void;
+} = {}) {
+  const [internalSelected, setInternalSelected] = useState<EditorKey>("opencode");
+  const selected = controlledSelected ?? internalSelected;
+  const setSelected = onSelect ?? setInternalSelected;
   const guide =
     EDITOR_GUIDES.find((item) => item.key === selected) ?? EDITOR_GUIDES[0];
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Vercel-style Segmented Editor Tabs */}
-      <div className="inline-flex flex-wrap gap-1.5 p-1 rounded-xs bg-[#f3f2e7] border border-[#e3e2d8] self-start">
+      {/* Segmented Editor Tabs with Official Brand Icons */}
+      <div className="inline-flex flex-wrap gap-1.5 p-1 rounded-md bg-[#f3f2e7] border border-[#e3e2d8] self-start">
         {EDITOR_GUIDES.map((item) => {
           const isActive = item.key === guide.key;
           return (
@@ -185,13 +193,14 @@ export function EditorGuideTabs() {
               type="button"
               onClick={() => setSelected(item.key)}
               className={cn(
-                "px-3.5 py-1.5 rounded-xs text-[13px] font-parabole transition-all cursor-pointer",
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xs text-[13px] font-parabole transition-all cursor-pointer",
                 isActive
                   ? "bg-[#191918] text-[#fffef2] font-medium shadow-xs"
-                  : "text-[#191918]/65 hover:text-[#191918]"
+                  : "text-[#191918]/70 hover:text-[#191918] hover:bg-[#fffef2]/60"
               )}
             >
-              {item.name}
+              <EditorIcon editor={item.key} className="w-3.5 h-3.5 shrink-0" />
+              <span>{item.name}</span>
             </button>
           );
         })}
@@ -235,78 +244,39 @@ export function EditorGuideTabs() {
             </div>
           </div>
 
-          {/* Live Terminal Simulation for Selected Editor */}
-          <TerminalWindow title={guide.terminalTitle} badge={guide.badge}>
-            <div className="flex flex-col gap-2 font-mono text-[12px] leading-relaxed">
-              {guide.sampleLines.map((line, i) => {
-                if (line.kind === "muted") {
-                  return (
-                    <div key={i} className="text-[#7D8590] pb-1">
-                      {line.text}
-                    </div>
-                  );
-                }
-                if (line.kind === "badge") {
-                  return (
-                    <div
-                      key={i}
-                      className="flex flex-wrap items-baseline justify-between gap-2 pt-1 border-t border-[#1E1E22]"
-                    >
-                      <span className="font-semibold text-[#EDEDF0]">
-                        <span style={{ color: line.badgeColor ?? "#fcaa2d" }}>
-                          {line.text.slice(0, 7)}
-                        </span>
-                        {line.text.slice(7)}
-                      </span>
-                      {line.extra && (
-                        <span className="text-[#fcaa2d] text-[11px] shrink-0">
-                          {line.extra}
-                        </span>
-                      )}
-                    </div>
-                  );
-                }
-                if (line.kind === "body") {
-                  return (
-                    <div key={i} className="text-[#A1A1AA]">
-                      {line.text}
-                    </div>
-                  );
-                }
-                if (line.kind === "link") {
-                  return (
-                    <div key={i} className="text-[#818CF8]">
-                      {line.text}
-                    </div>
-                  );
-                }
-                return (
-                  <div
-                    key={i}
-                    className="mt-1 pt-2 border-t border-[#1E1E22] text-[11px] text-[#7D8590]"
-                  >
-                    {line.text}
-                  </div>
-                );
-              })}
+          {/* Key Capabilities + Inline Quick Toggle */}
+          <div className="rounded-xs border border-[#e3e2d8] bg-[#f3f2e7]/45 overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#f3f2e7] border-b border-[#e3e2d8] flex flex-wrap items-center justify-between gap-2.5">
+              <div className="inline-flex items-center gap-2">
+                <EditorIcon editor={guide.key} className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-decima text-[10px] uppercase tracking-[0.06em] text-[#a36404]">
+                  {guide.name} Highlights
+                </span>
+              </div>
+              <CopyableCommandChip command={guide.commandSnippet} />
             </div>
-          </TerminalWindow>
 
-          {/* Key Highlights + Toggle Command */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-            <ul className="space-y-2 text-[14px] font-parabole text-[#191918]/80 list-none p-0 m-0">
+            <ul className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-[13.5px] font-parabole text-[#191918]/80 list-none m-0">
               {guide.highlights.map((bullet) => (
-                <li key={bullet} className="flex items-start gap-2.5">
-                  <span className="text-[#fcaa2d] font-bold mt-0.5 shrink-0">✓</span>
+                <li key={bullet} className="flex items-start gap-2.5 leading-relaxed">
+                  <span className="mt-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#fcaa2d]/15 text-[#a36404] shrink-0">
+                    <svg
+                      role="presentation"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-2.5 h-2.5"
+                    >
+                      <polyline points="2.5 6.2 4.8 8.5 9.5 3.5" />
+                    </svg>
+                  </span>
                   <span>{bullet}</span>
                 </li>
               ))}
             </ul>
-
-            <TerminalCommand
-              title={`${guide.name} quick switch`}
-              command={guide.commandSnippet}
-            />
           </div>
         </motion.div>
       </AnimatePresence>
@@ -325,7 +295,7 @@ export function SmartVisibilityDemo() {
 
   const explanation =
     userMode === "hidden"
-      ? "You hid WaitFeed, so your terminal stays clean even while the agent is busy."
+      ? "WaitFeed is set to Manual — cards stay hidden even while your agent works."
       : agentState === "working"
         ? "Your AI agent is busy working and doesn't need you right now — WaitFeed rotates fresh tech news."
         : agentState === "question"
@@ -383,13 +353,13 @@ export function SmartVisibilityDemo() {
 
         <div className="rounded-xs border border-[#e3e2d8] bg-[#fffef2] p-3 flex flex-col gap-2">
           <span className="text-[12.5px] font-parabole font-medium text-[#191918]">
-            2. Did you hide WaitFeed?
+            2. WaitFeed visibility
           </span>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {(
               [
-                { id: "auto", label: "Auto (Show when busy)" },
-                { id: "hidden", label: "Hidden by you" },
+                { id: "auto", label: "Auto" },
+                { id: "hidden", label: "Manual" },
               ] as const
             ).map((opt) => (
               <button
@@ -397,7 +367,7 @@ export function SmartVisibilityDemo() {
                 type="button"
                 onClick={() => setUserMode(opt.id)}
                 className={cn(
-                  "flex-1 px-2.5 py-1.5 rounded-xs text-[12px] font-parabole border transition-colors cursor-pointer",
+                  "flex-1 px-3 py-1.5 rounded-xs text-[12px] font-parabole border whitespace-nowrap transition-colors cursor-pointer",
                   userMode === opt.id
                     ? "bg-[#fcaa2d] border-[#fcaa2d] text-[#191918] font-medium"
                     : "bg-[#f3f2e7] border-[#e3e2d8] text-[#191918]/75 hover:text-[#191918]"
@@ -410,46 +380,106 @@ export function SmartVisibilityDemo() {
         </div>
       </div>
 
-      {/* Simulated Terminal State */}
-      <TerminalWindow
-        title={
-          agentState === "working"
-            ? "agent running tests..."
-            : agentState === "question"
-              ? "waiting for your approval..."
-              : "ready for your next prompt"
-        }
-      >
-        <div className="flex flex-col gap-2 font-mono text-[12px]">
-          {cardShown ? (
-            <div className="flex flex-col gap-1 border-l-2 border-[#ff6600] pl-3 py-0.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[#EDEDF0] font-semibold">
-                  <span className="text-[#ff6600]">[HN]</span> PostgreSQL 18 cuts
-                  complex query latency with async I/O
-                </span>
-                <span className="text-[#fcaa2d] text-[11px] shrink-0">▲ 940 · 3h</span>
-              </div>
-              <span className="text-[#8A8A94]">
-                Direct asynchronous disk reads reduce cold-cache wait times on large analytics tables.
-              </span>
-              <span className="text-[#818CF8]">&gt; postgresql.org/about/news</span>
-            </div>
-          ) : (
-            <div className="text-[#7D8590] flex items-center gap-2 py-1">
-              <span className="text-[#27AD75]">›</span>
-              <span>
-                {agentState === "question"
-                  ? "Allow Bash command `npm test`? [Y/n]"
-                  : "Type your next prompt... (WaitFeed stays out of the way)"}
-              </span>
-            </div>
-          )}
-          <div className="border-t border-[#1E1E22] pt-2 text-[11.5px] font-parabole text-[#A1A1AA]">
-            {explanation}
+      {/* Live Editor Surface Preview (no Mac mockup) */}
+      <div className="rounded-xs border border-[#e3e2d8] bg-[#fffef2] overflow-hidden">
+        <div className="px-4 py-2 bg-[#fffef2] border-b border-[#e3e2d8] flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className={cn(
+                "w-2 h-2 rounded-full shrink-0",
+                agentState === "working"
+                  ? "bg-[#fcaa2d]"
+                  : agentState === "question"
+                    ? "bg-[#191918]"
+                    : "bg-[#191918]/30"
+              )}
+            />
+            <span className="font-mono text-[11.5px] text-[#191918]/70 truncate">
+              {agentState === "working"
+                ? "Agent running tests..."
+                : agentState === "question"
+                  ? "Agent waiting for your approval..."
+                  : "Agent finished · ready for your next prompt"}
+            </span>
           </div>
+          <span className="font-decima text-[9.5px] uppercase tracking-wider text-[#191918]/50 shrink-0">
+            Mode: {userMode === "auto" ? "Auto" : "Manual"}
+          </span>
         </div>
-      </TerminalWindow>
+
+        <div className="px-4 pt-2.5 pb-2">
+          <AnimatePresence mode="wait">
+            {cardShown ? (
+              <motion.div
+                key="story-card"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: RELACE_EASE }}
+                className="rounded-xs border border-[#e3e2d8] border-l-3 border-l-[#ff6600] bg-[#f3f2e7] px-4 py-3 flex flex-col gap-1.5"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="flex flex-wrap items-baseline gap-2 min-w-0">
+                    <span className="inline-block font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-xs bg-[#ff6600] text-white shrink-0">
+                      HN
+                    </span>
+                    <span className="text-[14px] font-parabole font-medium text-[#191918] leading-snug">
+                      PostgreSQL 18 cuts complex query latency with async I/O
+                    </span>
+                  </div>
+                  <span className="font-decima text-[10px] text-[#a36404] shrink-0">
+                    ▲ 940 · 3h
+                  </span>
+                </div>
+                <p className="text-[13px] font-parabole text-[#191918]/70 leading-relaxed m-0">
+                  Direct asynchronous disk reads reduce cold-cache wait times on large analytics tables.
+                </p>
+                <span className="font-mono text-[11.5px] text-[#a36404]">
+                  postgresql.org/about/news ↗
+                </span>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`quiet-${agentState}-${userMode}`}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: RELACE_EASE }}
+                className="rounded-xs border border-dashed border-[#e3e2d8] bg-[#f3f2e7]/40 px-4 py-3.5 flex flex-wrap items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-2 min-w-0 font-mono text-[12.5px] text-[#191918]/70">
+                  <span className="text-[#166e49] font-bold">›</span>
+                  <span className="truncate">
+                    {agentState === "question"
+                      ? "Allow Bash command `npm test`?"
+                      : "Type your next prompt..."}
+                  </span>
+                  {agentState === "question" && (
+                    <span className="font-decima text-[10px] px-1.5 py-0.5 rounded-xs bg-[#fcaa2d]/20 border border-[#fcaa2d]/50 text-[#a36404] shrink-0">
+                      Y / n
+                    </span>
+                  )}
+                </div>
+                <span className="font-decima text-[9.5px] uppercase tracking-wider text-[#191918]/45 shrink-0">
+                  {userMode === "hidden" && agentState === "working"
+                    ? "Hidden in Manual mode"
+                    : "WaitFeed cleared"}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="px-4 pt-1 pb-3 bg-[#fffef2] flex items-center gap-2 text-[12.5px] font-parabole text-[#191918]/75">
+          <span
+            className={cn(
+              "w-1.5 h-1.5 rounded-full shrink-0",
+              cardShown ? "bg-[#27AD75]" : "bg-[#191918]/30"
+            )}
+          />
+          <span>{explanation}</span>
+        </div>
+      </div>
     </div>
   );
 }
