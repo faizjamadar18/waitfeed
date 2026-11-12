@@ -30,6 +30,7 @@ import {
 import { DEFAULT_CONFIG, type WaitFeedConfig } from "../packages/waitfeed/core/config"
 import type { FeedItem } from "../packages/waitfeed/core/types"
 import { isStoryable } from "../packages/waitfeed/core/llm"
+import { emptyReaderState, markItem, saveReaderState } from "../packages/waitfeed/core/reader-state"
 
 const HOUR = 3_600_000
 /** A fixed "now" every test shares — the fixtures are written against it. */
@@ -57,6 +58,9 @@ beforeEach(async () => {
     summaries: {},
     llmUnavailable: false,
   })
+  // The reader ledger is shared across tests; clear it so leftover marks
+  // can never dampen a test that seeds its own cache.
+  await rm(join(dir, "reader-state.json"), { force: true })
 })
 
 /** Deterministic test item factory — ids and urls derive from the title. */
@@ -139,6 +143,13 @@ function makeWriter(): PipelineDeps["writeStories"] {
 
 async function readWritten(): Promise<CacheFile> {
   return JSON.parse(await readFile(cachePath, "utf8")) as CacheFile
+}
+
+/** Record a reader mark for every url — as if the ticker had shown them. */
+async function markSeen(urls: string[]): Promise<void> {
+  let state = emptyReaderState()
+  for (const url of urls) state = markItem(state, "glanced", url.trim().toLowerCase())
+  await saveReaderState(join(dir, "reader-state.json"), state)
 }
 
 describe("runPipeline — story hosts (OpenCode)", () => {
@@ -484,5 +495,108 @@ describe("English-only ingestion", () => {
     await runPipeline(makeDeps({ fetchFeeds: fetchOnce([[cyrillic, korean, accented]]).run }))
     const titles = (await readWritten()).items.map((it) => it.title)
     expect(titles).toEqual([accented.title])
+  })
+})
+
+describe("runPipeline — low-water refill (the unseen queue never runs dry)", () => {
+  it("refills before the 30-minute window once the unseen queue runs low", async () => {
+    // Cache younger than the baseline (10 min) but older than the refill floor
+    // (1 min), and the reader has already seen everything → fetch early.
+    const items = [item("Seen headline one"), item("Seen headline two"), item("Seen headline three")]
+    await writeCacheDoc(cachePath, {
+      items,
+      fetchedAt: BASE - 10 * 60_000,
+      summaries: {},
+      llmUnavailable: true,
+    })
+    await markSeen(items.map((it) => it.url as string))
+
+    const fresh = fetchOnce([[item("Brand new thing arrives", { time: BASE })]])
+    await runPipeline(makeDeps({ fetchFeeds: fresh.run }))
+
+    expect(fresh.times()).toBe(1)
+    expect((await readWritten()).fetchedAt).toBe(BASE)
+  })
+
+  it("never refills faster than the minimum floor, however dry the queue", async () => {
+    const items = [item("Seen headline one"), item("Seen headline two")]
+    await writeCacheDoc(cachePath, {
+      items,
+      fetchedAt: BASE - 30_000, // 30s < 60s floor
+      summaries: {},
+      llmUnavailable: true,
+    })
+    await markSeen(items.map((it) => it.url as string))
+
+    const fresh = fetchOnce([[item("Too soon to fetch", { time: BASE })]])
+    await runPipeline(makeDeps({ fetchFeeds: fresh.run }))
+
+    expect(fresh.times()).toBe(0)
+  })
+
+  it("keeps the 30-minute baseline while plenty of unseen headlines remain", async () => {
+    const items = Array.from({ length: 10 }, (_, i) => item(`Unseen headline number ${i}`))
+    await writeCacheDoc(cachePath, {
+      items,
+      fetchedAt: BASE - 10 * 60_000,
+      summaries: {},
+      llmUnavailable: true,
+    })
+    await markSeen(items.slice(0, 1).map((it) => it.url as string)) // a real ledger, 9 still unseen
+
+    const fresh = fetchOnce([[item("Should not fetch yet", { time: BASE })]])
+    await runPipeline(makeDeps({ fetchFeeds: fresh.run }))
+
+    expect(fresh.times()).toBe(0)
+  })
+
+  it("story hosts count only story-ready items — a hidden plain backlog never fakes a full pool", async () => {
+    // Two story-complete items are the whole visible pool and both are seen;
+    // ten plain items have no story and are invisible in story mode.
+    const readied = [item("Storied headline one"), item("Storied headline two")]
+    for (const it of readied) it.context = "x".repeat(100)
+    const plain = Array.from({ length: 10 }, (_, i) => item(`Plain backlog headline ${i}`))
+    const summaries: CacheFile["summaries"] = {}
+    for (const it of readied) summaries[it.url as string] = { text: "story", at: 1 }
+    await writeCacheDoc(cachePath, {
+      items: [...readied, ...plain],
+      fetchedAt: BASE - 10 * 60_000,
+      summaries,
+      llmUnavailable: false,
+    })
+    await markSeen(readied.map((it) => it.url as string))
+
+    const fresh = fetchOnce([[item("Fresh visible story", { time: BASE })]])
+    await runPipeline(makeDeps({ fetchFeeds: fresh.run, writeStories: makeWriter() }))
+
+    expect(fresh.times()).toBe(1)
+  })
+
+  it("ignores unread items from a channel the reader switched off", async () => {
+    // 10 unread HN items (HN switched OFF) plus 2 GH items that are all seen.
+    // The visible pool is the GH pair → dry → refill; the hidden HN backlog
+    // must not mask it.
+    const hidden = Array.from({ length: 10 }, (_, i) => item(`Hidden HN headline ${i}`))
+    const shown = [
+      item("Shown GH headline one", { source: "GH" }),
+      item("Shown GH headline two", { source: "GH" }),
+    ]
+    await writeCacheDoc(cachePath, {
+      items: [...shown, ...hidden],
+      fetchedAt: BASE - 10 * 60_000,
+      summaries: {},
+      llmUnavailable: true,
+    })
+    await markSeen(shown.map((it) => it.url as string))
+
+    const fresh = fetchOnce([[item("Fresh headline arrives", { time: BASE })]])
+    const cfg: WaitFeedConfig = {
+      ...DEFAULT_CONFIG,
+      sources: { ...DEFAULT_CONFIG.sources, hn: false },
+      rssUrls: [],
+    }
+    await runPipeline(makeDeps({ fetchFeeds: fresh.run, loadConfig: async () => cfg }))
+
+    expect(fresh.times()).toBe(1)
   })
 })

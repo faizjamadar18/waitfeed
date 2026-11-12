@@ -43,8 +43,8 @@
 //     OpenCode ticker-card behavior): the title owns the left, pure padding
 //     spaces fill the gap, and the meta ends exactly at the width column.
 //     No meta → no padding (never trailing spaces on the line).
-import { channelForSource, type WaitFeedConfig } from "./config"
-import { formatMeta, linkLabel, truncate } from "./ticker"
+import { channelForSource, getHostNewsMode, newsVisible, type HostId, type WaitFeedConfig } from "./config"
+import { formatDividerLine, formatMeta, linkLabel, truncate } from "./ticker"
 import type { CacheFile } from "./pipeline"
 import type { FeedItem } from "./types"
 
@@ -82,11 +82,25 @@ export interface AgyStatuslineState {
  * the documented session states only; everything else — idle, sign-in and
  * startup phases, errors, anything unknown or missing — stays quiet. */
 const SESSION_ACTIVE = new Set(["working", "tool_use", "reviewing"])
+const SESSION_KNOWN = new Set(["working", "tool_use", "reviewing", "idle"])
 
 export function isAgyBusy(state: AgyStatuslineState): boolean {
   const value = state?.agent_state
   if (typeof value !== "string") return false // no payload (the splash) → quiet
   return SESSION_ACTIVE.has(value.trim().toLowerCase())
+}
+
+/** Whether the state represents an active host session (working or idle),
+ * as opposed to pre-session splash / auth / init / error states. */
+export function hasAgySession(state: AgyStatuslineState, host?: HostId): boolean {
+  if (host === "claude") {
+    return state?.terminal_width !== undefined
+  }
+  const value = state?.agent_state
+  if (typeof value === "string") {
+    return SESSION_KNOWN.has(value.trim().toLowerCase())
+  }
+  return false
 }
 
 /** Live terminal width clamped into a sane one-line band. */
@@ -253,6 +267,25 @@ export interface AgySnapshot {
   dwellMs: number
   state: AgyStatuslineState
   now?: number
+  host?: HostId
+  unreadCount?: number
+  includeDivider?: boolean
+}
+
+/** The pieces of a divider line: left dashes, unread label, middle dashes/spaces,
+ * key shortcut, and right dashes. Painted with exact terminal ANSI colors
+ * mirroring OpenCode (subtle border, muted label, bright key). */
+export interface AgyDividerParts {
+  left: string
+  label: string
+  middle: string
+  middleIsDashes: boolean
+  key: string
+  keySuffix?: string
+  sep?: string
+  cmd?: string
+  cmdSuffix?: string
+  right: string
 }
 
 /** The paintable pieces of a headline row: the badge rebuilds from the
@@ -269,12 +302,14 @@ export interface AgyHeadParts {
 
 /** One rendered statusline row: plain text (the visible content — every
  * width contract is measured on THIS), plus what it is for the painter: a
- * headline row carries its parts, a context row reads dimmed, and a link
- * row carries the FULL https target for the terminal's ctrl+click (OSC 8). */
+ * headline row carries its parts, a context row reads dimmed, a link
+ * row carries the FULL https target for the terminal's ctrl+click (OSC 8),
+ * and a divider row carries the structured divider segments. */
 export interface AgyRow {
   text: string
   dim: boolean
   parts?: AgyHeadParts
+  divider?: AgyDividerParts
   url?: string
   /** The marker portion of a link row (kept OUTSIDE the OSC 8 span so the
    * terminal's hover underline covers only the label, never the arrow). */
@@ -514,6 +549,15 @@ export const LINK_MARKER = "   > "
  * where it doesn't, the label degrades to plain text. */
 export function paintAgyRows(rows: AgyRow[]): string[] {
   return rows.map((row) => {
+    if (row.divider) {
+      const d = row.divider
+      const border = (s: string) => (s ? wrapAnsi("38;5;240", s) : "")
+      const muted = (s: string) => (s ? wrapAnsi(MUTED_ANSI, s) : "")
+      const middle = (s: string, isDashes: boolean) => (isDashes ? border(s) : s)
+      const key = (s: string) => s
+      const rightSide = `${key(d.key)}${muted(d.keySuffix ?? "")}${muted(d.sep ?? "")}${key(d.cmd ?? "")}${muted(d.cmdSuffix ?? "")}`
+      return `${border(d.left)}${muted(d.label)}${middle(d.middle, d.middleIsDashes)}${rightSide}${border(d.right)}`
+    }
     if (row.url) {
       // The marker paints dim OUTSIDE the hyperlink span: the terminal's
       // hover underline then covers only the link label, never the arrow.
@@ -542,27 +586,95 @@ export function paintAgyRows(rows: AgyRow[]): string[] {
 /** The statusline decision: the full card — headline row(s), up to three muted
  * description rows, the origin link row LAST — while a session is active
  * (see isAgyBusy); no rows otherwise; plus the dwell walk bookkeeping for
- * the state file. Redraws inside one window are idempotent. */
+ * the state file. Redraws inside one window are idempotent. The user's
+ * newsMode can force the card off (hide) even while working; nothing can pin
+ * it on at idle — the idle terminal stays the host's own. The same shared
+ * switch every host reads.
+ *
+ * When includeDivider is true, matches OpenCode:
+ * - When open: appends responsive "─── ↓ {N} new ───────── key ───" row
+ * - When closed: returns single "─── ↑ {N} new ───────── key ───" row
+ */
 export function renderAgySnapshot(snap: AgySnapshot): {
   rows: AgyRow[]
   ticks: number
   windowStart: number
 } {
   const keep = { rows: [] as AgyRow[], ticks: snap.ticks, windowStart: snap.windowStart }
-  if (!isAgyBusy(snap.state)) return keep // quiet: the clock stands still, nothing is skipped
+  const host = snap.host ?? "agy"
+  const mode = getHostNewsMode(snap.config, host)
+  const isBusy = isAgyBusy(snap.state)
+  const show = newsVisible(mode, isBusy)
+  const keyHint = host === "claude" ? "ctrl+n" : "ctrl+o"
+  const w = agyWidth(snap.state)
+  const rawW = snap.state?.terminal_width
+  const divW = typeof rawW === "number" && Number.isFinite(rawW) && rawW > 0 && rawW < WIDTH_MIN
+    ? Math.max(1, Math.round(rawW))
+    : w
+  const count = snap.unreadCount ?? (snap.cache?.items?.length ?? 0)
+
+  const makeDividerRow = (open: boolean): AgyRow => {
+    const div = formatDividerLine(divW, count, open, keyHint, "/feed")
+    return {
+      text: div.text,
+      dim: false,
+      divider: {
+        left: div.left,
+        label: div.label,
+        middle: div.middle,
+        middleIsDashes: div.middleIsDashes,
+        key: div.key,
+        keySuffix: div.keySuffix,
+        sep: div.sep,
+        cmd: div.cmd,
+        cmdSuffix: div.cmdSuffix,
+        right: div.right,
+      },
+    }
+  }
+
+  // Quiet / closed: the clock stands still, nothing is skipped — the card
+  // never pins at idle (mode="show" is a legacy alias of auto).
+  if (!show) {
+    if (snap.includeDivider) {
+      const hasSession = hasAgySession(snap.state, snap.host)
+      if (hasSession && (snap.cache?.items?.length ?? 0) > 0) {
+        return { rows: [makeDividerRow(false)], ticks: snap.ticks, windowStart: snap.windowStart }
+      }
+    }
+    return keep
+  }
+
   const items = snap.cache?.items ?? []
-  if (items.length === 0) return keep
+  if (items.length === 0) {
+    return keep
+  }
+
   const now = snap.now ?? Date.now()
   const ticked = agyDwellTick(snap.ticks, snap.windowStart, now, snap.dwellMs)
   const it = pickAgyCard(items, ticked.ticks, snap.config ?? undefined)
-  if (!it) return keep
-  const w = agyWidth(snap.state)
-  const rows: AgyRow[] = [...agyHeadlineRows(it, w)]
+  if (!it) {
+    if (snap.includeDivider) {
+      return { rows: [makeDividerRow(false)], ticks: snap.ticks, windowStart: snap.windowStart }
+    }
+    return keep
+  }
+
+  const rows: AgyRow[] = []
+  if (snap.includeDivider) {
+    rows.push(makeDividerRow(true))
+    rows.push({ text: "", dim: false })
+  }
+  rows.push(...agyHeadlineRows(it, w))
   for (const text of agyDescRows(it, w)) rows.push({ text, dim: true })
   const link = agyLinkLine(it, w)
   if (link.length > 0) {
     const url = typeof it.url === "string" ? it.url.trim() : ""
     rows.push({ text: link, dim: false, url, linkPrefix: LINK_MARKER })
   }
+  if (snap.includeDivider) {
+    rows.push({ text: "", dim: false })
+  }
+
   return { rows, ticks: ticked.ticks, windowStart: ticked.windowStart }
 }

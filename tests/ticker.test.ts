@@ -6,6 +6,8 @@ import {
   dropJunk,
   dropNonEnglish,
   formatAgo,
+  formatDividerLine,
+  BELOW_PROMPT_DIVIDER_GLYPHS,
   formatDuration,
   formatMeta,
   hasForeignScript,
@@ -364,5 +366,179 @@ describe("formatMeta (ticker card meta tail)", () => {
     expect(formatMeta(0, 0)).toBe("")
     expect(formatMeta(-5, 0)).toBe("")
     expect(formatMeta(undefined, 0)).toBe("")
+  })
+})
+
+describe("formatDividerLine (new stories divider line)", () => {
+  it("when count is 0 or negative, displays '↑ 0 new reads' preserving label and key shortcut", () => {
+    const res = formatDividerLine(80, 0)
+    expect(res.label).toBe("↑ 0 new reads")
+    expect(res.key).toBe("ctrl+o")
+    expect(res.cmd).toBe("/feed")
+    expect(res.text).toContain("↑ 0 new reads")
+    expect(res.text).toContain("ctrl+o open · /feed all")
+
+    const neg = formatDividerLine(80, -1)
+    expect(neg.label).toBe("↑ 0 new reads")
+    expect(neg.key).toBe("ctrl+o")
+  })
+
+  it("shows real unread count '↑ {N} new reads' when closed (default) without hardcoding", () => {
+    const r5 = formatDividerLine(80, 5)
+    expect(r5.label).toBe("↑ 5 new reads")
+    expect(r5.text).toContain("↑ 5 new reads")
+
+    const r16 = formatDividerLine(80, 16)
+    expect(r16.label).toBe("↑ 16 new reads")
+    expect(r16.text).toContain("↑ 16 new reads")
+
+    const r42 = formatDividerLine(80, 42)
+    expect(r42.label).toBe("↑ 42 new reads")
+    expect(r42.text).toContain("↑ 42 new reads")
+  })
+
+  it("shows 'ctrl+o close' with ↓ arrow when open is true and 'ctrl+o open' with ↑ arrow when closed", () => {
+    const rOpen = formatDividerLine(80, 16, true)
+    expect(rOpen.label).toBe("↓ 16 new reads")
+    expect(rOpen.keySuffix).toBe(" close")
+    expect(rOpen.text).toContain("↓ 16 new reads")
+    expect(rOpen.text).toContain("ctrl+o close · /feed all")
+
+    const rClosed = formatDividerLine(80, 16, false)
+    expect(rClosed.label).toBe("↑ 16 new reads")
+    expect(rClosed.keySuffix).toBe(" open")
+    expect(rClosed.text).toContain("↑ 16 new reads")
+    expect(rClosed.text).toContain("ctrl+o open · /feed all")
+  })
+
+  it("caps count above 99 as '99+ new reads'", () => {
+    const r100 = formatDividerLine(80, 100)
+    expect(r100.label).toBe("↑ 99+ new reads")
+    expect(r100.text).toContain("↑ 99+ new reads")
+
+    const r150Open = formatDividerLine(80, 150, true)
+    expect(r150Open.label).toBe("↓ 99+ new reads")
+    expect(r150Open.text).toContain("↓ 99+ new reads")
+  })
+
+  it("picks Wide layout on wide terminals (─── ↑ {N} new reads ───────── ctrl+o open · /feed all ───)", () => {
+    const res = formatDividerLine(80, 16)
+    expect(res.layout).toBe("wide")
+    expect(res.left).toBe("─── ")
+    expect(res.label).toBe("↑ 16 new reads")
+    expect(res.key).toBe("ctrl+o")
+    expect(res.cmd).toBe("/feed")
+    expect(res.right).toBe(" ───")
+    expect(res.text).toMatch(/^─── ↑ 16 new reads ─+ ctrl\+o open · \/feed all ───$/)
+    expect(res.text.length).toBe(80)
+  })
+
+  it("shrinks the middle line first as width tightens in Wide layout", () => {
+    const r100 = formatDividerLine(100, 16)
+    const r80 = formatDividerLine(80, 16)
+    const r65 = formatDividerLine(65, 16)
+    expect(r100.layout).toBe("wide")
+    expect(r80.layout).toBe("wide")
+    expect(r65.layout).toBe("wide")
+    expect(r100.middle.length).toBeGreaterThan(r80.middle.length)
+    expect(r80.middle.length).toBeGreaterThan(r65.middle.length)
+    expect(r100.text.length).toBe(100)
+    expect(r80.text.length).toBe(80)
+    expect(r65.text.length).toBe(65)
+  })
+
+  it("drops '/feed all' when width narrows past wide threshold", () => {
+    const res = formatDividerLine(45, 16)
+    expect(res.cmd).toBe("")
+    expect(res.keySuffix).toBe(" open")
+    expect(res.label).toBe("↑ 16 new reads")
+    expect(res.text).toContain("ctrl+o open")
+    expect(res.text).not.toContain("/feed")
+    expect(res.text.length).toBe(45)
+  })
+
+  it("drops the words 'reads' and 'open' when width narrows further", () => {
+    const res = formatDividerLine(30, 16)
+    expect(res.label).toBe("↑ 16 new")
+    expect(res.key).toBe("ctrl+o")
+    expect(res.keySuffix).toBe("")
+    expect(res.text).not.toContain("reads")
+    expect(res.text).not.toContain("open")
+    expect(res.text.length).toBe(30)
+  })
+
+  it("drops side bits and middle dashes in Narrow layout (↑ {N} new  ctrl+o)", () => {
+    const res = formatDividerLine(18, 16)
+    expect(res.layout).toBe("narrow")
+    expect(res.left).toBe("")
+    expect(res.right).toBe("")
+    expect(res.label).toBe("↑ 16 new")
+    expect(res.key).toBe("ctrl+o")
+    expect(res.text.length).toBe(18)
+    expect(res.text).toContain("↑ 16 new")
+    expect(res.text).toContain("ctrl+o")
+  })
+
+  it("drops the word 'new' before dropping ctrl+o when space is tight (↑ {N}  ctrl+o)", () => {
+    const res = formatDividerLine(12, 16)
+    expect(res.layout).toBe("words-dropped")
+    expect(res.label).toBe("↑ 16")
+    expect(res.key).toBe("ctrl+o")
+    expect(res.text).not.toContain("new")
+    expect(res.text).toContain("ctrl+o")
+    expect(res.text.length).toBe(12)
+  })
+
+  it("keeps ctrl+o until the very last layout (Very narrow: ↑ {N})", () => {
+    const res = formatDividerLine(6, 16)
+    expect(res.layout).toBe("very-narrow")
+    expect(res.label).toBe("↑ 16")
+    expect(res.key).toBe("")
+    expect(res.text).toBe("↑ 16")
+    expect(res.text.length).toBeLessThanOrEqual(6)
+  })
+
+  it("supports custom glyphs if specified (e.g. arrow mode for below-prompt statuslines)", () => {
+    const custom = formatDividerLine(80, 10, false, { closed: "▲", open: "▼" })
+    expect(custom.label).toBe("▲ 10 new")
+    const customOpen = formatDividerLine(80, 10, true, { closed: "▲", open: "▼" })
+    expect(customOpen.label).toBe("▼ 10 new")
+  })
+
+  it("BELOW_PROMPT_DIVIDER_GLYPHS flips arrow direction for statuslines below input (↓ when closed, ↑ when open)", () => {
+    const closed = formatDividerLine(80, 5, false, BELOW_PROMPT_DIVIDER_GLYPHS, "ctrl+n")
+    expect(closed.label).toBe("↓ 5 new")
+    expect(closed.key).toBe("ctrl+n")
+    expect(closed.text).toContain("↓ 5 new")
+    expect(closed.text).toContain("ctrl+n")
+
+    const open = formatDividerLine(80, 5, true, BELOW_PROMPT_DIVIDER_GLYPHS, "ctrl+n")
+    expect(open.label).toBe("↑ 5 new")
+    expect(open.key).toBe("ctrl+n")
+    expect(open.text).toContain("↑ 5 new")
+    expect(open.text).toContain("ctrl+n")
+  })
+
+  it("never wraps onto a second row across widths from 1 to 200", () => {
+    for (const open of [false, true]) {
+      for (const count of [0, 1, 16, 99, 120]) {
+        for (let w = 1; w <= 200; w++) {
+          const res = formatDividerLine(w, count, open)
+          expect(res.text).not.toContain("\n")
+          expect(res.text.length).toBeLessThanOrEqual(w)
+          const segLen =
+            (res.left || "").length +
+            (res.label || "").length +
+            (res.middle || "").length +
+            (res.key || "").length +
+            (res.keySuffix || "").length +
+            (res.sep || "").length +
+            (res.cmd || "").length +
+            (res.cmdSuffix || "").length +
+            (res.right || "").length
+          expect(segLen).toBeLessThanOrEqual(w)
+        }
+      }
+    }
   })
 })

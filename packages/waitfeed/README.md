@@ -2,7 +2,10 @@
 
 > While your agent works, a slim news ticker appears above the prompt or in
 > the statusline.
-> You start typing — it vanishes. `/news` opens the fullscreen reader.
+> It's gone the moment the agent stops — which is when you start typing.
+> `/feed` opens the fullscreen reader.
+> One key hides the card while the agent works (`Ctrl+O` in OpenCode;
+> `npx waitfeed toggle` anywhere).
 > **No ads. No accounts. No server. No API keys.**
 
 Every card is real news — a headline, a short blurb from the fetched data,
@@ -14,7 +17,7 @@ never empties the rotation — recent items are carried over for 36 hours.
 One package, three terminal AI coding agents:
 
 - **[OpenCode](https://opencode.ai)** — the original home: the ticker lives
-  above the prompt, `/news` opens the fullscreen reader, and each card gets
+  above the prompt, `/feed` opens the fullscreen reader, and each card gets
   a short story written **only** from the fetched description (never
   invented) by your own session's model. The story pool holds 60 ready
   cards so the ticker never loops the same handful.
@@ -72,9 +75,14 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
 **OpenCode**
 
 - **During a run**, the ticker rotates story cards while the agent works.
-- **`/news`** opens the reader: up/down (or j/k) move, **Enter** opens the
+- **`/feed`** opens the reader: up/down (or j/k) move, **Enter** opens the
   selected link, keys **1–4** toggle channels (Hacker News · dev.to ·
   GitHub trending · Reddit r/programming), **esc** closes.
+- **`Ctrl+O`** shows or hides the card while the agent works: press it to
+  dismiss the ticker while you focus on code, press it again to bring it back.
+  It is inert at idle (nothing renders then). While hidden mid-run, a one-line
+  hint keeps the key discoverable. A dismissal lasts the current turn; the
+  next turn brings the card back.
 - Channel switches save instantly to `~/.config/waitfeed/config.json`; a
   disabled channel is not even contacted by the next fetch cycle.
 - Add your own RSS/Atom URLs in the same file (`"rssUrls": [...]`, max 10) —
@@ -84,7 +92,10 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
 
 - The card appears in the statusline the moment you submit a prompt, and
   hides when the turn ends, when the agent waits on a question or a
-  permission, or when you press **Esc** to interrupt.
+  permission, or when you press **Esc** to interrupt. At idle there is
+  nothing — the statusline is Claude's own.
+- **`npx waitfeed hide`** dismisses the card mid-run; **`npx waitfeed show`**
+  resumes it. Nothing ever renders at idle.
 - Every busy↔idle transition repaints **instantly** (a settings flip, not
   the refresh tick); Esc hides within milliseconds via the transcript
   watcher.
@@ -93,7 +104,11 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
 
 **Antigravity (AGY)**
 
-- Start `agy` — the statusline ticker rotates while the agent works.
+- Start `agy` — the statusline ticker rotates while the agent works, and
+  renders nothing at idle (the terminal is your own).
+- **`npx waitfeed hide`** / **`npx waitfeed show`** / **`npx waitfeed toggle`**
+  switch the card from any shell — AGY exposes no keybinding API, so the
+  shared CLI is the switch. The card is always quiet at idle.
 - Channels are shared with OpenCode, exactly as above.
 
 ## Configuration
@@ -105,11 +120,13 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
 | `sources` | all on | per-channel switches: `hn`, `devto`, `github`, `reddit` |
 | `rssUrls` | `[]` | your own RSS/Atom feeds |
 | `dwellSeconds` | `20` | card hold time during a run (5–120s) |
+| `newsMode` | `"auto"` | `"auto"` shows the card only while the agent works, `"hide"` forces it off mid-run; nothing renders at idle (`"show"` is a legacy alias of `"auto"`) |
 | `setupDone` | `false` | set by your first keypress inside the reader |
 
 Data lives locally in `~/.config/waitfeed/`. The only network calls are to the
-feed URLs you keep enabled, once every 30 minutes. Nothing else ever leaves
-your machine.
+feed URLs you keep enabled: a 30-minute baseline, plus an early refill when
+you're down to your last few unread headlines (never more than once a minute).
+Nothing else ever leaves your machine.
 
 ## Honest limits
 

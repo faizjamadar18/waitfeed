@@ -132,7 +132,7 @@ describe("the OpenCode reader wires the ledger to the native popup (source contr
   const tui = async (): Promise<string> =>
     readFile(join(import.meta.dirname, "..", "packages", "waitfeed", "opencode", "tui.tsx"), "utf8")
 
-  it("/news opens the native OpenCode popup (never a custom panel)", async () => {
+  it("/feed opens the native OpenCode popup (never a custom panel)", async () => {
     const src = await tui()
     expect(src).toContain("context.ui.dialog.select<string>({")
     expect(src).not.toContain("context.ui.panel.open(")
@@ -173,10 +173,11 @@ describe("the OpenCode reader wires the ledger to the native popup (source contr
     expect(src).not.toContain("}, 50)")
   })
 
-  it("the ticker dwell still records a glance; the done line still counts upcoming", async () => {
+  it("the ticker dwell still records a glance; done summary is removed in favor of clean footer pill", async () => {
     const src = await tui()
     expect(src).toContain("markGlanced(")
-    expect(src).toContain("new in /news")
+    expect(src).toContain("prompt.footer.status")
+    expect(src).not.toContain("✓ done")
   })
 
   it("news rows never print the auto bookkeeping label (glanced) — it ate headline width", async () => {

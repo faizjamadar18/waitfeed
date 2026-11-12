@@ -16,9 +16,8 @@
 // CLAUDE_BUSY_STALE_MS is treated as quiet — a crashed session can never pin
 // the card on screen forever.
 //
-// Migration rule (deliberate): a MISSING ledger file means a pre-ledger
-// install (hooks not yet re-registered) → the statusline falls back to the
-// legacy always-busy panel instead of losing the news entirely. A PRESENT
+// Migration rule (deliberate): a MISSING ledger file means no busy signal, so
+// the statusline stays quiet at idle — never an always-on panel. A PRESENT
 // ledger is trusted strictly: a session with no entry is quiet, never busy.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { join } from "node:path"

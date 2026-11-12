@@ -32,19 +32,19 @@ const FAQS: FaqItem[] = [
     id: "opening-links",
     question: "How do I open an article or read a story?",
     answer:
-      "Click the link directly on the terminal card with Ctrl+Click (or Cmd+Click), or type /news to search recently displayed stories and press Enter to launch them in your browser.",
+      "Click the link directly on the terminal card with Ctrl+Click (or Cmd+Click), or type /feed to search recently displayed stories and press Enter to launch them in your browser.",
   },
   {
     id: "missed-headlines",
     question: "What if a headline disappears before I finish reading it?",
     answer:
-      "Type /news. The reader keeps a dedicated 'Recently on Ticker' list right at the top showing the exact cards you just saw, so you can easily catch up on missed stories.",
+      "Type /feed. The reader keeps a dedicated 'Recently on Ticker' list right at the top showing the exact cards you just saw, so you can easily catch up on missed stories.",
   },
   {
     id: "custom-sources",
     question: "Can I choose which news sources appear?",
     answer:
-      "Yes. Pick your preferred channels during npx waitfeed init, toggle them anytime in the /news sources menu, or add up to 10 custom RSS/Atom feeds in your config.",
+      "Yes. Pick your preferred channels during npx waitfeed init, toggle them anytime in the /feed sources menu, or add up to 10 custom RSS/Atom feeds in your config.",
   },
   {
     id: "uninstall-remove",

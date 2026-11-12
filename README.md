@@ -3,8 +3,11 @@
 > While your AI coding agent works, a slim news ticker appears in your
 > terminal — above the prompt in **OpenCode**, in the **Claude Code** or
 > **Google Antigravity** statusline.
-> You start typing — it vanishes. `/news` opens a fullscreen reader.
-> **100% local. No ads, no accounts, no server, no API keys.**
+> It's gone the moment the agent stops — which is when you start typing.
+> `/feed` opens a fullscreen reader.
+> One key hides the card while the agent works (`Ctrl+O` in OpenCode;
+> `npx waitfeed toggle` anywhere). **100% local. No ads, no accounts, no
+> server, no API keys.**
 
 ## Why
 
@@ -53,10 +56,15 @@ npm package and never touches the agent integrations — that is what
 
 | Host | Where the card lives | The card | Reader |
 | --- | --- | --- | --- |
-| OpenCode | above the prompt | headline + story written *only* from the fetched description + origin link | `/news` fullscreen reader — j/k move, Enter opens the link, keys 1–4 toggle channels |
+| OpenCode | above the prompt | headline + story written *only* from the fetched description + origin link | `/feed` fullscreen reader — j/k move, Enter opens the link, keys 1–4 toggle channels |
 | Claude Code | statusline row | headline + feed description + origin link | channel toggles via `config.json` |
 | Antigravity (AGY) | agent statusline | headline + feed description + origin link | channel toggles via `config.json` |
 
+- **Show or hide it on demand.** While the agent works, one action flips the
+  card: **`Ctrl+O`** in OpenCode, and **`npx waitfeed hide` / `show` /
+  `toggle`** from any shell for Claude Code and AGY. Dismiss the ticker to
+  focus on code — even mid-run — and bring it back. Nothing renders at idle
+  on any host, so the terminal is your own between turns.
 - **One data dir, every agent.** All adapters read the same
   `~/.config/waitfeed/cache.json`; one fetch pipeline feeds every agent on
   the machine, and a channel disabled anywhere is disabled everywhere.
@@ -77,6 +85,7 @@ Configuration is deliberately small — one file, `~/.config/waitfeed/config.jso
 | `sources` | all on | per-channel switches: `hn`, `devto`, `github`, `reddit` |
 | `rssUrls` | `[]` | your own RSS/Atom feeds (max 10; always run, `RSS` badge) |
 | `dwellSeconds` | `20` | card hold time during a run (5–120s) |
+| `newsMode` | `"auto"` | `"show"` forces the card on, `"hide"` forces it off, `"auto"` follows the agent |
 
 **Honest limits:** items whose fetched description is too thin to write a
 real story from stay invisible instead of getting a padded look-alike; if
@@ -96,7 +105,7 @@ shown on [npm](https://www.npmjs.com/package/waitfeed).
      ▼
  ~/.config/waitfeed/cache.json        ◄── the only shared state
      │
-     ├─ opencode/   OpenTUI Solid slot renders the cards; /news reader;
+     ├─ opencode/   OpenTUI Solid slot renders the cards; /feed reader;
      │              stories generated in-session by the user's own model
      ├─ claude/     statusLine renders the card; official hooks feed a
      │              per-session activity ledger; a settings flip re-runs the
@@ -144,7 +153,9 @@ PRs welcome — keep them small; CI must stay green.
 ## Privacy
 
 Everything lives locally in `~/.config/waitfeed/`. The only network calls
-are to the feed URLs you keep enabled, once every 30 minutes. No telemetry,
+are to the feed URLs you keep enabled: a 30-minute baseline, plus an early
+refill when you're down to your last few unread headlines (never more than
+once a minute). No telemetry,
 no accounts, no server — the CLI talks only to feeds and your local hosts'
 config.
 

@@ -20,9 +20,11 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promis
 import { appendFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import type { ChannelKey, WaitFeedConfig } from "./config"
+import { CHANNEL_KEYS, channelForSource } from "./config"
 import type { EnrichOptions } from "./enrich"
 import type { FetchAllResult } from "./feeds"
 import { isStoryable } from "./llm"
+import { groupItems, loadReaderState } from "./reader-state"
 import { dropJunk, dropNonEnglish, mergeItems, retainMerge } from "./ticker"
 import type { FeedItem } from "./types"
 
@@ -40,6 +42,13 @@ const ENRICH_PER_CYCLE = 24
 export const STORY_TARGET = 60
 /** A stale cycle lock older than this is stolen by a live run. */
 const LOCK_TTL_MS = 10 * 60 * 1000
+/** Reader low-water: when fewer than this many on-screen-unread items remain
+ * the queue is about to run dry — refill it from the back before the reader
+ * ever sees an empty panel. */
+const LOW_WATER_UNREAD = 5
+/** Floor between two fetches (rate limit): a low-water refill may never hit
+ * the sources faster than this, however fast the reader drains. */
+const MIN_TOPUP_GAP_MS = 60 * 1000
 
 export interface CacheFile {
   items: FeedItem[]
@@ -146,6 +155,29 @@ export function storyReady(cache: CacheFile, items: FeedItem[]): number {
   return items.filter((it) => isStoryable(it) && !!cache.summaries[it.url]?.text).length
 }
 
+/** How many items the reader has NOT been brought yet — the low-water signal.
+ * It mirrors the reader's own on-screen rule exactly: story hosts offer only
+ * story-complete items, and a channel the user switched off (RSS always
+ * shows) never counts. A missing/corrupt ledger loads as "everything unread"
+ * — it under-counts marks, never over-counts — so a real on-screen backlog is
+ * never mistaken for a dry pool. */
+async function countUnread(
+  dir: string,
+  cache: CacheFile,
+  cfg: WaitFeedConfig,
+  storyHost: boolean,
+): Promise<number> {
+  const state = await loadReaderState(join(dir, "reader-state.json"))
+  const on = new Set(CHANNEL_KEYS.filter((k) => cfg.sources[k]))
+  const offered = storyHost ? cache.items.filter((it) => !!cache.summaries[it.url]?.text) : cache.items
+  const visible = offered.filter((it) => {
+    if (it.source === "RSS") return true
+    const key = channelForSource(it.source)
+    return key !== undefined && on.has(key)
+  })
+  return groupItems(visible, state).upcoming.length
+}
+
 /**
  * One shared data cycle. Never throws — a failed cycle logs and leaves the
  * standing cache untouched, and the cycle lock is always released.
@@ -171,9 +203,23 @@ export async function runPipeline(deps: PipelineDeps): Promise<void> {
     // Config re-read every cycle: reader toggles apply at the next fetch
     // without any restart, and disabled channels are never contacted.
     const cfg = await deps.loadConfig()
-    if (cache.items.length > 0 && now() - cache.fetchedAt < refreshMs) {
-      log(`cycle: fresh skip (age ${Math.round((now() - cache.fetchedAt) / 1000)}s)`)
-      return
+    const age = now() - cache.fetchedAt
+    if (cache.items.length > 0 && age < refreshMs) {
+      // Queue refill: as soon as the reader is nearly out of unseen items we
+      // fetch again to top the queue up from the back — prompt, but never
+      // faster than the floor so the sources stay polite.
+      const unread = await countUnread(
+        dirname(deps.cachePath),
+        cache,
+        cfg,
+        deps.writeStories !== undefined,
+      )
+      if (unread < LOW_WATER_UNREAD && age >= MIN_TOPUP_GAP_MS) {
+        log(`cycle: low-water refill (${unread} unread, age ${Math.round(age / 1000)}s)`)
+      } else {
+        log(`cycle: fresh skip (age ${Math.round(age / 1000)}s, ${unread} unread)`)
+        return
+      }
     }
     // Story hosts re-probe the LLM layer on every fresh cycle; headline
     // hosts (no writer) are structurally locked to headline mode.

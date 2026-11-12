@@ -19,8 +19,9 @@
 //     (the same reserve ccstatusline ships as "full width minus 4").
 //   - Busy: no payload flag exists. An explicit agent_state (AGY-style
 //     payloads, test harnesses) is trusted verbatim; otherwise the
-//     hook-driven per-session activity ledger decides; a ledger-less install
-//     keeps the legacy always-busy mapping so pre-ledger setups keep working.
+//     hook-driven per-session activity ledger decides. A missing ledger means
+//     NO busy signal, so the card stays quiet — never an always-on panel; the
+//     idle terminal is Claude's own.
 import { CLAUDE_BUSY_STALE_MS, type ClaudeActivityDoc } from "./activity"
 import type { AgyStatuslineState } from "../../core/agy"
 
@@ -51,10 +52,10 @@ function detectTerminalColumns(): number | undefined {
  * Parse the piped session payload into the shared AGY statusline state.
  *
  * `activity` (optional) is the hook-driven ledger: when a ledger exists it
- * decides busy/idle for the payload's session; `null` or an omitted activity
- * falls back to the legacy has-session mapping. An explicit agent_state in
- * the payload always wins, verbatim — hosts that do pipe state keep exact
- * AGY parity.
+ * decides busy/idle for the payload's session. Without a ledger there is no
+ * busy signal, so the state stays idle — the card is quiet at idle, never a
+ * legacy always-on panel. An explicit agent_state in the payload always wins,
+ * verbatim — hosts that do pipe state keep exact AGY parity.
  */
 export function parseClaudeState(
   raw: string,
@@ -72,11 +73,6 @@ export function parseClaudeState(
           : undefined
 
     // Claude Code pipes { model, context_window, cost, workspace, ... }
-    const hasClaudeSession =
-      parsed.model !== undefined ||
-      parsed.workspace !== undefined ||
-      parsed.context_window !== undefined ||
-      parsed.cost !== undefined
 
     // The width: Claude Code always exports COLUMNS (the live terminal) and
     // never pipes a width field — the payload's terminal_width, if a host or
@@ -104,8 +100,8 @@ export function parseClaudeState(
       return { agent_state: freshBusy ? "working" : undefined, terminal_width: usableWidth }
     }
 
-    // No ledger (pre-ledger install) → the legacy always-busy panel.
-    return { agent_state: hasClaudeSession ? "working" : undefined, terminal_width: usableWidth }
+    // No ledger → no busy signal → quiet. The idle terminal is Claude's own.
+    return { agent_state: undefined, terminal_width: usableWidth }
   } catch {
     // Non-JSON or empty payload → quiet
   }

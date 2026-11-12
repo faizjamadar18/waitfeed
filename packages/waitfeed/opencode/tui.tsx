@@ -6,15 +6,18 @@
 // the text is one wrapping paragraph and grows as tall as the news needs.
 // The rotation is no-repeat first: an unseen card plays before any seen one,
 // and shown cards drift to the back of the line instead of looping instantly.
-// Slot B (prompt.footer.status): a short "✓ done in Xm · N headlines seen"
-// summary after a run. `/news` opens the NATIVE OpenCode popup: type to
-// search, the [Sources] row toggles channels by selection, and the honest
-// SEEN/UPCOMING piles come from the reader ledger. No custom key handling.
+// Slot B (prompt.footer.status): clean ctrl+o feed status pill, visible only
+// while the agent executes. When idle, OpenCode's bottom bar stays completely
+// untouched. `/feed` opens the NATIVE OpenCode popup: type to search, the
+// [Sources] row toggles channels by selection, and the honest SEEN/UPCOMING piles
+// come from the reader ledger. No custom key handling.
+// `ctrl+o` toggles the card during execution: press once to dismiss it while
+// you focus on the code, again to bring it back. While idle, toggling and news
+// are quiet.
 //
-// One consistent look, never mixed: while the LLM layer is on, only items
-// whose story is ready become visible (headline + story + link). When the
-// layer reports itself unavailable, the WHOLE view switches to headline mode
-// (headline + description + link) — the two modes never appear together.
+// One consistent look across all hosts (OpenCode, Claude Code, AGY):
+// channel badge + headline, dim context beneath, and origin link.
+// Zero AI calls, zero token burn, zero keys.
 //
 // The TUI never fetches feeds itself: the server-side plugin owns the
 // pipeline and writes ~/.config/waitfeed/cache.json; this side polls the
@@ -25,18 +28,28 @@ import { appendFile, readFile, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { Plugin } from "@opencode/plugin/tui"
+import type { ColorInput } from "@opentui/core"
 import {
   CHANNEL_BADGES,
   CHANNEL_KEYS,
   CHANNEL_NAMES,
   DEFAULT_CONFIG,
   channelForSource,
+  getHostNewsMode,
   loadConfig,
+  newsVisible,
+  nextNewsMode,
   saveConfig,
+  setHostNewsMode,
   type ChannelKey,
   type WaitFeedConfig,
 } from "../core/config"
-import { formatAgo, formatDuration, formatMeta, isContextDuplicate, linkLabel } from "../core/ticker"
+import {
+  formatAgo,
+  formatMeta,
+  isContextDuplicate,
+  linkLabel,
+} from "../core/ticker"
 import {
   emptyReaderState,
   groupItems,
@@ -46,12 +59,18 @@ import {
   saveReaderState,
   type ReaderState,
 } from "./reader-state"
+import {
+  applyTurnEnd,
+  applyTurnStart,
+  deleteTurnSession,
+  isUserTurnTrigger,
+  type TurnTransition,
+} from "./turn-state"
 import type { FeedItem } from "../core/types"
 
 const BUILD = "2026-10-29-v22-no-glanced-label"
 
 const CACHE_POLL_MS = 5_000
-const SUMMARY_MS = 6_000
 /** Ticker-glance writes batch behind this debounce: one save per rotation
  * lull, never one disk write per shown card. Reads still save instantly. */
 const GLANCE_SAVE_DELAY_MS = 2_000
@@ -95,6 +114,7 @@ export default Plugin.define({
     context.ui.toast.show({ message: "WaitFeed loaded", variant: "success" })
     void debugLog(`build ${BUILD}`)
 
+
     const cachePath = join(dataDir(), "cache.json")
     const readCache = async (): Promise<CacheFile | null> => {
       try {
@@ -106,34 +126,36 @@ export default Plugin.define({
 
     const [cache, setCache] = createSignal<CacheFile>({ items: [], fetchedAt: 0, summaries: {} })
     const [rotation, bumpRotation] = createSignal(0)
-    const [summary, setSummary] = createSignal<string | null>(null)
     const [cfg, setCfg] = createSignal<WaitFeedConfig>({
       ...DEFAULT_CONFIG,
       sources: { ...DEFAULT_CONFIG.sources },
       rssUrls: [],
     })
     void loadConfig().then((c) => {
-      setCfg(c)
+      const sanitized = getHostNewsMode(c, "opencode") === "show"
+        ? setHostNewsMode(c, "opencode", "auto")
+        : c
+      const hasLiveTurnState =
+        Object.keys(turnActiveMap()).length > 0 || Object.keys(turnDismissedMap()).length > 0
+      const merged = hasLiveTurnState
+        ? setHostNewsMode(sanitized, "opencode", getHostNewsMode(cfg(), "opencode"))
+        : sanitized
+      setCfg(merged)
       rescheduleRotate() // config may carry a custom dwellSeconds — apply live
+      if (sanitized !== c) {
+        void saveConfig(sanitized).catch(() => {})
+      }
     })
 
-    const summaries = () => cache().summaries ?? {}
     const items = () => cache().items
 
-    /** Story mode = the LLM layer is healthy. When it reports itself
-     * unavailable (gate refusal or repeated upstream failure), the WHOLE view
-     * switches to headline mode — the two looks are never mixed. */
-    const storyMode = (): boolean => !(cache().llmUnavailable ?? false)
-    const hasStory = (it: FeedItem): boolean => (summaries()[it.url]?.text ?? "").trim().length > 0
-
-    /** The single source of the display rule: story-ready items in story
-     * mode, every item in headline mode — and in both cases never a channel
-     * the user switched off (RSS subscriptions always show). Filtering goes
-     * through channelForSource, so the Reddit channel's stored "R/PROG"
-     * alias answers to the same switch as its "REDDIT" badge. */
+    /** The single source of the display rule: every item matching enabled channels
+     * (RSS subscriptions always show). Filtering goes through channelForSource, so
+     * the Reddit channel's stored "R/PROG" alias answers to the same switch as its
+     * "REDDIT" badge. */
     const visible = (): FeedItem[] => {
       const on = new Set(CHANNEL_KEYS.filter((k) => cfg().sources[k]))
-      return (storyMode() ? items().filter(hasStory) : items()).filter((it) => {
+      return items().filter((it) => {
         if (it.source === "RSS") return true
         const key = channelForSource(it.source)
         return key !== undefined && on.has(key)
@@ -224,11 +246,10 @@ export default Plugin.define({
       return chosen
     }
 
-    /** Card body: the item's LLM story when present, else the channel/meta
-     * description. A body that just repeats the headline is dropped — no
-     * value, no line. */
+    /** Card body: the channel/meta description. A body that just repeats the
+     * headline is dropped — no value, no line. */
     const bodyOf = (it: FeedItem): string => {
-      const raw = (summaries()[it.url]?.text ?? it.context ?? "").trim()
+      const raw = (it.context ?? "").trim()
       if (!raw || isContextDuplicate(it.title, raw)) return ""
       return raw
     }
@@ -259,17 +280,7 @@ export default Plugin.define({
      * finished its dwell is the pinned one; it is marked shown the moment its
      * dwell ends, so the next dwell picks the never-repeat order. */
     const rotationTick = (): void => {
-      trackBusy()
       const shownId = pinnedId
-      if (lastBusy) {
-        // Count DISTINCT headlines actually displayed this run — a rotation
-        // that shows the same card again is the same glance. Empty list
-        // (stories still writing) = nothing seen, counted honestly.
-        if (shownId && shownId !== lastShownId) {
-          lastShownId = shownId
-          seen++
-        }
-      }
       if (shownId) {
         shownAt.set(shownId, ++presentationNo)
         shownTimestamps.set(shownId, Date.now())
@@ -295,17 +306,52 @@ export default Plugin.define({
     }
     rescheduleRotate()
 
-    // --- done-summary bookkeeping (observational: no keystrokes touched) ---
-    // `seen` = distinct headlines displayed during the CURRENT busy run: it
-    // resets when the session turns busy and is snapshotted into the "✓ done"
-    // summary when that run succeeds — so the number always describes the
-    // run the user just watched, never a total from earlier runs.
-    let seen = 0
-    let lastShownId: string | undefined
-    let lastBusy = false
     let lastSessionID: string | undefined
-    const busySince = new Map<string, number>()
-    let summaryTimer: ReturnType<typeof setTimeout> | undefined
+
+    const trackActiveSession = (sessionID?: string): void => {
+      if (sessionID) lastSessionID = sessionID
+    }
+
+    /** Resolves the currently active / focused session ID. */
+    const getActiveSessionID = (): string | undefined => {
+      try {
+        const tabs = context.ui.tabs?.list?.()
+        if (tabs && tabs.length > 0) {
+          const active = tabs.find((t) => t.active)
+          if (active?.sessionID) {
+            lastSessionID = active.sessionID
+            return active.sessionID
+          }
+        }
+      } catch {
+        // tabs not supported or failed
+      }
+      return lastSessionID
+    }
+
+    // Per-session reactive state maps:
+    // Tracks active turns and dismissed states strictly by sessionID.
+    // One session executing never bleeds into another session that is idle.
+    const [turnActiveMap, setTurnActiveMap] = createSignal<Record<string, boolean>>({})
+    const [turnDismissedMap, setTurnDismissedMap] = createSignal<Record<string, boolean>>({})
+
+    const isTurnActive = (sessionID?: string): boolean => {
+      if (!sessionID) return false
+      return Boolean(turnActiveMap()[sessionID])
+    }
+
+    const isSessionDismissed = (sessionID?: string): boolean => {
+      if (!sessionID) return false
+      return Boolean(turnDismissedMap()[sessionID])
+    }
+
+    const setSessionDismissed = (sessionID: string | undefined, dismissed: boolean): void => {
+      if (!sessionID) return
+      setTurnDismissedMap((prev) => {
+        if (Boolean(prev[sessionID]) === dismissed) return prev
+        return { ...prev, [sessionID]: dismissed }
+      })
+    }
 
     /** Pull the state string out of whatever shape the status arrives in. */
     const stateOf = (raw: unknown): string | undefined => {
@@ -320,19 +366,24 @@ export default Plugin.define({
       return undefined
     }
 
-    /** Only a confirmed "idle" hides the ticker. Known busy values ("running",
-     * "retry", "busy") show it; anything unknown falls back to visible — the
-     * proven M1 default that can never leave the ticker stuck hidden. */
+    /** Returns true only when a confirmed busy status is reported for THIS session.
+     * When session state is idle, unknown, or not yet initialized, returns false
+     * so OpenCode stays quiet and natural while idle. */
     const isBusy = (sessionID?: string): boolean => {
       if (!sessionID) return false
       try {
         const state = stateOf(context.data.session.status(sessionID))
-        if (state === undefined) return true
-        return state !== "idle"
+        if (state) return state !== "idle"
       } catch (err) {
         void debugLog(`status read FAILED: ${(err as Error)?.message ?? String(err)}`)
-        return true
       }
+      try {
+        const tab = context.ui.tabs?.list?.()?.find((t) => t.sessionID === sessionID)
+        if (tab !== undefined) return tab.busy
+      } catch {
+        // ignore
+      }
+      return false
     }
 
     /** Waiting on the user is NOT executing: a pending permission request or
@@ -354,25 +405,18 @@ export default Plugin.define({
       }
     }
 
-    /** Keeps the busy window for the done summary. Runs in the rotation tick —
-     * always alive, no mount-order games. A busy flip STARTS a run: the seen
-     * counter resets so the done summary describes exactly that run. */
-    const trackBusy = (): void => {
-      const sid = lastSessionID
-      const busy = isBusy(sid)
-      if (busy !== lastBusy) {
-        void debugLog(`busy flip: ${lastBusy} -> ${busy} (sid ${sid ?? "?"})`)
-        lastBusy = busy
-        if (busy) {
-          seen = 0 // fresh run → fresh count
-          lastShownId = undefined
-        }
-      }
-      if (busy) {
-        if (sid && !busySince.has(sid)) busySince.set(sid, Date.now())
-      } else if (sid) {
-        busySince.delete(sid)
-      }
+    /** Active execution state: true only when THIS session is executing a turn or
+     * actively busy coding. Strictly false when this session is idle. */
+    const isExecuting = (sessionID?: string): boolean => {
+      const sid = sessionID ?? getActiveSessionID()
+      if (!sid) return false
+      return isTurnActive(sid) || isBusy(sid)
+    }
+
+    const isCurrentlyWorking = (sessionID?: string): boolean => {
+      const sid = sessionID ?? getActiveSessionID()
+      if (!sid || isSessionDismissed(sid)) return false
+      return isExecuting(sid)
     }
 
     /** Ticker card — the single-paragraph look with justified ends. Field
@@ -421,17 +465,22 @@ export default Plugin.define({
       )
     }
 
-    // --- Slot A: the live ticker, visible only while the agent EXECUTES ---
+    // --- Slot A: the live ticker, visible only while the session EXECUTES ---
     // Hidden when the session is idle and when the agent is waiting on the
-    // user (a question or a permission request) — that moment belongs to the
-    // question, not the news.
+    // user (a question or a permission request). Strictly per session.
     context.ui.slot({
       append: "session.composer.top",
       render: (props) => {
-        lastSessionID = props.sessionID
-        void debugLog(`slot A render: sid=${props.sessionID} idx=${rotation()}`)
+        trackActiveSession(props.sessionID)
+        const sid = () => props.sessionID
+        const busy = () => isCurrentlyWorking(sid())
+        const waiting = () => waitingOnUser(sid())
+        const mode = () => getHostNewsMode(cfg(), "opencode")
+        const show = () =>
+          isExecuting(sid()) && !isSessionDismissed(sid()) && newsVisible(mode(), busy(), waiting())
+        void debugLog(`slot A render: sid=${props.sessionID} idx=${rotation()} mode=${mode()}`)
         return (
-          <Show when={isBusy(props.sessionID) && !waitingOnUser(props.sessionID)}>
+          <Show when={!waiting() && show()}>
             <Show when={current()}>
               {(item) => <NewsParagraph item={item()} withBar />}
             </Show>
@@ -440,27 +489,111 @@ export default Plugin.define({
       },
     })
 
-    // --- Slot B: one-line done summary after a run ---
-    context.data.on("session.execution.succeeded", (event) => {
-      const data = (event as { data?: { sessionID?: string } }).data
-      const sid = data?.sessionID ?? lastSessionID
-      const since = sid ? busySince.get(sid) : undefined
-      if (sid) busySince.delete(sid)
-      const ms = since ? Date.now() - since : 0
-      const dur = ms > 5_000 ? ` in ${formatDuration(ms)}` : ""
-      void debugLog(`execution succeeded sid=${sid ?? "?"} busyWindow=${ms}ms seen=${seen}`)
-      setSummary(`✓ done${dur} · ${seen} headlines seen · ${readerGroups().upcoming.length} new in /news`)
-      if (summaryTimer) clearTimeout(summaryTimer)
-      summaryTimer = setTimeout(() => setSummary(null), SUMMARY_MS)
+    const applyTransition = (next: TurnTransition, logLine: string): void => {
+      if (!next.changed) return
+      setTurnActiveMap(next.active)
+      setTurnDismissedMap(next.dismissed)
+      if (next.cfg !== cfg()) {
+        setCfg(next.cfg)
+        void saveConfig(next.cfg).catch(() => {})
+      }
+      try {
+        context.renderer?.requestRender()
+      } catch {
+        // best-effort
+      }
+      void debugLog(logLine)
+    }
+
+    // --- Turn Lifecycle: immediate appear on Enter, preserve ctrl+o hide throughout the run ---
+    const onTurnStart = (sessionID?: string): void => {
+      const activeSid = getActiveSessionID()
+      const sid = sessionID ?? activeSid
+      if (!sid) return
+      if (!activeSid || sid === activeSid) trackActiveSession(sid)
+      const next = applyTurnStart(
+        { active: turnActiveMap(), dismissed: turnDismissedMap() },
+        cfg(),
+        sid,
+        activeSid,
+      )
+      applyTransition(next, `turn start: sid=${sid}`)
+    }
+
+    const onTurnEnd = (sessionID?: string): void => {
+      const activeSid = getActiveSessionID()
+      const sid = sessionID ?? activeSid
+      const next = applyTurnEnd(
+        { active: turnActiveMap(), dismissed: turnDismissedMap() },
+        cfg(),
+        sid,
+        activeSid,
+      )
+      applyTransition(next, `turn end: sid=${sid ?? "?"}`)
+    }
+
+    context.data.on("session.inbox.enqueued", (event) => {
+      const data = (event as { data?: { sessionID?: string; item?: { type?: string } } }).data
+      if (!isUserTurnTrigger(data?.item?.type)) return
+      onTurnStart(data?.sessionID)
     })
 
+    context.data.on("session.execution.started", (event) => {
+      const sid = (event as { data?: { sessionID?: string } }).data?.sessionID
+      onTurnStart(sid)
+    })
+
+    context.data.on("session.execution.failed", (event) => {
+      const sid = (event as { data?: { sessionID?: string } }).data?.sessionID
+      onTurnEnd(sid)
+    })
+
+    context.data.on("session.execution.interrupted", (event) => {
+      const sid = (event as { data?: { sessionID?: string } }).data?.sessionID
+      onTurnEnd(sid)
+    })
+
+    context.data.on("session.idle", (event) => {
+      const sid = (event as { data?: { sessionID?: string } }).data?.sessionID
+      onTurnEnd(sid)
+    })
+
+    context.data.on("session.execution.succeeded", (event) => {
+      const sid = (event as { data?: { sessionID?: string } }).data?.sessionID
+      onTurnEnd(sid)
+    })
+
+    context.data.on("session.deleted", (event) => {
+      const sid = (event as { data?: { sessionID?: string } }).data?.sessionID
+      if (sid) {
+        const cleaned = deleteTurnSession(
+          { active: turnActiveMap(), dismissed: turnDismissedMap() },
+          sid,
+        )
+        setTurnActiveMap(cleaned.active)
+        setTurnDismissedMap(cleaned.dismissed)
+      }
+    })
+
+    // --- Slot B: bottom bar status pill, visible ONLY while THIS session executes ---
+    // When idle, OpenCode's bottom bar is rendered natural and untouched.
     context.ui.slot({
       append: "prompt.footer.status",
-      render: () => (
-        <Show when={summary()}>
-          <text fg="#3fb950">{summary()}</text>
-        </Show>
-      ),
+      render: (props) => {
+        if (props?.sessionID) trackActiveSession(props.sessionID)
+        const sid = () => props?.sessionID ?? getActiveSessionID()
+        const active = () => isExecuting(sid()) && !waitingOnUser(sid())
+        const keyCol = (): ColorInput => context.theme?.text?.base ?? "#eeeeee"
+        const textCol = (): ColorInput => context.theme?.text?.muted ?? "#808080"
+        return (
+          <Show when={active()}>
+            <box flexDirection="row" alignItems="center" flexWrap="no-wrap">
+              <text fg={keyCol()} wrapMode="none">ctrl+o</text>
+              <text fg={textCol()} wrapMode="none"> feed</text>
+            </box>
+          </Show>
+        )
+      },
     })
 
     /** Cross-platform open in the user's browser. No shell strings —
@@ -500,7 +633,7 @@ export default Plugin.define({
         )
     }
 
-    // --- /news opens the NATIVE OpenCode popup (same as previously): the
+    // --- /feed opens the NATIVE OpenCode popup (same as previously): the
     // host provides the search bar, scrolling and description text. On top
     // of it: the [Sources] row (opens a second popup where selecting a
     // source flips it — no keys), and two section rows, SEEN and UPCOMING,
@@ -553,7 +686,7 @@ export default Plugin.define({
     }
 
     const openNewsDialog = async (): Promise<void> => {
-      void debugLog("open /news dialog")
+      void debugLog("open /feed dialog")
       const currentItems = visible()
       if (currentItems.length === 0) {
         context.ui.toast.show({
@@ -622,9 +755,7 @@ export default Plugin.define({
       // then once more next tick in case activation lags that same tick.
       // Nothing fires later — late re-measures of a live dialog cut its top.
       const chosenPromise = context.ui.dialog.select<string>({
-        title: storyMode()
-          ? `WaitFeed — News Reader (seen ${g.seen.length} · upcoming ${g.upcoming.length})`
-          : `WaitFeed — Tech Headlines (seen ${g.seen.length} · upcoming ${g.upcoming.length})`,
+        title: `WaitFeed — News Reader (seen ${g.seen.length} · upcoming ${g.upcoming.length})`,
         placeholder: "Type to search headlines or sources (hn, gh, dev, reddit)...",
         options,
       })
@@ -652,31 +783,72 @@ export default Plugin.define({
       }
     }
 
-    // --- /news command → the native popup above ---
+    // --- show / hide the card on demand (strictly for the active session) ---
+    // When the active session is idle, toggling is disabled and the card is quiet.
+    // When executing, ctrl+o flips visibility between dismissed and visible for THIS session.
+    const toggleNews = (): void => {
+      const sid = getActiveSessionID()
+      if (!sid || !isExecuting(sid)) return
+      const currentMode = getHostNewsMode(cfg(), "opencode")
+      const visibleNow = !isSessionDismissed(sid) && newsVisible(currentMode, isCurrentlyWorking(sid), waitingOnUser(sid))
+      const nextMode = nextNewsMode(visibleNow)
+      if (visibleNow) {
+        setSessionDismissed(sid, true)
+      } else {
+        setSessionDismissed(sid, false)
+      }
+      const next: WaitFeedConfig = setHostNewsMode(cfg(), "opencode", nextMode)
+      setCfg(next)
+      try {
+        context.renderer.requestRender()
+      } catch {
+        // renderer request is best-effort
+      }
+      void saveConfig(next)
+        .then(() => debugLog(`opencode newsMode -> ${nextMode} for sid=${sid}`))
+        .catch((err) =>
+          debugLog(`newsMode save FAILED: ${(err as Error)?.message ?? String(err)}`),
+        )
+    }
+
+    // --- /feed command → the native popup above; ctrl+o toggles the card ---
     context.keymap.layer(() => ({
       mode: "global",
       priority: 10,
       commands: [
         {
-          id: "waitfeed.news",
-          title: "Open news reader",
+          id: "waitfeed.feed",
+          title: "Open feed reader",
           group: "WaitFeed",
           palette: true,
-          slash: { name: "news" },
+          slash: { name: "feed" },
           enabled: () => true,
           suggested: true,
           run: () => {
             void openNewsDialog()
           },
         },
+        {
+          id: "waitfeed.toggle",
+          title: "Show / hide the news card",
+          description: "Bring the news back on demand — or dismiss it while you focus on the code.",
+          group: "WaitFeed",
+          palette: true,
+          // ctrl+o is unused by every OpenCode default (verified against the
+          // keybinds docs); the layer owns the binding via `bindings` below.
+          bind: "ctrl+o",
+          enabled: () => isExecuting(getActiveSessionID()),
+          run: () => {
+            toggleNews()
+          },
+        },
       ],
-      bindings: ["waitfeed.news"],
+      bindings: ["waitfeed.feed", "waitfeed.toggle"],
     }))
 
     return () => {
       clearInterval(pollTimer)
       if (rotateTimer) clearInterval(rotateTimer)
-      if (summaryTimer) clearTimeout(summaryTimer)
       if (glanceSaveTimer) clearTimeout(glanceSaveTimer)
     }
   },

@@ -130,14 +130,88 @@ describe("render gating — the panel is on ONLY while the agent executes", () =
     const wait = src.slice(start, src.indexOf("/** Keeps the busy window"))
     expect(wait, "wait check must consult permission.list").toContain("permission.list")
     expect(wait, "wait check must consult form.list — the question tool surfaces as a form").toContain("form.list")
-    // The slot gate combines both: busy AND NOT waiting on the user.
-    expect(src, "slot gate must be busy && !waitingOnUser").toMatch(
-      /<Show when=\{isBusy\(props\.sessionID\) && !waitingOnUser\(props\.sessionID\)\}>/,
+    // The slot gate rides the ONE shared rule: newsVisible(mode, busy, waiting).
+    // At idle it is always false — nothing pins the card on; only 'hide' forces
+    // it off mid-run (auto and the legacy 'show' both ride busy && !waiting).
+    const slot = src.slice(src.indexOf("// --- Slot A"))
+    expect(slot, "slot gate must consult newsVisible").toContain(
+      "newsVisible(mode(), busy(), waiting())",
     )
     // A failed wait read never leaves the ticker stuck hidden — fail open to busy.
     const failing = wait.indexOf("catch")
     expect(failing, "wait read must be guarded").toBeGreaterThan(-1)
     expect(wait.slice(failing), "failed wait read must NOT hide the ticker").toContain("false")
+  })
+})
+
+describe("show / hide on demand — the one shared switch, keyed once per host", () => {
+  it("the OpenCode panel registers a ctrl+o toggle bound to the shared newsMode", async () => {
+    const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
+    expect(src, "no toggle command — the card can never be dismissed on demand").toContain('id: "waitfeed.toggle"')
+    // ctrl+o is absent from every OpenCode default (verified against the docs).
+    expect(src, "the toggle must own ctrl+o").toContain('bind: "ctrl+o"')
+    expect(src, "the toggle must be in the layer's bindings").toContain(
+      'bindings: ["waitfeed.feed", "waitfeed.toggle"]',
+    )
+    // The toggle persists the flipped mode through the shared config.
+    expect(src).toContain("setHostNewsMode(cfg(), \"opencode\", nextMode)")
+    expect(src).toContain("void saveConfig(next)")
+    // The key is discoverable via the prompt footer status pill.
+    expect(src).toContain("ctrl+o")
+    expect(src).toContain("prompt.footer.status")
+  })
+
+  it("the footer status pill and toggle are active ONLY while executing (quiet when idle)", async () => {
+    const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
+    // Footer status pill wraps ctrl+o in an active/execution check:
+    const footerStart = src.indexOf('append: "prompt.footer.status"')
+    expect(footerStart).toBeGreaterThan(-1)
+    const footerSlice = src.slice(footerStart, footerStart + 600)
+    expect(footerSlice, "footer pill must only show when executing").toContain("isExecuting")
+
+    // Keymap command waitfeed.toggle is enabled only while executing:
+    const toggleStart = src.indexOf('id: "waitfeed.toggle"')
+    expect(toggleStart).toBeGreaterThan(-1)
+    const toggleSlice = src.slice(toggleStart, toggleStart + 600)
+    expect(toggleSlice, "toggle must be enabled only while executing").toContain("isExecuting")
+
+    // Composer slot A renders news only while executing:
+    const composerStart = src.indexOf('append: "session.composer.top"')
+    expect(composerStart).toBeGreaterThan(-1)
+    const composerSlice = src.slice(composerStart, composerStart + 600)
+    expect(composerSlice, "composer news must only show when executing").toContain("isExecuting")
+  })
+
+  it("execution and toggle state are strictly tracked per sessionID", async () => {
+    const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
+    // Per-session reactive state maps:
+    expect(src).toContain("turnActiveMap")
+    expect(src).toContain("turnDismissedMap")
+    // Composer slot gates strictly on props.sessionID:
+    expect(src).toContain("isExecuting(sid())")
+    expect(src).toContain("isCurrentlyWorking(sid())")
+    // Toggle gates strictly on active session:
+    expect(src).toContain("getActiveSessionID()")
+  })
+
+  it("mid-run step events never reset ctrl+o dismissal during an active turn", async () => {
+    const src = await readFile(join(PKG, "opencode", "tui.tsx"), "utf8")
+    // session.step.started fires on every LLM step / tool execution in a long run —
+    // wiring it to onTurnStart pops a dismissed news panel back open mid-work.
+    expect(src, "session.step.started must not re-open a dismissed news card").not.toMatch(
+      /on\(\s*["']session\.step\.started["']/,
+    )
+    // Turn starts must be guarded so duplicate lifecycle events or non-user inbox
+    // entries (e.g. compaction) never undo ctrl+o dismissal during an active run.
+    expect(src).toContain("applyTurnStart")
+    expect(src).toContain("isUserTurnTrigger")
+    // Slot A must explicitly enforce per-session dismissal regardless of mode.
+    const slotAStart = src.indexOf('append: "session.composer.top"')
+    const onTurnStartIdx = src.indexOf("const onTurnStart")
+    expect(slotAStart).toBeGreaterThan(-1)
+    expect(onTurnStartIdx).toBeGreaterThan(slotAStart)
+    const slotA = src.slice(slotAStart, onTurnStartIdx)
+    expect(slotA).toContain("!isSessionDismissed(sid())")
   })
 })
 

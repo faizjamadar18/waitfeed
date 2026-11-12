@@ -138,7 +138,7 @@ describe.skipIf(!distReady)("built bundles (pretest artifacts)", () => {
       expect(rows[0]!.length).toBe(120) // justified: the meta pins to the right corner
       expect(rows[1]).toContain("Alpha description body") // the fed metadata, readable
       expect(rows[1]!.length).toBeLessThanOrEqual(120)
-      expect(rows[2]).toContain("e.com/a") // the origin, ALWAYS the last row
+      expect(rows[2]).toContain("e.com/a")
       expect(res.stdout ?? "").toContain(`${ESC}]8;;https://e.com/a${BEL}`) // a REAL click target now
       expect(res.stdout ?? "").toContain(`${ESC}[38;5;202m`) // the HN badge, OpenCode orange
       // The walk opened its first dwell window and persisted it.
@@ -166,7 +166,8 @@ describe.skipIf(!distReady)("built bundles (pretest artifacts)", () => {
       const res = runStatusline(dir, WORKING)
       expect(res.status).toBe(0)
       const rows = visibleRows(res.stdout)
-      expect(rows).toHaveLength(2)
+      expect(rows).toHaveLength(2) // headline + origin
+      expect(rows[0]).toContain("Beta headline")
       expect(rows[1]).toContain("e.com/b")
       expect(res.stdout ?? "").toContain(`${ESC}]8;;https://e.com/b${BEL}`)
     } finally {

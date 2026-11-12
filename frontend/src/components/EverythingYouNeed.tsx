@@ -22,7 +22,7 @@ const TABS: AgentTab[] = [
     id: "opencode",
     name: "OpenCode",
     description:
-      "A live ticker above your prompt, plus /news to catch up on anything you missed.",
+      "A live ticker above your prompt, plus /feed to catch up on anything you missed.",
   },
   {
     id: "agy",

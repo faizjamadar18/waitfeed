@@ -29,22 +29,28 @@ export function Footer() {
           {/* Middle: Important Section Nav Links */}
           <div className="flex flex-wrap items-center gap-6 sm:gap-8">
             <Link
-              href="#how-it-works"
+              href="/#how-it-works"
               className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
             >
               How It Works
             </Link>
             <Link
-              href="#features"
+              href="/#features"
               className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
             >
               Features
             </Link>
             <Link
-              href="#faq"
+              href="/#faq"
               className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
             >
               FAQ
+            </Link>
+            <Link
+              href="/docs"
+              className="font-parabole text-xs font-normal uppercase tracking-[0.04em] text-[#191918] hover:text-black transition-colors"
+            >
+              Docs
             </Link>
           </div>
 

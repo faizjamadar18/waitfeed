@@ -1,7 +1,7 @@
-# WaitFeed — Claude Code Mod (the `/news` pane + prompt-band ticker)
+# WaitFeed — Claude Code Mod (the `/feed` pane + prompt-band ticker)
 
 > While your Claude Code agent works: the rotating news card in the band
-> above the prompt; `/news` opens a pane of pressable headlines — a press
+> above the prompt; `/feed` opens a pane of pressable headlines — a press
 > opens the link and marks the row read. Keyless, local, observational.
 
 This directory is a Claude Code **mod**: a plugin whose hooks module draws
@@ -16,10 +16,22 @@ survive.
 
 | Render site | What |
 | --- | --- |
-| `AbovePrompt` band | The dwell-correct rotating card — badge, headline, `▲ score · age`, description — **only while the agent executes** (`e.props.isWorking`). Idle it draws nothing (`next(e)`) — the shared quiet-at-idle rule. |
-| `/news` pane | Opened by the `news` command (`immediate: true` lets it open mid-turn; `focus: true` + `closeOnEscape: true`). A dim hint bar leads it — `↑/↓ move · Enter open · Esc close` — and it opens with the **first UPCOMING row focused** (the docs' focus prop, set only there; the VS Code extension draws as without). One **single line per headline** (`[src] Title · ▲ score · 2h  read 3m` — the description stays in the cache); `UPCOMING — new to you` first, then `SEEN — already brought to you`. Pressing a row opens the link and marks it read: Windows via `rundll32 url.dll,FileProtocolHandler` (single program, args verbatim) with `start /c` as the fallback; macOS `open` → Linux `xdg-open`. |
+| `AbovePrompt` band | The dwell-correct rotating card — badge, headline, `▲ score · age`, description — **only while the agent executes** (`e.props.isWorking`), unless the user's shared `newsMode` hides it. Idle it draws nothing (`next(e)`) — the shared quiet-at-idle rule; `hide` keeps the card off even mid-run, and nothing pins it on at idle. |
+| `/feed` pane | Opened by the `feed` command (`immediate: true` lets it open mid-turn; `focus: true` + `closeOnEscape: true`). A dim hint bar leads it — `↑/↓ move · Enter open · Esc close` — and it opens with the **first UPCOMING row focused** (the docs' focus prop, set only there; the VS Code extension draws as without). One **single line per headline** (`[src] Title · ▲ score · 2h  read 3m` — the description stays in the cache); `UPCOMING — new to you` first, then `SEEN — already brought to you`. Pressing a row opens the link and marks it read: Windows via `rundll32 url.dll,FileProtocolHandler` (single program, args verbatim) with `start /c` as the fallback; macOS `open` → Linux `xdg-open`. |
 
 Both sites render FROM the shared data; nothing here fetches.
+
+## Show / hide on demand
+
+The shared `newsMode` stored in `~/.config/waitfeed/config.json` — the same
+switch the OpenCode `Ctrl+O` binding and the shell commands write — flips the
+card off (`hide`) or back to normal (`auto`, which shows it only while the
+agent works). Claude Code runs WaitFeed autonomously: `init` removes any
+legacy `ctrl+n → command:waitfeed` keybinding rather than binding a key, so no
+keystroke is ever intercepted. From a shell, `npx waitfeed hide` / `show` /
+`toggle` writes the same field. The write is a read-modify-write of the one
+field, so channel/dwell settings survive and a concurrent host write loses at
+most `newsMode`. Nothing renders at idle — the statusline is Claude's own.
 
 ## The sticky-cursor pane (how the keys behave)
 
@@ -85,7 +97,7 @@ API because a hooks module has no Node.js APIs of its own.
 - Validate: `claude plugin validate packages/waitfeed/claude-mod`
 - Try without staging: `claude --plugin-dir packages/waitfeed/claude-mod`
 - After a session opened the pane once, it reopens from 110 columns; before
-  that a mod-opened pane wants 144. Opening it from `/news` always works.
+  that a mod-opened pane wants 144. Opening it from `/feed` always works.
 - Tests: `tests/claude-mod.test.ts` (source contract), the `claude` blocks
   in `tests/cli.test.ts` (staging + removal). Run the full suite from the
   repo root: `npx vitest run`.

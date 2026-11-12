@@ -5,8 +5,8 @@
 // rendering our stdout in the terminal status bar.
 //
 // Behavior (decisions split across statusline-state.ts and activity.ts):
-//   - Busy session (hook-driven activity ledger; explicit agent_state; or the
-//     legacy always-on fallback for ledger-less installs) → renders the
+//   - Busy session (hook-driven activity ledger; or an explicit agent_state)
+//     → renders the
 //     dwell-correct news card, sized inside the host's statusline field:
 //       ▍ [HN] title · ▲ 17 · 12h        ← channel-colored badge, muted meta
 //       Clean fed description snippet…   ← muted fed description, ≤3 rows
@@ -23,6 +23,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { loadConfig } from "../../core/config"
 import { readCacheDoc } from "../../core/pipeline"
+import { groupItems, loadReaderState } from "../../core/reader-state"
 import {
   paintAgyRows,
   renderAgySnapshot,
@@ -118,6 +119,14 @@ export async function main(argv: string[]): Promise<void> {
     cfg = null
   }
 
+  let unreadCount: number | undefined
+  try {
+    const rstate = await loadReaderState(join(dir, "reader-state.json"))
+    unreadCount = groupItems(cache?.items ?? [], rstate).upcoming.length
+  } catch {
+    unreadCount = cache?.items?.length
+  }
+
   const out = renderAgySnapshot({
     cache,
     config: cfg,
@@ -125,6 +134,9 @@ export async function main(argv: string[]): Promise<void> {
     windowStart: dwell.windowStart,
     dwellMs: cfg?.dwellSeconds ? cfg.dwellSeconds * 1000 : AGY_DWELL_DEFAULT_MS,
     state,
+    host: "claude",
+    unreadCount,
+    includeDivider: false,
   })
 
   if (out.ticks !== dwell.ticks || out.windowStart !== dwell.windowStart) {

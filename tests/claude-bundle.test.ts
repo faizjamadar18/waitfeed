@@ -18,7 +18,7 @@
 //        COLUMNS − 4, at any terminal width (the no-cut-off contract).
 //      - Honors the hook-driven activity ledger: a busy mark wakes the card
 //        for that session only, an idle mark quiets it, a stale mark goes
-//        quiet, and a ledger-less install keeps the legacy always-on panel.
+//        quiet, and a ledger-less install stays quiet at idle (no card).
 //   4. E2E: the scheduler bundle runs a keyless headline-mode cycle cleanly
 //      without dynamic require errors.
 import { describe, expect, it } from "vitest"
@@ -42,6 +42,18 @@ function runStatusline(dataDir: string, stdin: string) {
     input: stdin,
     encoding: "utf8",
   })
+}
+
+/** The real production busy signal. Claude Code pipes no agent_state, so the
+ * card is woken by a fresh per-session ledger mark — exactly what the hooks
+ * write. Tests that exercise the card must supply it; a bare payload is idle. */
+const CLAUDE_SESSION_ID = "sess-e2e"
+async function markBusy(dir: string, sessionID: string = CLAUDE_SESSION_ID): Promise<void> {
+  await writeFile(
+    join(dir, "claude-activity.json"),
+    JSON.stringify({ sessions: { [sessionID]: { busy: true, at: Date.now() } } }),
+    "utf8",
+  )
 }
 
 // ANSI built from char codes so this file stays plain ASCII.
@@ -84,6 +96,7 @@ const CLAUDE_SESSION = JSON.stringify({
   model: { id: "openrouter/free", display_name: "openrouter/free" },
   workspace: { current_dir: "/app" },
   terminal_width: 120,
+  session_id: CLAUDE_SESSION_ID,
 })
 
 /** Claude Code exports COLUMNS as the raw terminal width, but renders the
@@ -126,6 +139,7 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
     const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-"))
     try {
       await writeFile(join(dir, "cache.json"), CACHED, "utf8")
+      await markBusy(dir)
       const res = runStatusline(dir, CLAUDE_SESSION)
       expect(res.status).toBe(0)
       const rows = visibleRows(res.stdout)
@@ -139,6 +153,12 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       expect(rows[2]!.startsWith("   > ")).toBe(true) // OpenCode's origin-row marker
       expect(res.stdout ?? "").toContain(`${ESC}]8;;https://e.com/a${BEL}`) // OSC 8 link
       expect(res.stdout ?? "").toContain(`${ESC}[38;5;202m`) // HN orange
+      // Layout order: 1. Headline -> 2. Description -> 3. Origin link
+      const lines = (res.stdout ?? "").split("\n")
+      expect(lines[0]).toContain("Alpha headline")
+      expect(lines[1]).toContain("Alpha description body")
+      expect(lines[2]).toContain("e.com/a")
+      expect(lines[3]).toBe("")
 
       // Persisted dwell state in claude-rotation.json
       const dwell = JSON.parse(await readFile(join(dir, "claude-rotation.json"), "utf8")) as {
@@ -170,7 +190,8 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
     const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-"))
     try {
       await writeFile(join(dir, "cache.json"), CACHED, "utf8")
-      const payload = JSON.stringify({ model: { id: "openrouter/free" } })
+      await markBusy(dir)
+      const payload = JSON.stringify({ model: { id: "openrouter/free" }, session_id: CLAUDE_SESSION_ID })
       const res = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
         input: payload,
         encoding: "utf8",
@@ -192,6 +213,7 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-w-"))
       try {
         await writeFile(join(dir, "cache.json"), CACHED, "utf8")
+        await markBusy(dir)
         const res = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
           input: CLAUDE_SESSION,
           encoding: "utf8",
@@ -199,7 +221,7 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
         })
         expect(res.status, `COLUMNS=${columns}`).toBe(0)
         const rows = visibleRows(res.stdout)
-        expect(rows.length, `COLUMNS=${columns}`).toBeGreaterThanOrEqual(3)
+        expect(rows.length, `COLUMNS=${columns}`).toBeGreaterThanOrEqual(2)
         // The headline row is justified to the usable field; meta intact at the end.
         expect(rows[0]!.length, `COLUMNS=${columns}`).toBe(columns - MARGIN)
         expect(rows[0]!.endsWith("▲ 7 · now"), `COLUMNS=${columns}`).toBe(true)
@@ -227,7 +249,8 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
         llmUnavailable: true,
       })
       await writeFile(join(dir, "cache.json"), cache, "utf8")
-      const payload = JSON.stringify({ model: { id: "openrouter/free" } })
+      await markBusy(dir)
+      const payload = JSON.stringify({ model: { id: "openrouter/free" }, session_id: CLAUDE_SESSION_ID })
       const res = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
         input: payload,
         encoding: "utf8",
@@ -258,10 +281,12 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
         llmUnavailable: true,
       })
       await writeFile(join(dir, "cache.json"), plain, "utf8")
+      await markBusy(dir)
       const res = runStatusline(dir, CLAUDE_SESSION)
       expect(res.status).toBe(0)
       const rows = visibleRows(res.stdout)
       expect(rows).toHaveLength(2)
+      expect(rows[0]).toContain("Beta headline")
       expect(rows[1]).toContain("e.com/b")
       expect(res.stdout ?? "").toContain(`${ESC}]8;;https://e.com/b${BEL}`)
     } finally {
@@ -269,13 +294,14 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
     }
   })
 
-  it("E2E — idle prints nothing and does not advance rotation", async () => {
+  it("E2E — idle is quiet and collapses to zero lines", async () => {
     const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-"))
     try {
       await writeFile(join(dir, "cache.json"), CACHED, "utf8")
       const res = runStatusline(dir, IDLE)
       expect(res.status).toBe(0)
-      expect((res.stdout ?? "").trim()).toBe("")
+      const rows = visibleRows(res.stdout)
+      expect(rows).toHaveLength(0)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -317,7 +343,8 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
         llmUnavailable: true,
       })
       await writeFile(join(dir, "cache.json"), cache, "utf8")
-      const payload = JSON.stringify({ model: { id: "openrouter/free" } })
+      await markBusy(dir)
+      const payload = JSON.stringify({ model: { id: "openrouter/free" }, session_id: CLAUDE_SESSION_ID })
       const res = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
         input: payload,
         encoding: "utf8",
@@ -369,9 +396,9 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       const busyRun = runStatusline(dir, JSON.stringify({ session_id: "sess-1", model: { id: "x" } }))
       expect(visibleRows(busyRun.stdout)).toHaveLength(3)
 
-      // ...stays quiet for a session the ledger never saw...
+      // ...session the ledger never saw is quiet...
       const stranger = runStatusline(dir, JSON.stringify({ session_id: "sess-2", model: { id: "x" } }))
-      expect((stranger.stdout ?? "").trim()).toBe("")
+      expect(visibleRows(stranger.stdout)).toHaveLength(0)
 
       // ...and goes quiet again once the turn ends.
       const stop = spawnSync(process.execPath, [SCHEDULER_BUNDLE, "--data-dir", dir, "--idle"], {
@@ -381,27 +408,28 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       })
       expect(stop.status).toBe(0)
       const idleRun = runStatusline(dir, JSON.stringify({ session_id: "sess-1", model: { id: "x" } }))
-      expect((idleRun.stdout ?? "").trim()).toBe("")
+      expect(visibleRows(idleRun.stdout)).toHaveLength(0)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
   })
 
-  it("E2E — a stale busy mark (crashed session) goes quiet; a missing ledger stays legacy-busy", async () => {
+  it("E2E — a stale busy mark (crashed session) goes quiet; a missing ledger stays quiet at idle", async () => {
     const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-stale-"))
     try {
       await writeFile(join(dir, "cache.json"), CACHED, "utf8")
       const stale = { sessions: { "sess-1": { busy: true, at: Date.now() - 16 * 60_000 } } }
       await writeFile(join(dir, "claude-activity.json"), JSON.stringify(stale), "utf8")
       const staleRun = runStatusline(dir, JSON.stringify({ session_id: "sess-1", model: { id: "x" } }))
-      expect((staleRun.stdout ?? "").trim()).toBe("")
+      expect(visibleRows(staleRun.stdout)).toHaveLength(0)
 
-      // No ledger file at all → pre-ledger install → the legacy always-busy panel.
+      // No ledger file at all → no busy signal → the card stays quiet
+      // (never a legacy always-on panel).
       const noLedgerDir = await mkdtemp(join(tmpdir(), "waitfeed-claude-nolegacy-"))
       try {
         await writeFile(join(noLedgerDir, "cache.json"), CACHED, "utf8")
-        const legacy = runStatusline(noLedgerDir, JSON.stringify({ session_id: "sess-9", model: { id: "x" } }))
-        expect(visibleRows(legacy.stdout).length).toBeGreaterThanOrEqual(2)
+        const quiet = runStatusline(noLedgerDir, JSON.stringify({ session_id: "sess-9", model: { id: "x" } }))
+        expect(visibleRows(quiet.stdout)).toHaveLength(0)
       } finally {
         await rm(noLedgerDir, { recursive: true, force: true })
       }
@@ -439,9 +467,9 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
         "utf8",
       )
 
-      // The card must go quiet within this render.
+      // The card must collapse completely within this render.
       const quiet = runStatusline(dir, JSON.stringify({ session_id: "sess-1", transcript_path: transcript, model: { id: "x" } }))
-      expect((quiet.stdout ?? "").trim()).toBe("")
+      expect(visibleRows(quiet.stdout)).toHaveLength(0)
 
       // Self-heal: the ledger records idle for real, so the NEXT Enter is a
       // fresh idle→busy transition (the instant-paint flip fires).
@@ -770,6 +798,98 @@ describe.skipIf(!distReady)("built Claude bundles (pretest artifacts)", () => {
       expect(res.stderr).not.toContain("Dynamic require")
     } finally {
       await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("E2E — mid-run heartbeats preserve user hide until a fresh turn starts on UserPromptSubmit", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waitfeed-claude-hide-"))
+    const fakeHome = await mkdtemp(join(tmpdir(), "waitfeed-claude-home-"))
+    try {
+      const env = { ...process.env, HOME: fakeHome, USERPROFILE: fakeHome }
+      const settingsFile = join(dir, "settings.json")
+      const base = `node ${join(dir, "statusline.mjs")}`
+      await writeFile(
+        settingsFile,
+        JSON.stringify({ statusLine: { type: "command", command: base, refreshInterval: 2 } }, null, 2) + "\n",
+        "utf8",
+      )
+      await writeFile(
+        join(dir, "cache.json"),
+        JSON.stringify({
+          items: [{ id: "x", source: "HN", title: "Fresh item", url: "https://example.com/x" }],
+          fetchedAt: Date.now(),
+          summaries: {},
+          llmUnavailable: true,
+        }),
+        "utf8",
+      )
+      await writeFile(join(dir, "config.json"), JSON.stringify({ newsModes: { claude: "auto" } }), "utf8")
+
+      const runSched = (flag: "--heartbeat" | "--idle", payload: Record<string, unknown>) =>
+        spawnSync(process.execPath, [SCHEDULER_BUNDLE, "--data-dir", dir, "--settings", settingsFile, flag], {
+          input: JSON.stringify(payload),
+          encoding: "utf8",
+          timeout: 5_000,
+          env,
+        })
+
+      const readMode = async () =>
+        (JSON.parse(await readFile(join(dir, "config.json"), "utf8")) as { newsModes?: { claude?: string } })
+          .newsModes?.claude
+
+      // 1. User starts turn (UserPromptSubmit): statusline displays the card.
+      expect(runSched("--heartbeat", { session_id: "sess-1", hook_event_name: "UserPromptSubmit" }).status).toBe(0)
+      const visible = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        env,
+      })
+      expect(visible.stdout.trim().length).toBeGreaterThan(0)
+
+      // 2. User hides news mid-run (`hide` stored in dir/config.json).
+      await writeFile(join(dir, "config.json"), JSON.stringify({ newsModes: { claude: "hide" } }), "utf8")
+
+      // 3. Mid-run heartbeats must NOT reset `hide` back to `auto` or write to real/fake $HOME.
+      for (const payload of [
+        { session_id: "sess-1", hook_event_name: "PostToolUse" },
+        { session_id: "sess-1", hook_event_name: "PostToolUseFailure" },
+        { session_id: "sess-1", hook_event_name: "PermissionDenied" },
+        { session_id: "sess-1" },
+      ]) {
+        expect(runSched("--heartbeat", payload).status).toBe(0)
+        expect(await readMode()).toBe("hide")
+        expect(existsSync(join(fakeHome, ".config", "waitfeed", "config.json"))).toBe(false)
+      }
+
+      // Permission pause (--idle) followed by PostToolUse resume (idle -> busy) must also keep `hide`.
+      expect(runSched("--idle", { session_id: "sess-1", hook_event_name: "PermissionRequest" }).status).toBe(0)
+      expect(runSched("--heartbeat", { session_id: "sess-1", hook_event_name: "PostToolUse" }).status).toBe(0)
+      expect(await readMode()).toBe("hide")
+      expect(existsSync(join(fakeHome, ".config", "waitfeed", "config.json"))).toBe(false)
+
+      const hidden = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        env,
+      })
+      expect(hidden.stdout).toBe("")
+
+      // 4. Turn ends (--idle), then user presses Enter for a fresh turn (UserPromptSubmit):
+      //    `hide` resets to `auto` in `dir/config.json` (not $HOME), and statusline shows again.
+      expect(runSched("--idle", { session_id: "sess-1", hook_event_name: "Stop" }).status).toBe(0)
+      expect(runSched("--heartbeat", { session_id: "sess-1", hook_event_name: "UserPromptSubmit" }).status).toBe(0)
+      expect(await readMode()).toBe("auto")
+      expect(existsSync(join(fakeHome, ".config", "waitfeed", "config.json"))).toBe(false)
+
+      const resurfaced = spawnSync(process.execPath, [STATUSLINE_BUNDLE, "--data-dir", dir], {
+        input: JSON.stringify({ session_id: "sess-1" }),
+        encoding: "utf8",
+        env,
+      })
+      expect(resurfaced.stdout.trim().length).toBeGreaterThan(0)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+      await rm(fakeHome, { recursive: true, force: true })
     }
   })
 })

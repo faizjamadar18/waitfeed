@@ -53,8 +53,7 @@ describe("register.js obeys the static-analysis rules", () => {
   it("every event name is a string literal, with the exact matchers", async () => {
     const src = await registerSrc()
     expect(src).toContain("on('session.start'")
-    expect(src).toContain("on('command.run', { command: 'news' }")
-    expect(src).toContain("on('ui.render', { component: 'AbovePrompt' }")
+    expect(src).toContain("on('command.run', { command: 'feed' }")
     expect(src).toContain("on('ui.render', { component: 'Pane' }")
     // no computed event names — the scan only reads literals
     expect(src, "no on( into a variable").not.toMatch(/\bon\s*\(\s*[a-zA-Z$_][\w$]*\s*[,)]/)
@@ -91,26 +90,39 @@ describe("register.js obeys the static-analysis rules", () => {
   })
 })
 
-describe("the /news command opens the reader pane", () => {
+describe("the /feed command opens the reader pane", () => {
   it("immediate + the open shape from the interface docs", async () => {
     const src = await registerSrc()
-    expect(src).toContain("name: 'news',")
-    expect(src, "let /news open the pane while Claude is working").toContain("immediate: true,")
-    expect(src).toContain("$.ui.open({ id: PANE, title: 'WaitFeed — news', focus: true, closeOnEscape: true })")
+    expect(src).toContain("name: 'feed',")
+    expect(src, "let /feed open the pane while Claude is working").toContain("immediate: true,")
+    expect(src).toContain("$.ui.open({ id: PANE, title: 'WaitFeed — feed', focus: true, closeOnEscape: true })")
     expect(src, "opening a pane prints nothing in the transcript").toContain("return {}")
   })
 })
 
-describe("the band: the rotating ticker card, gated on execution", () => {
-  it("quiet when idle — next(e) — the no-fetched-surface rule", async () => {
+describe("autonomous lifecycle — no manual toggle command needed", () => {
+  it("does not register a manual /waitfeed toggle command", async () => {
     const src = await registerSrc()
-    expect(src).toContain("if (!e.props.isWorking) return next(e)")
-    expect(src).toContain("if (cacheItems.length === 0) return next(e)")
+    expect(src).not.toContain("name: 'waitfeed',")
+    expect(src).not.toContain("on('command.run', { command: 'waitfeed' }")
   })
-  it("rotates on the shared wall-clock dwell, redrawing via invalidate", async () => {
+
+  it("does not register a keystroke toggle handler", async () => {
+    const src = await registerSrc()
+    expect(src).not.toContain("toggleNews")
+    expect(src).not.toContain("writeNewsMode")
+  })
+})
+
+describe("ticker rendering ownership", () => {
+  it("ticker card is delegated to the terminal statusline, not rendered as a duplicate AbovePrompt mod", async () => {
+    const src = await registerSrc()
+    expect(src).not.toContain("component: 'AbovePrompt'")
+  })
+  it("dwell timer invalidates UI periodically for active components", async () => {
     const src = await registerSrc()
     expect(src).toContain("const TICKER_DWELL_MS = 20_000")
-    expect(src).toContain("const redraw = () => $.ui.invalidate('ui.render')")
+    expect(src).toContain("$.ui.invalidate('ui.render')")
   })
 })
 

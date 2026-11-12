@@ -194,11 +194,11 @@ async function openLink($, url) {
 export function register(on) {
   // Runs before your first prompt, and again after every reload.
   on('session.start', async ($, e, next) => {
-    // /news — immediate lets the pane open while Claude is working.
+    // /feed — immediate lets the pane open while Claude is working.
     try {
       await $.command.register({
-        name: 'news',
-        description: 'Open the WaitFeed news reader pane',
+        name: 'feed',
+        description: 'Open the WaitFeed feed reader pane',
         immediate: true,
       })
     } catch {
@@ -224,9 +224,9 @@ export function register(on) {
     return next(e)
   })
 
-  // Runs when you type /news — open the pane with the keyboard; Esc closes it.
-  on('command.run', { command: 'news' }, async ($) => {
-    await $.ui.open({ id: PANE, title: 'WaitFeed — news', focus: true, closeOnEscape: true })
+  // Runs when you type /feed — open the pane with the keyboard; Esc closes it.
+  on('command.run', { command: 'feed' }, async ($) => {
+    await $.ui.open({ id: PANE, title: 'WaitFeed — feed', focus: true, closeOnEscape: true })
     // A fresh open starts the cursor on the first UPCOMING row again; the
     // autoFocus'ed row will raise ui.focus onto it anyway once it lands.
     ringKey = 'up-0'
@@ -235,23 +235,9 @@ export function register(on) {
     return {}
   })
 
-  // The band above the prompt: the rotating card, ONLY while the agent
-  // executes. Idle → next(e) draws nothing: the quiet rule every host keeps.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!e.props.isWorking) return next(e)
-    if (cacheItems.length === 0) return next(e)
-    const it = cacheItems[cursor % cacheItems.length]
-    const { Box, Text } = $.ui.resolve(e)
-    const row = [
-      Text({ children: ['[' + (it.source || 'RSS') + ']'], dimColor: true }),
-      Text({ children: [it.title || it.id], bold: true }),
-    ]
-    const meta = metaOf(it, false)
-    if (meta) row.push(Text({ children: [meta], dimColor: true }))
-    const children = [Box({ flexDirection: 'row', columnGap: 1, children: row })]
-    if (it.context) children.push(Text({ children: [it.context], dimColor: true }))
-    return Box({ flexDirection: 'column', children })
-  })
+  // The news ticker card is rendered cleanly in Claude Code's statusline row
+  // (using direct terminal ANSI with matching OpenCode theme colors and OSC-8 links).
+  // The mod owns the /news reader pane below and the /waitfeed toggle command.
 
   // The pane: one pressable row per headline, its description under it.
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {

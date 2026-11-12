@@ -14,11 +14,15 @@ import {
   registerOpenCodePlugin,
   registerAgyPlugin,
   registerClaudePlugin,
+  registerClaudeKeybindings,
   removeOpenCodePlugin,
   removeAgyPlugin,
   removeClaudePlugin,
+  removeClaudeKeybindings,
   removeWaitFeedData,
   saveWaitFeedUserConfig,
+  setNewsMode,
+  toggleNewsMode,
   countLinesRows,
 } from "../packages/waitfeed/bin.mjs"
 
@@ -89,12 +93,14 @@ describe("Config writers in isolated environments", () => {
         sources: Record<string, boolean>
         rssUrls: string[]
         dwellSeconds: number
+        newsMode: string
       }
       expect(data.setupDone).toBe(true)
       expect(data.sources.hn).toBe(true)
       expect(data.sources.devto).toBe(false)
       expect(data.rssUrls).toEqual(["https://news.ycombinator.com/rss"])
       expect(data.dwellSeconds).toBe(20)
+      expect(data.newsMode).toBe("auto")
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -243,6 +249,156 @@ describe("Config writers in isolated environments", () => {
       expect(thirdSettings.statusLine?.command.endsWith(" --wf"), "flip variant survives a re-run of init").toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("Claude Code ctrl+n keybinding wiring (merged, never clobbered)", () => {
+  const readKb = async (home: string) =>
+    JSON.parse(await readFile(join(home, ".claude", "keybindings.json"), "utf8")) as {
+      $schema?: string
+      bindings?: Array<{ context?: string; bindings?: Record<string, string> }>
+    }
+
+  it("writes ctrl+n → command:waitfeed into a Chat block, and is idempotent", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-kb-"))
+    try {
+      const first = await registerClaudeKeybindings(home)
+      expect(first.configured).toBe(true)
+      const doc = await readKb(home)
+      const chat = doc.bindings?.find((b) => b.context === "Chat")
+      expect(chat?.bindings?.["ctrl+n"]).toBe("command:waitfeed")
+
+      const second = await registerClaudeKeybindings(home)
+      expect(second.alreadyConfigured).toBe(true)
+      const again = await readKb(home)
+      expect(again.bindings?.filter((b) => b.context === "Chat")).toHaveLength(1)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("preserves every foreign binding and never retakes a ctrl+n someone else owns", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-kb2-"))
+    try {
+      await mkdir(join(home, ".claude"), { recursive: true })
+      await writeFile(
+        join(home, ".claude", "keybindings.json"),
+        JSON.stringify({
+          bindings: [
+            { context: "Chat", bindings: { "ctrl+n": "command:my-thing" } },
+            { context: "Global", bindings: { "ctrl+p": "command:other" } },
+          ],
+        }),
+        "utf8",
+      )
+      const res = await registerClaudeKeybindings(home)
+      expect(res.configured).toBe(false)
+      expect(res.conflict).toBe(true)
+      const doc = await readKb(home)
+      expect(doc.bindings?.find((b) => b.context === "Chat")?.bindings?.["ctrl+n"]).toBe("command:my-thing")
+      expect(doc.bindings?.find((b) => b.context === "Global")?.bindings?.["ctrl+p"]).toBe("command:other")
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("removal takes back only our entry; foreign keys and blocks survive", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-kb3-"))
+    try {
+      await registerClaudeKeybindings(home)
+      // Add a foreign binding beside ours, then remove.
+      const doc = await readKb(home)
+      const chat = doc.bindings?.find((b) => b.context === "Chat")
+      chat!.bindings!["ctrl+j"] = "command:keep-me"
+      await writeFile(join(home, ".claude", "keybindings.json"), JSON.stringify(doc, null, 2), "utf8")
+
+      const res = await removeClaudeKeybindings(home)
+      expect(res.configured).toBe(true)
+      const after = await readKb(home)
+      const afterChat = after.bindings?.find((b) => b.context === "Chat")
+      expect(afterChat?.bindings?.["ctrl+n"]).toBeUndefined()
+      expect(afterChat?.bindings?.["ctrl+j"]).toBe("command:keep-me")
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("a file holding only our binding is deleted; a missing one is a no-op", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-kb4-"))
+    try {
+      await registerClaudeKeybindings(home)
+      const res = await removeClaudeKeybindings(home)
+      expect(res.configured).toBe(true)
+      expect(existsSync(join(home, ".claude", "keybindings.json"))).toBe(false)
+
+      const missing = await removeClaudeKeybindings(home)
+      expect(missing.configured).toBe(false)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("the shared show/hide switch (npx waitfeed show | hide | toggle)", () => {
+  it("setNewsMode preserves every other config key", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-mode-"))
+    try {
+      await saveWaitFeedUserConfig({ hn: true, devto: false }, ["https://rss.test/x"], dir)
+      const res = await setNewsMode("hide", dir)
+      expect(res.mode).toBe("hide")
+      const data = JSON.parse(await readFile(join(dir, "config.json"), "utf8")) as {
+        newsMode: string
+        sources: Record<string, boolean>
+        rssUrls: string[]
+      }
+      expect(data.newsMode).toBe("hide")
+      expect(data.sources.hn).toBe(true)
+      expect(data.sources.devto).toBe(false)
+      expect(data.rssUrls).toEqual(["https://rss.test/x"])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("toggle flips what the host shows: auto/hide → hide → auto → hide", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wf-mode2-"))
+    try {
+      // No config yet: the default auto is treated as visible → hide.
+      const first = await toggleNewsMode(dir)
+      expect(first.mode).toBe("hide")
+      const second = await toggleNewsMode(dir)
+      expect(second.mode).toBe("auto")
+      const third = await toggleNewsMode(dir)
+      expect(third.mode).toBe("hide")
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("CLI show / hide / toggle write the shared mode under the faked home", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-mode-e2e-"))
+    const env = { ...process.env, HOME: home, USERPROFILE: home }
+    const cfgPath = join(home, ".config", "waitfeed", "config.json")
+    const readMode = async () =>
+      (JSON.parse(await readFile(cfgPath, "utf8")) as { newsMode: string }).newsMode
+    try {
+      const hide = spawnSync(process.execPath, [BIN, "hide"], { encoding: "utf8", env })
+      expect(hide.status).toBe(0)
+      expect(hide.stdout).toContain("WaitFeed news card: hide")
+      expect(await readMode()).toBe("hide")
+
+      const show = spawnSync(process.execPath, [BIN, "show"], { encoding: "utf8", env })
+      expect(show.status).toBe(0)
+      expect(show.stdout).toContain("WaitFeed news card: show")
+      expect(await readMode()).toBe("show")
+
+      const toggle = spawnSync(process.execPath, [BIN, "toggle"], { encoding: "utf8", env })
+      expect(toggle.status).toBe(0)
+      expect(toggle.stdout).toContain("WaitFeed news card: hide")
+      expect(await readMode()).toBe("hide")
+    } finally {
+      await rm(home, { recursive: true, force: true })
     }
   })
 })
@@ -572,7 +728,7 @@ describe("TUI physical row calculations", () => {
     const lines = [
       "  (Use ↑/↓ to navigate • Space to toggle • Enter to confirm)",
       "  │",
-      "  ▸ [●] OpenCode             (Prompt-line card & /news reader)",
+      "  ▸ [●] OpenCode             (Prompt-line card & /feed reader)",
       "    [●] Google Antigravity   (Statusline hook & dwell-clock)",
       "    [ ] Claude Code          (Wait-state hook · v1.2)",
     ]

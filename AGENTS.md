@@ -61,15 +61,14 @@ watcher. Renders only READ the cache; they never fetch.
 
 OpenCode adapter, v2 plugin API (docs: <https://opencode.ai/v2/docs/build/plugins>):
 
-- Stories use `ctx.session.generate({ sessionID, prompt })` on a dedicated digest session (ID persists as `digestSessionID`) — rides the user's own pipeline, works on the free tier. Stateless `ctx.generate.text` from setup IS refused; refusal → cache gets `llmUnavailable: true`, auto re-probe next cycle.
-- `ctx.session.list` does NOT exist (docs mention it, the type doesn't) — clean up orphan digest sessions via `opencode api session.remove`.
-- The host re-runs plugin `setup` once per active session — assume concurrent setups; the stale-TTL `cycle.lock` + race-safe `digestSessionID` adoption handle it.
+- Zero LLM tokens: OpenCode uses the shared Headline + Description + Link pipeline (same as Claude and Antigravity) — 0 tokens, 0 API keys, completely free.
+- The host re-runs plugin `setup` once per active session — assume concurrent setups; the stale-TTL `cycle.lock` handles it.
 - The host runs Node 20 but `@effect/platform-node` pulls `undici@8` (needs Node ≥22) — top-level undici v8 makes the plugin fail to load SILENTLY. Keep `overrides: { "undici": "6.29.1" }`; reinstall with `npm install --legacy-peer-deps`.
 
 OpenCode adapter, display invariants:
 
 - Descriptions are stored up to 600 chars (`CONTEXT_MAX` in `core/feeds.ts`); readers wrap what they get — never re-truncate display text into shorter stored data.
-- One look, never mixed: story-ready items only while the LLM layer is healthy; the WHOLE view flips to headline mode when `llmUnavailable`.
+- Consistent look across all providers: headline + description (indented, wrapped) + origin link.
 - Header-zone lines stay single strings (a multi-node chips row once overprinted the line below); glyphs beyond `▍ ▸ ▲ · > …` have already bitten once.
 
 Consumer-machine safety — the "works in dev, breaks on install" bug class, enforced by `tests/package.test.ts`:

@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { WaitFeedBrand } from "./Icons";
 import { CtaButton } from "./CtaButton";
 import { RELACE_EASE } from "@/lib/motion";
 
 export function Navbar() {
+  const pathname = usePathname();
+  const isDocs = pathname === "/docs";
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -16 }}
@@ -27,11 +31,17 @@ export function Navbar() {
         {/* Right: Actions */}
         <div className="flex items-center gap-3">
           <Link
-            href="https://github.com/faizjamadar18/waitfeed#readme"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2.5 py-1.5 text-xs font-parabole font-medium text-[#191918] uppercase tracking-wider hover:opacity-80 transition-opacity"
+            href="/docs"
+            aria-current={isDocs ? "page" : undefined}
+            className={`px-2.5 py-1.5 text-xs font-parabole font-medium uppercase tracking-wider transition-opacity inline-flex items-center gap-1.5 ${
+              isDocs
+                ? "text-[#191918]"
+                : "text-[#191918] hover:opacity-80"
+            }`}
           >
+            {isDocs && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#fcaa2d]" aria-hidden="true" />
+            )}
             DOCS
           </Link>
           <CtaButton

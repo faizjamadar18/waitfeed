@@ -151,6 +151,7 @@ export async function main(argv: string[]): Promise<void> {
     windowStart: dwell.windowStart,
     dwellMs: cfg?.dwellSeconds ? cfg.dwellSeconds * 1000 : AGY_DWELL_DEFAULT_MS,
     state,
+    host: "agy",
   })
   if (out.ticks !== dwell.ticks || out.windowStart !== dwell.windowStart) {
     await writeDwellState(dwellFile, out.ticks, out.windowStart)
@@ -159,12 +160,16 @@ export async function main(argv: string[]): Promise<void> {
   // core). One trailing newline keeps the "print nothing while quiet" shape
   // the host expects.
   const painted = paintAgyRows(out.rows)
-  process.stdout.write(`${painted.join("\n")}\n`)
+  if (painted.length > 0) {
+    process.stdout.write(`${painted.join("\n")}\n`)
+  } else {
+    process.stdout.write("")
+  }
 }
 
 main(process.argv.slice(2))
   .catch(() => {
     // The statusline render must never blow up the host TUI.
-    process.stdout.write("\n")
+    process.stdout.write("")
   })
   .finally(() => process.exit(0))

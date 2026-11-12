@@ -76,8 +76,20 @@ land within a few hundred milliseconds instead of at the next refresh tick.
 The 2-second `refreshInterval` remains as the safety net. The hook writes
 only the `statusLine.command` string (read-modify-write of settings.json),
 the suffix is inert for rendering, and a re-run of init accepts either
-variant. A missing ledger (pre-ledger install) falls back to the legacy
-always-busy panel so the news keeps working without a re-run of init.
+variant. A missing ledger means no busy signal — the card stays quiet at
+idle instead of showing an always-on panel (re-run `init` to restore it).
+
+## Show / hide on demand
+
+The card obeys the shared `newsMode` in `~/.config/waitfeed/config.json`
+(`auto` | `show` | `hide`) exactly like the other hosts: `auto` is the
+busy-ledger rule above, and `hide` keeps the card off even while the agent
+works. At idle there is nothing to hide — the card never renders then, so the
+statusline is Claude's own (`show` is a legacy alias of `auto`). Switch it
+from any shell with `npx waitfeed hide` / `show` / `toggle`, which writes the
+same field. Claude Code runs WaitFeed autonomously: `init` removes any legacy
+`ctrl+n` keybinding rather than binding a key, so no keystroke is ever
+intercepted.
 
 ## Install & migration
 
@@ -86,9 +98,9 @@ and writes `statusLine` + the hook set into `~/.claude/settings.json`
 (idempotent — re-running never duplicates entries).
 
 **Upgrading from v1.2-era installs:** re-run `npx waitfeed init` once to
-receive the full hook set, `refreshInterval`, and the quiet-when-idle
-behavior. Without the re-run the panel keeps working in legacy
-always-on mode.
+receive the full hook set, `refreshInterval`, and the busy-ledger. Without the
+re-run there is no ledger, so there is no busy signal — the card stays quiet
+at idle and never paints while the agent works; re-run `init` to bring it back.
 
 ## Development
 

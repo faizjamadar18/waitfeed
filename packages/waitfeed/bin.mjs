@@ -223,6 +223,91 @@ async function registerAgyPlugin(customHome) {
   }
 }
 
+// --- Claude Code keybindings (ctrl+n → /waitfeed) ---
+// Claude Code reads ~/.claude/keybindings.json (docs: code.claude.com/docs/en/
+// keybindings). We add ONE Chat binding — ctrl+n → command:waitfeed — and merge
+// around whatever is already there. A key the user already bound to something
+// else is never clobbered; we just leave it and report the conflict.
+const CLAUDE_KEYBINDINGS_SCHEMA = "https://www.schemastore.org/claude-code-keybindings.json"
+const CLAUDE_TOGGLE_KEY = "ctrl+n"
+const CLAUDE_TOGGLE_ACTION = "command:waitfeed"
+
+async function registerClaudeKeybindings(home) {
+  const path = join(home, ".claude", "keybindings.json")
+  let doc = null
+  if (existsSync(path)) {
+    try {
+      const clean = stripJsoncComments(await readFile(path, "utf8"))
+      const parsed = clean ? JSON.parse(clean) : null
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) doc = parsed
+      else return { path, configured: false, unreadable: true }
+    } catch {
+      return { path, configured: false, unreadable: true }
+    }
+  }
+  if (!doc) doc = { $schema: CLAUDE_KEYBINDINGS_SCHEMA, bindings: [] }
+  if (!Array.isArray(doc.bindings)) doc.bindings = []
+
+  let chat = doc.bindings.find(
+    (block) => block && block.context === "Chat" && block.bindings && typeof block.bindings === "object",
+  )
+  if (!chat) {
+    chat = { context: "Chat", bindings: {} }
+    doc.bindings.push(chat)
+  }
+
+  const existing = chat.bindings[CLAUDE_TOGGLE_KEY]
+  if (existing !== undefined && existing !== CLAUDE_TOGGLE_ACTION) {
+    // Someone else owns ctrl+n — never take it away from them.
+    return { path, configured: false, conflict: true }
+  }
+  if (existing === CLAUDE_TOGGLE_ACTION) return { path, configured: true, alreadyConfigured: true }
+
+  chat.bindings[CLAUDE_TOGGLE_KEY] = CLAUDE_TOGGLE_ACTION
+  if (!doc.$schema) doc.$schema = CLAUDE_KEYBINDINGS_SCHEMA
+  await mkdir(join(home, ".claude"), { recursive: true })
+  await writeFile(path, JSON.stringify(doc, null, 2) + "\n", "utf8")
+  return { path, configured: true, alreadyConfigured: false }
+}
+
+async function removeClaudeKeybindings(home) {
+  const path = join(home, ".claude", "keybindings.json")
+  const doc = await readJsonConfig(path)
+  if (doc === null) return { configured: false, path }
+  if (doc === undefined) return { configured: false, unreadable: true, path }
+  if (!Array.isArray(doc.bindings)) return { configured: false, path }
+
+  let touched = false
+  for (const block of doc.bindings) {
+    if (!block || typeof block !== "object" || !block.bindings || typeof block.bindings !== "object") continue
+    if (block.bindings[CLAUDE_TOGGLE_KEY] === CLAUDE_TOGGLE_ACTION) {
+      delete block.bindings[CLAUDE_TOGGLE_KEY]
+      touched = true
+    }
+  }
+  if (!touched) return { configured: false, path }
+
+  // Drop any Chat block OUR removal emptied; keep everything else.
+  doc.bindings = doc.bindings.filter(
+    (block) =>
+      !(
+        block &&
+        block.context === "Chat" &&
+        block.bindings &&
+        typeof block.bindings === "object" &&
+        Object.keys(block.bindings).length === 0
+      ),
+  )
+  if (doc.bindings.length === 0) delete doc.bindings
+  const meaningful = Object.keys(doc).filter((k) => k !== "$schema")
+  if (meaningful.length === 0) {
+    await rm(path, { force: true })
+    return { configured: true, path }
+  }
+  await writeJsonConfig(path, doc)
+  return { configured: true, path }
+}
+
 // --- Claude Code Config Utilities ---
 async function registerClaudePlugin(customHome) {
   const home = customHome || homedir()
@@ -400,6 +485,13 @@ async function registerClaudePlugin(customHome) {
 
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
 
+  // Ensure any legacy ctrl+n keybinding is cleaned up so Claude Code stays purely autonomous.
+  try {
+    await removeClaudeKeybindings(home)
+  } catch {
+    // best-effort
+  }
+
   return {
     pluginDir,
     settingsPath,
@@ -484,67 +576,72 @@ async function removeClaudePlugin(customHome) {
   const marker = pluginDir.replace(/\\/g, "/")
 
   const settings = await readJsonConfig(settingsPath)
-  if (settings === null) return { configured: false, path: settingsPath }
   if (settings === undefined) return { configured: false, unreadable: true, path: settingsPath }
 
   let touched = false
 
-  // statusLine: remove only when it points into the staged waitfeed dir —
-  // init's flip variant appends " --wf" at runtime, same marker either way.
-  if (settings.statusLine && typeof settings.statusLine === "object") {
-    const command = typeof settings.statusLine.command === "string" ? settings.statusLine.command : ""
-    if (command.includes(marker)) {
-      delete settings.statusLine
-      touched = true
-    }
-  }
-
-  // env: take our CLAUDE_CODE_PLUGIN_DIRS entry back out. Same platform
-  // separator; foreign plugin dirs and other env keys survive untouched.
-  if (settings.env && typeof settings.env === "object" && typeof settings.env.CLAUDE_CODE_PLUGIN_DIRS === "string") {
-    const dirSep = process.platform === "win32" ? ";" : ":"
-    const below = join(pluginDir, "claude-mod").replace(/\\/g, "/")
-    const entries = settings.env.CLAUDE_CODE_PLUGIN_DIRS.split(dirSep)
-      .map((p) => p.trim())
-      .filter(Boolean)
-    const kept = entries.filter((p) => p.replace(/\\/g, "/") !== below)
-    if (kept.length !== entries.length) {
-      touched = true
-      if (kept.length === 0) delete settings.env.CLAUDE_CODE_PLUGIN_DIRS
-      else settings.env.CLAUDE_CODE_PLUGIN_DIRS = kept.join(dirSep)
-      if (Object.keys(settings.env).length === 0) delete settings.env
-    }
-  }
-
-  // hooks: strip every hook whose command calls the waitfeed scheduler.
-  // Entries that lose all their hooks disappear, events that lose all their
-  // entries disappear, and anything else in settings.hooks survives.
-  if (settings.hooks && typeof settings.hooks === "object") {
-    for (const event of Object.keys(settings.hooks)) {
-      const entries = settings.hooks[event]
-      if (!Array.isArray(entries)) continue
-      const cleaned = []
-      for (const entry of entries) {
-        if (!entry || !Array.isArray(entry.hooks)) {
-          cleaned.push(entry)
-          continue
-        }
-        const kept = entry.hooks.filter((h) => !(h && typeof h.command === "string" && h.command.includes(marker)))
-        if (kept.length === 0) touched = true
-        else if (kept.length < entry.hooks.length) {
-          touched = true
-          cleaned.push({ ...entry, hooks: kept })
-        } else cleaned.push(entry)
+  if (settings) {
+    // statusLine: remove only when it points into the staged waitfeed dir —
+    // init's flip variant appends " --wf" at runtime, same marker either way.
+    if (settings.statusLine && typeof settings.statusLine === "object") {
+      const command = typeof settings.statusLine.command === "string" ? settings.statusLine.command : ""
+      if (command.includes(marker)) {
+        delete settings.statusLine
+        touched = true
       }
-      if (cleaned.length > 0) settings.hooks[event] = cleaned
-      else if (entries.length > 0) delete settings.hooks[event]
     }
-    if (Object.keys(settings.hooks).length === 0) delete settings.hooks
+
+    // env: take our CLAUDE_CODE_PLUGIN_DIRS entry back out. Same platform
+    // separator; foreign plugin dirs and other env keys survive untouched.
+    if (settings.env && typeof settings.env === "object" && typeof settings.env.CLAUDE_CODE_PLUGIN_DIRS === "string") {
+      const dirSep = process.platform === "win32" ? ";" : ":"
+      const below = join(pluginDir, "claude-mod").replace(/\\/g, "/")
+      const entries = settings.env.CLAUDE_CODE_PLUGIN_DIRS.split(dirSep)
+        .map((p) => p.trim())
+        .filter(Boolean)
+      const kept = entries.filter((p) => p.replace(/\\/g, "/") !== below)
+      if (kept.length !== entries.length) {
+        touched = true
+        if (kept.length === 0) delete settings.env.CLAUDE_CODE_PLUGIN_DIRS
+        else settings.env.CLAUDE_CODE_PLUGIN_DIRS = kept.join(dirSep)
+        if (Object.keys(settings.env).length === 0) delete settings.env
+      }
+    }
+
+    // hooks: strip every hook whose command calls the waitfeed scheduler.
+    // Entries that lose all their hooks disappear, events that lose all their
+    // entries disappear, and anything else in settings.hooks survives.
+    if (settings.hooks && typeof settings.hooks === "object") {
+      for (const event of Object.keys(settings.hooks)) {
+        const entries = settings.hooks[event]
+        if (!Array.isArray(entries)) continue
+        const cleaned = []
+        for (const entry of entries) {
+          if (!entry || !Array.isArray(entry.hooks)) {
+            cleaned.push(entry)
+            continue
+          }
+          const kept = entry.hooks.filter((h) => !(h && typeof h.command === "string" && h.command.includes(marker)))
+          if (kept.length === 0) touched = true
+          else if (kept.length < entry.hooks.length) {
+            touched = true
+            cleaned.push({ ...entry, hooks: kept })
+          } else cleaned.push(entry)
+        }
+        if (cleaned.length > 0) settings.hooks[event] = cleaned
+        else if (entries.length > 0) delete settings.hooks[event]
+      }
+      if (Object.keys(settings.hooks).length === 0) delete settings.hooks
+    }
   }
+
+  // keybindings: take our ctrl+n → /waitfeed entry back out; nothing else.
+  const keybindings = await removeClaudeKeybindings(home)
+  if (keybindings.configured) touched = true
 
   if (!touched) return { configured: false, path: settingsPath }
 
-  await writeJsonConfig(settingsPath, settings)
+  if (settings) await writeJsonConfig(settingsPath, settings)
   await rm(pluginDir, { recursive: true, force: true })
   return { configured: true, path: settingsPath }
 }
@@ -568,10 +665,88 @@ async function saveWaitFeedUserConfig(sources, rssUrls, customDir) {
     sources,
     rssUrls,
     dwellSeconds: 20,
+    newsMode: "auto",
   }
 
   await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf8")
   return configPath
+}
+
+// --- Shared show/hide switch (npx waitfeed show | hide | toggle) ---
+// Show/hide switch (~/.config/waitfeed/config.json). Supports setting mode globally
+// or for an independent host (opencode, claude, agy).
+async function setNewsMode(mode, customDir, host) {
+  const dir = customDir || join(homedir(), ".config", "waitfeed")
+  const configPath = join(dir, "config.json")
+  let config = {}
+  if (existsSync(configPath)) {
+    try {
+      const clean = stripJsoncComments(await readFile(configPath, "utf8"))
+      const parsed = clean ? JSON.parse(clean) : null
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) config = parsed
+    } catch {
+      config = {}
+    }
+  }
+  if (!config.newsModes || typeof config.newsModes !== "object") {
+    config.newsModes = {}
+  }
+  if (host && ["opencode", "claude", "agy"].includes(host)) {
+    config.newsModes[host] = mode
+  } else {
+    config.newsMode = mode
+    config.newsModes.opencode = mode
+    config.newsModes.claude = mode
+    config.newsModes.agy = mode
+  }
+  await mkdir(dir, { recursive: true })
+  await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf8")
+  if (!host || host === "claude") {
+    await flipClaudeSettings()
+  }
+  return { configPath, mode, host }
+}
+
+async function flipClaudeSettings(home) {
+  try {
+    const settingsPath = join(home || homedir(), ".claude", "settings.json")
+    if (!existsSync(settingsPath)) return
+    const raw = await readFile(settingsPath, "utf8")
+    const clean = stripJsoncComments(raw)
+    if (!clean) return
+    const settings = JSON.parse(clean)
+    const command = settings?.statusLine?.command
+    if (!settings.statusLine || typeof command !== "string" || !command.includes("statusline.mjs")) return
+    const suffix = " --wf"
+    const next = command.endsWith(suffix) ? command.slice(0, -suffix.length) : command + suffix
+    settings.statusLine.command = next
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8")
+  } catch {
+    // best-effort
+  }
+}
+
+async function toggleNewsMode(customDir, host) {
+  const dir = customDir || join(homedir(), ".config", "waitfeed")
+  const configPath = join(dir, "config.json")
+  let current = "auto"
+  if (existsSync(configPath)) {
+    try {
+      const clean = stripJsoncComments(await readFile(configPath, "utf8"))
+      const parsed = clean ? JSON.parse(clean) : null
+      if (host && parsed?.newsModes?.[host]) {
+        current = parsed.newsModes[host]
+      } else if (parsed && typeof parsed === "object") {
+        current = parsed.newsMode || "auto"
+      }
+    } catch {
+      current = "auto"
+    }
+  }
+  // Flip what the host shows: the card-while-working (auto) → hide, and
+  // hide → auto. Never "show": nothing may pin the card at idle.
+  const next = current === "hide" ? "auto" : "hide"
+  return setNewsMode(next, dir, host)
 }
 
 // --- Generic Interactive Multi-Select Helper ---
@@ -890,7 +1065,7 @@ async function runInit() {
     {
       key: "opencode",
       name: "OpenCode",
-      desc: "Prompt-line card & /news reader",
+      desc: "Prompt-line card & /feed reader",
       enabled: defaultOpenCode,
     },
     {
@@ -902,7 +1077,7 @@ async function runInit() {
     {
       key: "claude",
       name: "Claude Code",
-      desc: "Statusline + /news pane",
+      desc: "Statusline + /feed pane",
       enabled: defaultClaude,
     },
   ]
@@ -961,7 +1136,7 @@ async function runInit() {
   if (selectedAgents.claude) {
     await registerClaudePlugin()
     console.log(`  ${c.green}✓${c.reset} Claude Code integration active`)
-    console.log(`  ${c.dim}│  Type /news in Claude Code for the reader pane (needs Claude Code v2.1.295+).${c.reset}`)
+    console.log(`  ${c.dim}│  Type /feed in Claude Code for the reader pane (needs Claude Code v2.1.295+).${c.reset}`)
   }
   console.log(`  ${c.dim}│${c.reset}`)
 
@@ -989,22 +1164,29 @@ async function runInit() {
   console.log(`  ${c.cyan}◇ Next steps ${"─".repeat(NEXT_INNER - 11)}┐${c.reset}`)
   if (selectedAgents.opencode) {
     nextRow(`• ${c.bold}OpenCode:${c.reset} Start ${c.white}opencode${c.reset} - ticker appears when agent works.`)
-    nextRow(`  Type ${c.bold}/news${c.reset} anytime to open the fullscreen reader.`)
+    nextRow(`  Type ${c.bold}/feed${c.reset} anytime to open the fullscreen reader.`)
+    nextRow(`  Press ${c.bold}Ctrl+O${c.reset} to show/hide the card, even while the agent works.`)
   }
   if (selectedAgents.agy && selectedAgents.claude) {
     nextRow(`• ${c.bold}Antigravity (AGY) / Claude Code:${c.reset} Start ${c.white}agy${c.reset} or ${c.white}claude${c.reset} - the`)
-    nextRow(`  statusline ticker rotates.`)
-    nextRow(`  In Claude Code, type ${c.bold}/news${c.reset} to read headlines in a pane (v2.1.295+).`)
+    nextRow(`  statusline ticker rotates only while the agent works; at idle the`)
+    nextRow(`  terminal stays your own (nothing renders).`)
+    nextRow(`  In Claude Code, type ${c.bold}/feed${c.reset} to read headlines in a pane (v2.1.295+).`)
+    nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card from any shell.`)
   } else if (selectedAgents.agy) {
-    nextRow(`• ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} - statusline ticker rotates.`)
+    nextRow(`• ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} - the statusline ticker rotates only`)
+    nextRow(`  while the agent works; at idle the terminal stays your own.`)
+    nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card.`)
   } else if (selectedAgents.claude) {
-    nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - statusline ticker rotates.`)
-    nextRow(`  Type ${c.bold}/news${c.reset} to read headlines in a pane (v2.1.295+).`)
+    nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - the statusline ticker rotates only while`)
+    nextRow(`  the agent works; at idle the terminal stays your own.`)
+    nextRow(`  Type ${c.bold}/feed${c.reset} to read headlines in a pane (v2.1.295+).`)
+    nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card.`)
   }
   if (selectedAgents.agy || selectedAgents.claude) {
     nextRow(`  Ctrl+Click origin links to open stories in your browser.`)
   }
-  nextRow(`• Start typing your prompt anytime - the ticker vanishes!`)
+  nextRow(`• The ticker appears while your agent works - it is quiet when you are.`)
   console.log(`  ${c.cyan}└${"─".repeat(NEXT_INNER + 1)}┘${c.reset}`)
   console.log()
   console.log(`  ${c.green}✓ WaitFeed setup complete! Happy coding.${c.reset}`)
@@ -1057,6 +1239,9 @@ function printHelp() {
   ${c.bold}Usage:${c.reset}
     npx waitfeed init      Run the interactive setup wizard
     npx waitfeed remove    Remove WaitFeed from every agent and delete its data
+    npx waitfeed show      Resume the news card (it shows while the agent works)
+    npx waitfeed hide      Hide the news card (even while the agent works)
+    npx waitfeed toggle    Flip the news card on / off (while the agent works)
     npx waitfeed --help    Show this help message
     npx waitfeed --version Show version
 `)
@@ -1087,6 +1272,17 @@ async function main() {
     return
   }
 
+  // Show/hide switch, usable from any shell:
+  // npx waitfeed hide [host] | show [host] | auto [host] | toggle [host]
+  if (arg === "show" || arg === "hide" || arg === "auto" || arg === "toggle") {
+    const targetHost = (process.argv[3] || "").toLowerCase()
+    const validHost = ["opencode", "claude", "agy"].includes(targetHost) ? targetHost : undefined
+    const res = arg === "toggle" ? await toggleNewsMode(undefined, validHost) : await setNewsMode(arg, undefined, validHost)
+    const hostLabel = res.host ? ` (${res.host})` : ""
+    console.log(`WaitFeed news card${hostLabel}: ${res.mode}`)
+    return
+  }
+
   // Default behavior or "init": run the onboarding flow
   await runInit()
 }
@@ -1099,11 +1295,15 @@ export {
   registerOpenCodePlugin,
   registerAgyPlugin,
   registerClaudePlugin,
+  registerClaudeKeybindings,
   removeOpenCodePlugin,
   removeAgyPlugin,
   removeClaudePlugin,
+  removeClaudeKeybindings,
   removeWaitFeedData,
   saveWaitFeedUserConfig,
+  setNewsMode,
+  toggleNewsMode,
   resolveOpenCodeConfigPath,
   stripJsoncComments,
   countLinesRows,

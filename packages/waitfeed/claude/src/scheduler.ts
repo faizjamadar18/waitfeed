@@ -30,7 +30,7 @@
 // the staged Claude plugin directory needs no node_modules beside it.
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { loadConfig } from "../../core/config"
+import { getHostNewsMode, loadConfig, saveConfig, setHostNewsMode } from "../../core/config"
 import { enrichMissing } from "../../core/enrich"
 import { fetchAllFeeds } from "../../core/feeds"
 import { makeProbeLog, runPipeline, type PipelineDeps } from "../../core/pipeline"
@@ -60,8 +60,13 @@ export function schedulerDeps(dir: string, tag = "claude"): PipelineDeps {
 }
 
 /** The hook payload's session id ("" when absent/unclear — the ledger keys
- * such runs under "" so the write is never lost) and transcript path. */
-function payloadInfo(raw: string): { sessionID: string; transcriptPath: string | undefined } {
+ * such runs under "" so the write is never lost), transcript path, and
+ * hook event name (used to distinguish UserPromptSubmit from mid-run hooks). */
+function payloadInfo(raw: string): {
+  sessionID: string
+  transcriptPath: string | undefined
+  hookEventName: string | undefined
+} {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const sessionID = typeof parsed?.session_id === "string" ? parsed.session_id : ""
@@ -69,9 +74,13 @@ function payloadInfo(raw: string): { sessionID: string; transcriptPath: string |
       typeof parsed?.transcript_path === "string" && parsed.transcript_path.length > 0
         ? parsed.transcript_path
         : undefined
-    return { sessionID, transcriptPath }
+    const hookEventName =
+      typeof parsed?.hook_event_name === "string" && parsed.hook_event_name.length > 0
+        ? parsed.hook_event_name
+        : undefined
+    return { sessionID, transcriptPath, hookEventName }
   } catch {
-    return { sessionID: "", transcriptPath: undefined }
+    return { sessionID: "", transcriptPath: undefined, hookEventName: undefined }
   }
 }
 
@@ -101,12 +110,30 @@ async function busyMarkIsInterrupt(
 
 async function recordActivity(argv: string[], busy: boolean): Promise<void> {
   const raw = await readStdinText()
-  const { sessionID, transcriptPath } = payloadInfo(raw)
-  const ledgerFile = join(dataDir(argv), "claude-activity.json")
+  const { sessionID, transcriptPath, hookEventName } = payloadInfo(raw)
+  const dir = dataDir(argv)
+  const ledgerFile = join(dir, "claude-activity.json")
+
   // The interrupt-lie check must read the ledger BEFORE this event's write
   // lands (the write would mask the stale mark it is checking).
   const lie = busy && (await busyMarkIsInterrupt(ledgerFile, sessionID, transcriptPath))
   const flipped = (await markActivityTransition(ledgerFile, sessionID, busy)) || lie
+
+  // Reset a previous hide back to 'auto' only when a fresh turn starts
+  // (idle → busy transition on UserPromptSubmit, or unlabeled test transition).
+  // Mid-run heartbeats (PostToolUse, PostToolUseFailure, PermissionDenied, or
+  // busy → busy repeats) must keep the user's hide choice for the rest of the turn.
+  if (busy && flipped && (hookEventName === undefined || hookEventName === "UserPromptSubmit")) {
+    try {
+      const cfg = await loadConfig(dir)
+      if (getHostNewsMode(cfg, "claude") === "hide") {
+        await saveConfig(setHostNewsMode(cfg, "claude", "auto"), dir)
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
   // A REAL busy↔idle transition repaints instantly: flip the stored
   // statusline command (two behavior-identical variants) — Claude Code
   // re-runs the statusline on the settings change, skipping its update

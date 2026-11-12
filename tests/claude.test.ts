@@ -12,9 +12,8 @@
 //      agent_state (if a host ever pipes one) is trusted verbatim, AGY-style.
 //      Otherwise a per-session ACTIVITY LEDGER decides — hooks mark the
 //      session busy (prompt submit, tool events) and idle (Stop, StopFailure,
-//      SessionEnd, the 60s idle notification) — while a ledger-less install
-//      (pre-ledger settings) falls back to the legacy always-busy behavior
-//      so the panel keeps working without a re-run of init.
+//      SessionEnd, the 60s idle notification). A ledger-less install has no
+//      busy signal, so the card stays quiet at idle (never an always-on panel).
 //   3. The ledger is PER-SESSION (two Claude windows never wake each other
 //      up), pruned of dead sessions, and never trusted for a session it has
 //      no entry for. A crashed session's busy mark goes stale after 15 min.
@@ -126,7 +125,7 @@ describe("parseClaudeState — width (usable = raw − host margin, never raw)",
   })
 })
 
-describe("parseClaudeState — agent_state (explicit > ledger > legacy > quiet)", () => {
+describe("parseClaudeState — agent_state (explicit > ledger > quiet)", () => {
   it("an explicit agent_state is trusted verbatim, AGY-style", () => {
     expect(parseClaudeState(JSON.stringify({ agent_state: "working" })).agent_state).toBe("working")
     expect(parseClaudeState(JSON.stringify({ agent_state: "idle" })).agent_state).toBe("idle")
@@ -134,9 +133,9 @@ describe("parseClaudeState — agent_state (explicit > ledger > legacy > quiet)"
     expect(isAgyBusy(parseClaudeState(JSON.stringify({ agent_state: "idle" })))).toBe(false)
   })
 
-  it("a Claude session payload with no ledger falls back to the legacy always-busy mapping", () => {
-    expect(parseClaudeState(session()).agent_state).toBe("working")
-    expect(parseClaudeState(JSON.stringify({ cost: {} })).agent_state).toBe("working")
+  it("a Claude session payload with no ledger stays quiet — never an always-on panel", () => {
+    expect(parseClaudeState(session()).agent_state).toBeUndefined()
+    expect(parseClaudeState(JSON.stringify({ cost: {} })).agent_state).toBeUndefined()
   })
 
   it("empty, corrupt, or non-object payloads stay quiet", () => {
@@ -181,7 +180,7 @@ describe("parseClaudeState — the activity ledger decides busy when present", (
     expect(state.agent_state).toBe("working")
   })
 
-  it("a ledger present beats the legacy hasClaudeSession fallback — an unseen session is quiet, not busy", () => {
+  it("a ledger present keeps an unseen session quiet, not busy (no ledger entry, no card)", () => {
     const doc = applyActivity(emptyActivityDoc(), "other", false, NOW - 1_000)
     const state = parseClaudeState(session(), { doc, now: NOW })
     expect(state.agent_state).toBeUndefined()
@@ -196,8 +195,8 @@ describe("parseClaudeState — the activity ledger decides busy when present", (
     expect(state.agent_state).toBe("working")
   })
 
-  it("no ledger (null) + Claude session payload → legacy busy (fail-open)", () => {
-    expect(parseClaudeState(session(), { doc: null, now: NOW }).agent_state).toBe("working")
+  it("no ledger (null) + Claude session payload → quiet, not busy", () => {
+    expect(parseClaudeState(session(), { doc: null, now: NOW }).agent_state).toBeUndefined()
   })
 })
 

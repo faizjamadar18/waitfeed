@@ -455,6 +455,29 @@ describe("renderAgySnapshot — the statusline decision, pure over injected data
     expect(out.windowStart).toBe(NOW) // unchanged
   })
 
+  it("newsMode 'show' never pins the card at idle — the idle terminal is the host's own", () => {
+    // 'show' is a legacy alias of auto: with no active session there is no
+    // card and the dwell clock stands still, exactly like auto.
+    const out = renderAgySnapshot(
+      snap({ config: { ...cfg(), newsMode: "show" }, windowStart: NOW, now: NOW + DWELL, state: { agent_state: "idle" } }),
+    )
+    expect(out.rows).toEqual([])
+    expect(out.ticks).toBe(0)
+    expect(out.windowStart).toBe(NOW)
+  })
+
+  it("newsMode 'hide' keeps the card off even while a session is active", () => {
+    const out = renderAgySnapshot(snap({ config: { ...cfg(), newsMode: "hide" } }))
+    expect(out.rows).toEqual([])
+    expect(out.ticks).toBe(0)
+    expect(out.windowStart).toBe(0)
+  })
+
+  it("with no config the behavior is the built-in auto rule", () => {
+    expect(renderAgySnapshot(snap({ config: null })).rows.length).toBeGreaterThan(0)
+    expect(renderAgySnapshot(snap({ config: null, state: { agent_state: "idle" } })).rows).toEqual([])
+  })
+
   it("no cache yet renders honestly empty", () => {
     expect(renderAgySnapshot(snap({ cache: null })).rows).toEqual([])
   })

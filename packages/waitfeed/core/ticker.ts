@@ -47,6 +47,350 @@ export function formatDuration(ms: number): string {
  * new sentence (skips "e.g. this" style false hits), and a terminator that
  * IS the last character counts too. When even the first sentence exceeds the
  * cap (super rare), fall back to a word-boundary ellipsis. */
+export type DividerLayout = "wide" | "medium" | "narrow" | "words-dropped" | "very-narrow" | "plain"
+
+export interface DividerGlyphs {
+  closed: string
+  open: string
+}
+
+export const DEFAULT_DIVIDER_GLYPHS: DividerGlyphs = {
+  closed: "↑",
+  open: "↓",
+}
+
+/** In hosts where the news ticker renders BELOW the input field (Claude Code,
+ * Antigravity CLI statusline), the drawer opens downwards and closes upwards.
+ * Therefore:
+ * - When closed / not appearing: arrow points downwards (↓) to open drawer.
+ * - When open / appearing: arrow points upwards (↑) to close drawer. */
+export const BELOW_PROMPT_DIVIDER_GLYPHS: DividerGlyphs = {
+  closed: "↓",
+  open: "↑",
+}
+
+export interface DividerSegments {
+  layout: DividerLayout
+  left: string
+  label: string
+  middle: string
+  middleIsDashes: boolean
+  key: string
+  keySuffix: string
+  sep: string
+  cmd: string
+  cmdSuffix: string
+  right: string
+  text: string
+}
+
+/**
+ * Responsive "new stories" divider line.
+ * Formats unread count and shortcuts to fit terminal width W exactly.
+ *
+ * Arrow mode (consistent across OpenCode, Claude Code, AGY):
+ * ─── ↑/↓ {N} new reads ─────────────── ctrl+o open · /feed all ───
+ *
+ * Rules:
+ * 1. Unread count:
+ *    - Real unread count {N} (shows 0 when zero; 99+ when > 99).
+ * 2. Theme color segregation:
+ *    - key ("ctrl+o") and cmd ("/feed"): bright white (same as ctrl+p in footer).
+ *    - label ("↑/↓ {N} new reads"), keySuffix (" open"), sep (" · "), cmdSuffix (" all"): dim grey.
+ *    - left, middle, right dashes: subtle border grey.
+ * 3. Responsive shrinking order (one row only, never wrap):
+ *    - Middle line shrinks first.
+ *    - Then "/feed all" (and sep) is dropped.
+ *    - Then words "reads" and "open" are dropped.
+ *    - Then "new" is dropped.
+ *    - Then "ctrl+o" is dropped.
+ */
+export function formatDividerLine(
+  width: number,
+  count: number,
+  open = false,
+  keyOrGlyphs: string | DividerGlyphs = "ctrl+o",
+  allCmd: string | undefined = "/feed",
+  glyphs?: DividerGlyphs,
+): DividerSegments {
+  const W = Math.max(1, Math.floor(width))
+  const safeCount = Math.max(0, count)
+  const countStr = safeCount > 99 ? "99+" : String(safeCount)
+
+  const isGlyphs = typeof keyOrGlyphs === "object" && keyOrGlyphs !== null && "closed" in keyOrGlyphs
+  const actualGlyphs = isGlyphs ? (keyOrGlyphs as DividerGlyphs) : glyphs
+  const actualKey = isGlyphs ? (typeof allCmd === "string" ? allCmd : "ctrl+o") : (keyOrGlyphs as string)
+  const actualCmd = isGlyphs ? undefined : allCmd
+
+  // Arrow / legacy glyph mode (if glyphs explicitly requested as 4th arg)
+  if (isGlyphs && actualGlyphs) {
+    const arrow = open ? actualGlyphs.open : actualGlyphs.closed
+    const fullLabel = `${arrow} ${countStr} new`
+    const shortLabel = `${arrow} ${countStr}`
+    const wideFixed = 10 + fullLabel.length + actualKey.length
+    const mediumFixed = 6 + fullLabel.length + actualKey.length
+    const narrowFixed = fullLabel.length + 1 + actualKey.length
+    const wordsDroppedFixed = shortLabel.length + 1 + actualKey.length
+
+    if (W >= wideFixed + 6) {
+      const middleDashes = "─".repeat(W - wideFixed)
+      return {
+        layout: "wide",
+        left: "─── ",
+        label: fullLabel,
+        middle: ` ${middleDashes} `,
+        middleIsDashes: true,
+        key: actualKey,
+        keySuffix: "",
+        sep: "",
+        cmd: "",
+        cmdSuffix: "",
+        right: " ───",
+        text: `─── ${fullLabel} ${middleDashes} ${actualKey} ───`,
+      }
+    }
+    if (W >= mediumFixed + 2) {
+      const middleDashes = "─".repeat(W - mediumFixed)
+      return {
+        layout: "medium",
+        left: "─ ",
+        label: fullLabel,
+        middle: ` ${middleDashes} `,
+        middleIsDashes: true,
+        key: actualKey,
+        keySuffix: "",
+        sep: "",
+        cmd: "",
+        cmdSuffix: "",
+        right: " ─",
+        text: `─ ${fullLabel} ${middleDashes} ${actualKey} ─`,
+      }
+    }
+    if (W >= narrowFixed) {
+      const spaces = " ".repeat(Math.max(1, W - fullLabel.length - actualKey.length))
+      return {
+        layout: "narrow",
+        left: "",
+        label: fullLabel,
+        middle: spaces,
+        middleIsDashes: false,
+        key: actualKey,
+        keySuffix: "",
+        sep: "",
+        cmd: "",
+        cmdSuffix: "",
+        right: "",
+        text: `${fullLabel}${spaces}${actualKey}`,
+      }
+    }
+    if (W >= wordsDroppedFixed) {
+      const spaces = " ".repeat(Math.max(1, W - shortLabel.length - actualKey.length))
+      return {
+        layout: "words-dropped",
+        left: "",
+        label: shortLabel,
+        middle: spaces,
+        middleIsDashes: false,
+        key: actualKey,
+        keySuffix: "",
+        sep: "",
+        cmd: "",
+        cmdSuffix: "",
+        right: "",
+        text: `${shortLabel}${spaces}${actualKey}`,
+      }
+    }
+    const label = shortLabel.length <= W ? shortLabel : shortLabel.slice(0, W)
+    return {
+      layout: "very-narrow",
+      left: "",
+      label,
+      middle: "",
+      middleIsDashes: false,
+      key: "",
+      keySuffix: "",
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: "",
+      text: label,
+    }
+  }
+
+  // Arrow mode (consistent across OpenCode, Claude Code, AGY: ─── ↑/↓ {N} new reads ─────────── ctrl+o open · /feed all ───)
+  const action = open ? "close" : "open"
+  const glyphsToUse = actualGlyphs ?? DEFAULT_DIVIDER_GLYPHS
+  const arrow = open ? glyphsToUse.open : glyphsToUse.closed
+
+  const labelFull = `${arrow} ${countStr} new reads`
+  const labelNoReads = `${arrow} ${countStr} new`
+  const labelShort = `${arrow} ${countStr}`
+
+  const hasAll = Boolean(actualCmd && actualCmd.trim().length > 0)
+  const key1 = actualKey
+  const key1Suffix = ` ${action}`
+  const sep = hasAll ? " · " : ""
+  const cmd = hasAll ? actualCmd! : ""
+  const cmdSuffix = hasAll ? " all" : ""
+  const rightFullStr = `${key1}${key1Suffix}${sep}${cmd}${cmdSuffix}`
+  const rightNoAllStr = `${key1}${key1Suffix}`
+  const rightKeyOnlyStr = key1
+
+  const wideSideChars = 10 // "─── " (4) + " ───" (4) + 2 spaces for middle
+  const mediumSideChars = 6 // "─ " (2) + " ─" (2) + 2 spaces for middle
+
+  // 1. Full layout with "/feed all" (shrinks middle line):
+  // ─── ↑/↓ {N} new reads ─────────────── ctrl+o open · /feed all ───
+  if (hasAll && W >= wideSideChars + labelFull.length + rightFullStr.length + 2) {
+    const middleDashes = "─".repeat(W - (wideSideChars + labelFull.length + rightFullStr.length))
+    return {
+      layout: "wide",
+      left: "─── ",
+      label: labelFull,
+      middle: ` ${middleDashes} `,
+      middleIsDashes: true,
+      key: key1,
+      keySuffix: key1Suffix,
+      sep,
+      cmd,
+      cmdSuffix,
+      right: " ───",
+      text: `─── ${labelFull} ${middleDashes} ${rightFullStr} ───`,
+    }
+  }
+
+  // 2. Next to shrink: drop "/feed all" (with middle line shrinking):
+  // ─── ↑/↓ {N} new reads ─────────────── ctrl+o open ───
+  if (W >= wideSideChars + labelFull.length + rightNoAllStr.length + 2) {
+    const middleDashes = "─".repeat(W - (wideSideChars + labelFull.length + rightNoAllStr.length))
+    return {
+      layout: "wide",
+      left: "─── ",
+      label: labelFull,
+      middle: ` ${middleDashes} `,
+      middleIsDashes: true,
+      key: key1,
+      keySuffix: key1Suffix,
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: " ───",
+      text: `─── ${labelFull} ${middleDashes} ${rightNoAllStr} ───`,
+    }
+  }
+
+  if (W >= mediumSideChars + labelFull.length + rightNoAllStr.length + 2) {
+    const middleDashes = "─".repeat(W - (mediumSideChars + labelFull.length + rightNoAllStr.length))
+    return {
+      layout: "medium",
+      left: "─ ",
+      label: labelFull,
+      middle: ` ${middleDashes} `,
+      middleIsDashes: true,
+      key: key1,
+      keySuffix: key1Suffix,
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: " ─",
+      text: `─ ${labelFull} ${middleDashes} ${rightNoAllStr} ─`,
+    }
+  }
+
+  // 3. Next to shrink: drop the words "reads" and "open":
+  // ─── ↑/↓ {N} new ───────────────────── ctrl+o ───
+  if (W >= wideSideChars + labelNoReads.length + rightKeyOnlyStr.length + 2) {
+    const middleDashes = "─".repeat(W - (wideSideChars + labelNoReads.length + rightKeyOnlyStr.length))
+    return {
+      layout: "wide",
+      left: "─── ",
+      label: labelNoReads,
+      middle: ` ${middleDashes} `,
+      middleIsDashes: true,
+      key: key1,
+      keySuffix: "",
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: " ───",
+      text: `─── ${labelNoReads} ${middleDashes} ${rightKeyOnlyStr} ───`,
+    }
+  }
+
+  if (W >= mediumSideChars + labelNoReads.length + rightKeyOnlyStr.length + 2) {
+    const middleDashes = "─".repeat(W - (mediumSideChars + labelNoReads.length + rightKeyOnlyStr.length))
+    return {
+      layout: "medium",
+      left: "─ ",
+      label: labelNoReads,
+      middle: ` ${middleDashes} `,
+      middleIsDashes: true,
+      key: key1,
+      keySuffix: "",
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: " ─",
+      text: `─ ${labelNoReads} ${middleDashes} ${rightKeyOnlyStr} ─`,
+    }
+  }
+
+  // 4. Narrow: side bits and middle dashes dropped
+  if (W >= labelNoReads.length + 1 + rightKeyOnlyStr.length) {
+    const spaces = " ".repeat(Math.max(1, W - labelNoReads.length - rightKeyOnlyStr.length))
+    return {
+      layout: "narrow",
+      left: "",
+      label: labelNoReads,
+      middle: spaces,
+      middleIsDashes: false,
+      key: key1,
+      keySuffix: "",
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: "",
+      text: `${labelNoReads}${spaces}${rightKeyOnlyStr}`,
+    }
+  }
+
+  // 5. Words dropped: drop "new" (↑/↓ {N}  ctrl+o)
+  if (W >= labelShort.length + 1 + rightKeyOnlyStr.length) {
+    const spaces = " ".repeat(Math.max(1, W - labelShort.length - rightKeyOnlyStr.length))
+    return {
+      layout: "words-dropped",
+      left: "",
+      label: labelShort,
+      middle: spaces,
+      middleIsDashes: false,
+      key: key1,
+      keySuffix: "",
+      sep: "",
+      cmd: "",
+      cmdSuffix: "",
+      right: "",
+      text: `${labelShort}${spaces}${rightKeyOnlyStr}`,
+    }
+  }
+
+  // 6. Very narrow: drop ctrl+o
+  const label = labelShort.length <= W ? labelShort : labelShort.slice(0, W)
+  return {
+    layout: "very-narrow",
+    left: "",
+    label,
+    middle: "",
+    middleIsDashes: false,
+    key: "",
+    keySuffix: "",
+    sep: "",
+    cmd: "",
+    cmdSuffix: "",
+    right: "",
+    text: label,
+  }
+}
+
 export function truncateSentence(s: string, max: number): string {
   const one = s.replace(/\s+/g, " ").trim()
   if (one.length <= max) return one

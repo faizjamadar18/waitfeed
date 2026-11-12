@@ -419,7 +419,7 @@ export function HeroTerminal() {
               <span className="flex min-w-0 items-baseline">
                 <span className="truncate text-[#818CF8]">↗ {currentCard.url}</span>
                 <span className="ml-2 hidden shrink-0 text-[#5C5C66] sm:inline">
-                  ⌘ click / /news
+                  ⌘ click / /feed
                 </span>
               </span>
               <span className="shrink-0 text-[#5C5C66]">{currentCard.domain}</span>

@@ -45,6 +45,19 @@ export function channelForSource(source: string): ChannelKey | undefined {
   return SOURCE_ALIASES[source]
 }
 
+/** Show / hide / auto — the user's manual control over the card:
+ * - auto: card is visible only while the agent executes (quiet when idle).
+ * - hide: card is forced off (dismissed even mid-run).
+ * - show: legacy alias of auto. It can NEVER pin the card at idle — it is
+ *   kept only for the ephemeral per-turn override the OpenCode TUI writes
+ *   and for older config files. Every host is quiet at idle, always.
+ * Each host (OpenCode, Claude Code, AGY) can toggle its visibility independently. */
+export type NewsMode = "auto" | "show" | "hide"
+export const NEWS_MODES: readonly NewsMode[] = ["auto", "show", "hide"]
+
+export type HostId = "opencode" | "claude" | "agy"
+export const HOST_IDS: readonly HostId[] = ["opencode", "claude", "agy"]
+
 export interface WaitFeedConfig {
   /** False until the user's first keypress inside /news marks setup complete. */
   setupDone: boolean
@@ -55,6 +68,50 @@ export interface WaitFeedConfig {
    * pace. Narrow knob (5-120s), default 20s: a full story card reads in
    * roughly 15-25s, so the dwell must cover the read, never cut it. */
   dwellSeconds: number
+  /** Default/fallback newsMode if a host has no independent override set. */
+  newsMode: NewsMode
+  /** Independent per-host show/hide modes so each tool can be toggled without
+   * affecting other agents on the machine. */
+  newsModes?: Partial<Record<HostId, NewsMode>>
+}
+
+/** Resolves the effective NewsMode for a specific host (OpenCode, Claude, AGY).
+ * Prioritizes the host's independent mode; falls back to the shared newsMode. */
+export function getHostNewsMode(cfg: WaitFeedConfig | null | undefined, host: HostId): NewsMode {
+  if (!cfg) return "auto"
+  if (cfg.newsModes && typeof cfg.newsModes === "object") {
+    const mode = cfg.newsModes[host]
+    if (mode && (NEWS_MODES as readonly string[]).includes(mode)) return mode
+  }
+  return cfg.newsMode ?? "auto"
+}
+
+/** Returns a new config with an independent NewsMode set for a specific host. */
+export function setHostNewsMode(cfg: WaitFeedConfig, host: HostId, mode: NewsMode): WaitFeedConfig {
+  return {
+    ...cfg,
+    newsModes: {
+      ...(cfg.newsModes ?? {}),
+      [host]: mode,
+    },
+  }
+}
+
+/** The ONE visibility rule all three hosts apply: the card rides the agent's
+ * state — busy while not waiting on the user — and only `hide` forces it off
+ * mid-run. Nothing can pin it on at idle: `show` is a legacy alias of `auto`,
+ * so the idle terminal is always the host's own. Pure, so config and every
+ * adapter agree. */
+export function newsVisible(mode: NewsMode, busy: boolean, waitingOnUser = false): boolean {
+  if (mode === "hide") return false
+  return busy && !waitingOnUser
+}
+
+/** The toggle: flip to the opposite of what the user is looking at now. A
+ * visible card is dismissed; a hidden one comes back as auto — visible again
+ * only while the agent works, never a pinned-at-idle show. */
+export function nextNewsMode(currentlyVisible: boolean): NewsMode {
+  return currentlyVisible ? "hide" : "auto"
 }
 
 /** The dwell knob's bounds — deliberately narrow so a typo can't freeze or
@@ -68,6 +125,7 @@ export const DEFAULT_CONFIG: WaitFeedConfig = {
   sources: { hn: true, devto: true, github: true, reddit: true },
   rssUrls: [],
   dwellSeconds: DWELL_DEFAULT,
+  newsMode: "auto",
 }
 
 /** Pure validation — no I/O, fully testable. */
@@ -95,6 +153,18 @@ export function normalizeConfig(raw: unknown): WaitFeedConfig {
   if (typeof obj.dwellSeconds === "number" && Number.isFinite(obj.dwellSeconds)) {
     out.dwellSeconds = Math.min(DWELL_MAX, Math.max(DWELL_MIN, Math.round(obj.dwellSeconds)))
   }
+  if (typeof obj.newsMode === "string" && (NEWS_MODES as readonly string[]).includes(obj.newsMode)) {
+    out.newsMode = obj.newsMode as NewsMode
+  }
+  if (obj.newsModes && typeof obj.newsModes === "object") {
+    const nm = obj.newsModes as Record<string, unknown>
+    for (const h of HOST_IDS) {
+      if (typeof nm[h] === "string" && (NEWS_MODES as readonly string[]).includes(nm[h] as NewsMode)) {
+        if (!out.newsModes) out.newsModes = {}
+        out.newsModes[h] = nm[h] as NewsMode
+      }
+    }
+  }
   return out
 }
 
@@ -121,10 +191,10 @@ export async function loadConfig(dir?: string): Promise<WaitFeedConfig> {
 }
 
 /** Atomic write (tmp + rename), same pattern as the cache file. */
-export async function saveConfig(cfg: WaitFeedConfig): Promise<void> {
-  const dir = join(homedir(), ".config", "waitfeed")
+export async function saveConfig(cfg: WaitFeedConfig, customDir?: string): Promise<void> {
+  const dir = customDir ?? join(homedir(), ".config", "waitfeed")
   await mkdir(dir, { recursive: true })
-  const path = configPath()
+  const path = join(dir, "config.json")
   const tmp = `${path}.${Date.now()}.tmp`
   await writeFile(tmp, JSON.stringify(cfg, null, 2), "utf8")
   await rename(tmp, path)
