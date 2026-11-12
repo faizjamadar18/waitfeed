@@ -101,17 +101,20 @@ describe("the /feed command opens the reader pane", () => {
   })
 })
 
-describe("the host owns the toggle — the mod registers none", () => {
-  it("does not register a manual /waitfeed toggle command", async () => {
+describe("ctrl+n toggle — the mod owns /waitfeed, no file write", () => {
+  it("registers an immediate /waitfeed command and flips cardHidden on command.run", async () => {
     const src = await registerSrc()
-    expect(src).not.toContain("name: 'waitfeed',")
-    expect(src).not.toContain("on('command.run', { command: 'waitfeed' }")
+    expect(src).toContain("name: 'waitfeed',")
+    expect(src).toContain("on('command.run', { command: 'waitfeed' }")
+    expect(src).toContain("cardHidden = !cardHidden")
+    expect(src).toContain("$.ui.invalidate('ui.render')")
   })
 
-  it("does not register a keystroke toggle handler — ctrl+n is the host's abovePrompt:toggle", async () => {
+  it("never writes config on toggle — the shared newsMode switch stays separate", async () => {
     const src = await registerSrc()
     expect(src).not.toContain("toggleNews")
     expect(src).not.toContain("writeNewsMode")
+    expect(src).toContain("if (cardHidden) return next(e)")
   })
 })
 
@@ -153,10 +156,9 @@ describe("the news card rides the AbovePrompt band", () => {
     expect(src, "the description is bounded like every host").toContain("const DESC_MAX_ROWS = 3")
   })
 
-  it("the origin row is a plain pressable button, not a URL-printing Link", async () => {
+  it("the origin row is an OSC 8 Link with a shortened label", async () => {
     const src = await registerSrc()
-    expect(src).toContain("label: LINK_MARKER + linkTextOf(url)")
-    expect(src, "no Link element — it would print the full URL after the label").not.toMatch(/\bLink\s*\(/)
+    expect(src).toContain("Link({ href: url, label: LINK_MARKER + linkTextOf(url) })")
   })
 
   it("dwell timer invalidates UI periodically for the band", async () => {

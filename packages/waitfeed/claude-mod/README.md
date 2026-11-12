@@ -25,11 +25,10 @@ Both sites render FROM the shared data; nothing here fetches.
 
 Two independent switches:
 
-- **`Ctrl+N`** (bound by `npx waitfeed init` to the host's own
-  `abovePrompt:toggle`) folds the band and hides just the card — instantly and
-  with no file write. The host default `Ctrl+X Ctrl+A` does the same with no
-  binding at all. While folded, Claude shows its own one-row "band hidden"
-  hint. A key the user already bound to something else is never taken.
+- **`Ctrl+N`** (bound by `npx waitfeed init` to the mod's `/waitfeed` command,
+  `command:waitfeed`) toggles just the card — instantly and with no file write.
+  The host default `Ctrl+X Ctrl+A` collapses the whole band separately. A key
+  the user already bound to something else is never taken.
 - The shared `newsMode` in `~/.config/waitfeed/config.json` — the same switch
   the OpenCode `Ctrl+O` binding and the shell commands write — flips the card
   off (`hide`) or back to normal (`auto`, which shows it only while the agent

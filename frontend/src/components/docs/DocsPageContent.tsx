@@ -201,7 +201,7 @@ export function DocsPageContent() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search docs (rss, claude, hide...)"
-                  className="w-full bg-[#f3f2e7] border border-[#e3e2d8] focus:border-[#fcaa2d] rounded-xs px-3.5 py-2 pr-14 text-sm font-parabole text-[#191918] placeholder:text-[#191918]/45 outline-none transition-colors"
+                  className="w-full bg-[#f3f2e7] border border-[#e3e2d8] rounded-xs px-3.5 py-2 pr-14 text-sm font-parabole text-[#191918] outline-none transition-colors docs-search-input"
                 />
                 <span className="absolute right-2.5 font-decima text-[10px] px-1.5 py-0.5 rounded-xs bg-[#fffef2] border border-[#e3e2d8] text-[#191918]/50">
                   {query ? (

@@ -95,9 +95,9 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
   starts working, and hides when the turn ends, when the agent waits on a
   question or a permission, or when you press **Esc** to interrupt. At idle
   there is nothing — the band is Claude's own.
-- **`Ctrl+N`** folds the band and hides just the card (the host's own
-  `abovePrompt:toggle`; its default `Ctrl+X Ctrl+A` does the same). While
-  folded, Claude shows its own one-row "band hidden" hint.
+- **`Ctrl+N`** shows or hides just the card (bound to the mod's `/waitfeed`
+  command — press again to bring it back; the host's own `Ctrl+X Ctrl+A`
+  collapses the band separately).
 - **`npx waitfeed hide`** dismisses the card mid-run; **`npx waitfeed show`**
   resumes it. Nothing ever renders at idle.
 - **`/feed`** opens the reader pane: arrows move, **Enter** opens the link

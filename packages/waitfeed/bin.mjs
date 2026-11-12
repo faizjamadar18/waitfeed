@@ -1049,7 +1049,7 @@ async function runInit() {
     {
       key: "claude",
       name: "Claude Code",
-      desc: "Statusline + /feed pane",
+      desc: "Above-prompt card + /feed pane",
       enabled: defaultClaude,
     },
   ]

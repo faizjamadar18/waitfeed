@@ -35,10 +35,10 @@ force the card off mid-run.
 
 ## Show / hide on demand
 
-- **`Ctrl+N`** in the chat folds the band and hides just the card — the host's
-  own `abovePrompt:toggle` action, which `npx waitfeed init` binds in the
+- **`Ctrl+N`** in the chat toggles just the card — the mod's `/waitfeed`
+  command (`command:waitfeed`), which `npx waitfeed init` binds in the
   `Chat` context (`~/.claude/keybindings.json`). The host default
-  `Ctrl+X Ctrl+A` does the same with no binding at all. Both are instant and
+  `Ctrl+X Ctrl+A` collapses the whole band separately. Both are instant and
   write no file.
 - **`npx waitfeed hide` / `show` / `toggle`** writes the shared `newsMode`
   from any shell, exactly like the other hosts: `hide` keeps the card off even

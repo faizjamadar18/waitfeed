@@ -192,11 +192,11 @@ describe("Config writers in isolated environments", () => {
         res.pluginDir.replace(/\\/g, "/") + "/claude-mod",
       )
 
-      // init also binds ctrl+n to the host's own band collapse.
+      // init also binds ctrl+n to the mod's /waitfeed toggle command.
       const kb = JSON.parse(await readFile(join(dir, ".claude", "keybindings.json"), "utf8")) as {
         bindings?: Array<{ context?: string; bindings?: Record<string, string> }>
       }
-      expect(kb.bindings?.find((b) => b.context === "Chat")?.bindings?.["ctrl+n"]).toBe("abovePrompt:toggle")
+      expect(kb.bindings?.find((b) => b.context === "Chat")?.bindings?.["ctrl+n"]).toBe("command:waitfeed")
 
       // Second run is idempotent — the hook set comes back byte-identical.
       const second = await registerClaudePlugin(dir)
@@ -256,19 +256,47 @@ describe("Claude Code ctrl+n keybinding wiring (merged, never clobbered)", () =>
       bindings?: Array<{ context?: string; bindings?: Record<string, string> }>
     }
 
-  it("writes ctrl+n → abovePrompt:toggle into a Chat block, and is idempotent", async () => {
+  it("writes ctrl+n → command:waitfeed into a Chat block, and is idempotent", async () => {
     const home = await mkdtemp(join(tmpdir(), "wf-kb-"))
     try {
       const first = await registerClaudeKeybindings(home)
       expect(first.configured).toBe(true)
       const doc = await readKb(home)
       const chat = doc.bindings?.find((b) => b.context === "Chat")
-      expect(chat?.bindings?.["ctrl+n"]).toBe("abovePrompt:toggle")
+      expect(chat?.bindings?.["ctrl+n"]).toBe("command:waitfeed")
 
       const second = await registerClaudeKeybindings(home)
       expect(second.alreadyConfigured).toBe(true)
       const again = await readKb(home)
       expect(again.bindings?.filter((b) => b.context === "Chat")).toHaveLength(1)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it("upgrades and removes legacy WaitFeed ctrl+n bindings cleanly", async () => {
+    const home = await mkdtemp(join(tmpdir(), "wf-kb-legacy-"))
+    try {
+      await mkdir(join(home, ".claude"), { recursive: true })
+      await writeFile(
+        join(home, ".claude", "keybindings.json"),
+        JSON.stringify({ bindings: [{ context: "Chat", bindings: { "ctrl+n": "abovePrompt:toggle" } }] }),
+        "utf8",
+      )
+      const upgraded = await registerClaudeKeybindings(home)
+      expect(upgraded.configured).toBe(true)
+      expect(upgraded.alreadyConfigured).toBe(false)
+      const doc = await readKb(home)
+      expect(doc.bindings?.find((b) => b.context === "Chat")?.bindings?.["ctrl+n"]).toBe("command:waitfeed")
+
+      await writeFile(
+        join(home, ".claude", "keybindings.json"),
+        JSON.stringify({ bindings: [{ context: "Chat", bindings: { "ctrl+n": "command:news" } }] }),
+        "utf8",
+      )
+      const removed = await removeClaudeKeybindings(home)
+      expect(removed.configured).toBe(true)
+      expect(existsSync(join(home, ".claude", "keybindings.json"))).toBe(false)
     } finally {
       await rm(home, { recursive: true, force: true })
     }
