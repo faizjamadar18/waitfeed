@@ -33,7 +33,7 @@ const ALL_NAV_ITEMS = DOCS_NAV_GROUPS.flatMap((group) => group.items);
 const SEARCH_KEYWORDS: Record<string, string> = {
   introduction: "overview what is waitfeed opencode claude antigravity tech news zero tokens",
   quickstart: "install setup npx waitfeed init banner wizard ascii",
-  editors: "opencode claude code antigravity agy ctrl+o /feed shortcuts",
+  editors: "opencode claude code antigravity agy ctrl+o ctrl+n /feed band shortcuts",
   feeds: "hacker news github dev.to reddit rss custom feeds dwellSeconds speed",
   commands: "cli init hide show toggle remove uninstall --keep-data",
   visibility: "busy idle working typing permission hide auto",
@@ -177,8 +177,7 @@ export function DocsPageContent() {
               </h1>
               <p className="text-base sm:text-[17px] font-parabole leading-relaxed text-[#191918]/65">
                 Everything you need to install WaitFeed, browse stories inside your AI
-                coding agent, customize your feeds, and stay focused—written in plain
-                English.
+                coding agent, customize your feeds, and stay focused.
               </p>
             </motion.div>
 
@@ -330,7 +329,7 @@ export function DocsPageContent() {
               id="introduction"
               step="Start Here"
               title="What is WaitFeed?"
-              subtitle="WaitFeed turns boring AI waiting time into a calm, distraction-free developer news ticker right inside your terminal."
+              subtitle="A calm, distraction-free developer news ticker that lives in your terminal — visible only while your coding agent works."
             />
 
             <p className="text-[15.5px] font-parabole leading-relaxed text-[#191918]/80 m-0">
@@ -350,8 +349,8 @@ export function DocsPageContent() {
                   No API keys or tokens
                 </h3>
                 <p className="text-[13.5px] font-parabole text-[#191918]/70 leading-relaxed m-0">
-                  Uses real article summaries directly—never touches your AI credits or
-                  requires an account.
+                  Renders the fetched headline, summary, and link — no LLM, no API
+                  keys, no account.
                 </p>
               </div>
 
@@ -420,7 +419,7 @@ export function DocsPageContent() {
                   ),
                 },
                 {
-                  title: "Follow the friendly on-screen wizard",
+                  title: "Complete the setup wizard",
                   description: (
                     <>
                       As soon as the command starts, you will see the{" "}

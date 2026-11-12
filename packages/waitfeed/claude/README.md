@@ -14,8 +14,9 @@ is the whole adapter:
   writes the same shared cache (`~/.config/waitfeed/cache.json`) as every
   other WaitFeed host. When OpenCode or AGY are installed too, the pipeline's
   cycle lock serializes the hosts safely.
-- Headline mode only: Claude Code provides no free LLM API for plugins and the
-  project bans API keys, so the pipeline pins headline mode.
+- Keyless by design: the pipeline renders the headline, the feed's own
+  description, and the origin link — there is no LLM call anywhere, and the
+  project bans API keys.
 - Observational and fail-open: it prints nothing, always exits `0`, and a
   failed cycle never surfaces as a hook failure.
 
@@ -30,8 +31,9 @@ painted the statusline through those, and init still prunes their leftovers
 Nothing here decides busy/idle. The band renders only while a model turn is
 running (`e.props.isWorking` inside the mod) and draws nothing at idle, on the
 splash screen, or while the agent waits on a question or a permission —
-Claude's own state carries all of that. The shared `newsMode` switch can still
-force the card off mid-run.
+Claude's own state carries all of that. The visibility mode (`newsMode`, or
+this host's `newsModes.claude` override) can still force the card off
+mid-run.
 
 ## Show / hide on demand
 
@@ -40,9 +42,10 @@ force the card off mid-run.
   `Chat` context (`~/.claude/keybindings.json`). The host default
   `Ctrl+X Ctrl+A` collapses the whole band separately. Both are instant and
   write no file.
-- **`npx waitfeed hide` / `show` / `toggle`** writes the shared `newsMode`
-  from any shell, exactly like the other hosts: `hide` keeps the card off even
-  mid-run, `auto` is the busy-only rule above.
+- **`npx waitfeed hide` / `show` / `toggle`** writes the visibility mode from
+  any shell, exactly like the other hosts: `hide` keeps the card off even
+  mid-run, `auto` is the busy-only rule above. Add a host (`npx waitfeed hide
+  claude`) to write only this host's override.
 - A key the user already bound to something else is never clobbered.
 
 ## Install & migration

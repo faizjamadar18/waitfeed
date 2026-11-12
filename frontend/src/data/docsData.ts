@@ -170,18 +170,18 @@ export const EDITOR_GUIDES: EditorGuide[] = [
   {
     key: "claude",
     name: "Claude Code",
-    badge: "Statusline + /feed Pane",
-    whereItShows: "Inside the bottom statusline bar while Claude is actively editing or running tools.",
+    badge: "Band Above Prompt + /feed Pane",
+    whereItShows: "In the band directly above your prompt while Claude is actively editing or running tools.",
     howToReadMore: "Type /feed in Claude Code (v2.1.295+) to browse headlines with arrow keys.",
-    howToHide: "Run npx waitfeed hide claude from any shell to mute Claude Code only.",
+    howToHide: "Press Ctrl+N while Claude works to toggle just the card, or run npx waitfeed hide claude.",
     highlights: [
       "Appears right after you press Enter and vanishes cleanly when Claude finishes.",
       "Pressing Esc to stop Claude hides the card immediately.",
       "Automatically yields if Claude asks you a question or requests tool permission.",
       "Inside /feed, use ↑ / ↓ to move, Enter to open the link, and Esc to close.",
     ],
-    terminalTitle: "claude · statusline live",
-    commandSnippet: "npx waitfeed hide claude",
+    terminalTitle: "claude · working",
+    commandSnippet: "npx waitfeed toggle claude",
     sampleLines: [
       { kind: "muted", text: "  ✻ Editing src/middleware/rate-limit.ts..." },
       {
@@ -195,7 +195,7 @@ export const EDITOR_GUIDES: EditorGuide[] = [
         text: "   Lightweight canvas and terminal text measurement library for predictable wrapping.",
       },
       { kind: "link", text: "   > github.com/chenglou/pretext" },
-      { kind: "status", text: "Type /feed to browse headlines  ·  Esc yields immediately" },
+      { kind: "status", text: "Ctrl+N hides or shows the card  ·  /feed browses headlines" },
     ],
   },
   {
@@ -208,7 +208,7 @@ export const EDITOR_GUIDES: EditorGuide[] = [
     highlights: [
       "Only shows during active states (working, running tools, reviewing).",
       "Keeps your home/idle prompt 100% quiet.",
-      "Shares the same story cache and read list with OpenCode and Claude Code.",
+      "Shares the same news cache and read list with OpenCode and Claude Code.",
       "Pause clock freezes automatically whenever the agent stops, so you never miss a card.",
     ],
     terminalTitle: "agy · agent executing",
@@ -268,7 +268,7 @@ export const SIMPLE_CLI_COMMANDS = [
   {
     command: "npx waitfeed init",
     whenToUse: "First-time setup, adding a newly installed AI editor, or picking new channels.",
-    whatItDoes: "Launches the friendly setup wizard, detects your tools, and wires everything up safely.",
+    whatItDoes: "Launches the setup wizard, detects your tools, and wires everything up safely.",
   },
   {
     command: "npx waitfeed hide [editor]",

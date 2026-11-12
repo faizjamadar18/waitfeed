@@ -29,13 +29,14 @@ Two independent switches:
   `command:waitfeed`) toggles just the card — instantly and with no file write.
   The host default `Ctrl+X Ctrl+A` collapses the whole band separately. A key
   the user already bound to something else is never taken.
-- The shared `newsMode` in `~/.config/waitfeed/config.json` — the same switch
-  the OpenCode `Ctrl+O` binding and the shell commands write — flips the card
-  off (`hide`) or back to normal (`auto`, which shows it only while the agent
-  works). From a shell, `npx waitfeed hide` / `show` / `toggle` writes the
-  same field. The write is a read-modify-write of the one field, so
-  channel/dwell settings survive and a concurrent host write loses at most
-  `newsMode`. Nothing renders at idle — the band is Claude's own.
+- The visibility mode in `~/.config/waitfeed/config.json` — `newsMode`, or
+  this host's `newsModes.claude` override — is the same switch the shell
+  commands write. It flips the card off (`hide`) or back to normal (`auto`,
+  which shows it only while the agent works). From a shell,
+  `npx waitfeed hide` / `show` / `toggle` (add `claude` to touch only this
+  host) writes that field. The write is a read-modify-write of the one
+  field, so channel/dwell settings survive and a concurrent host write loses
+  at most it. Nothing renders at idle — the band is Claude's own.
 
 ## The sticky-cursor pane (how the keys behave)
 

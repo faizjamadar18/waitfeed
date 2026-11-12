@@ -57,7 +57,7 @@ npm package and never touches the agent integrations — that is what
 
 | Host | Where the card lives | The card | Reader |
 | --- | --- | --- | --- |
-| OpenCode | above the prompt | headline + story written *only* from the fetched description + origin link | `/feed` fullscreen reader — j/k move, Enter opens the link, keys 1–4 toggle channels |
+| OpenCode | above the prompt | headline + the feed's own description + origin link | `/feed` fullscreen reader — j/k move, Enter opens the link, keys 1–4 toggle channels |
 | Claude Code | band above the prompt | headline + feed description + origin link | `/feed` pane — arrows move, Enter opens the link; channel toggles via `config.json` |
 | Antigravity (AGY) | agent statusline | headline + feed description + origin link | channel toggles via `config.json` |
 
@@ -74,10 +74,9 @@ npm package and never touches the agent integrations — that is what
   wait-on-the-user. Two Claude windows never wake each other up.
 - **Keyless by design.** Hacker News · dev.to · GitHub trending · Reddit
   r/programming, plus your own RSS/Atom feeds (`rssUrls` in
-  `~/.config/waitfeed/config.json`, shown with an `RSS` badge). The
-  OpenCode story cards are written by the user's own session model — no
-  API, no key. Claude Code and Antigravity render headline mode: those
-  hosts have no keyless LLM path, and the project bans API keys.
+  `~/.config/waitfeed/config.json`, shown with an `RSS` badge). Every host
+  renders the same card — the headline, the feed's own description, and the
+  origin link. No API, no key, no LLM in the loop.
 
 Configuration is deliberately small — one file, `~/.config/waitfeed/config.json`:
 
@@ -86,13 +85,13 @@ Configuration is deliberately small — one file, `~/.config/waitfeed/config.jso
 | `sources` | all on | per-channel switches: `hn`, `devto`, `github`, `reddit` |
 | `rssUrls` | `[]` | your own RSS/Atom feeds (max 10; always run, `RSS` badge) |
 | `dwellSeconds` | `20` | card hold time during a run (5–120s) |
-| `newsMode` | `"auto"` | `"show"` forces the card on, `"hide"` forces it off, `"auto"` follows the agent |
+| `newsMode` | `"auto"` | `"auto"` follows the agent, `"hide"` forces the card off even mid-run; `"show"` is a legacy alias of `"auto"`. Nothing renders at idle |
+| `newsModes` | — | optional per-host overrides (`opencode`/`claude`/`agy`), written by `npx waitfeed hide <host>` |
 
-**Honest limits:** items whose fetched description is too thin to write a
-real story from stay invisible instead of getting a padded look-alike; if
-OpenCode's story layer is unavailable, the whole view flips to
-plain-headline mode — the two looks are never mixed; the first run stays
-honestly empty for a few seconds until the first stories land.
+**Honest limits:** items whose fetched description is too thin are dropped
+rather than padded out with filler; a dead channel never empties the
+rotation, since recent items are carried for 36 hours; the first run stays
+honestly empty for a few seconds until the first fetch lands.
 
 The full manual (per-host behavior, dependency notes) ships with the
 package: [`packages/waitfeed/README.md`](packages/waitfeed/README.md), also
@@ -106,8 +105,7 @@ shown on [npm](https://www.npmjs.com/package/waitfeed).
      ▼
  ~/.config/waitfeed/cache.json        ◄── the only shared state
      │
-     ├─ opencode/   OpenTUI Solid slot renders the cards; /feed reader;
-     │              stories generated in-session by the user's own model
+     ├─ opencode/   OpenTUI Solid slot renders the cards; /feed reader
      ├─ claude/ · claude-mod/
      │              the mod draws the card in the band above the prompt
      │              (only while Claude works — the host's own isWorking) and
@@ -134,7 +132,7 @@ packages/waitfeed/     the npm package — publish root (package.json, LICENSE)
   core/                host-agnostic pipeline & rendering decisions
   opencode/ · claude/ · claude-mod/ · agy/   the host adapters
   bin.mjs              `npx waitfeed init` onboarding wizard
-tests/                 9 suites: unit + built-bundle E2E (plain Node spawns)
+tests/                 11 suites: unit + built-bundle E2E (plain Node spawns)
 frontend/              the Next.js landing page (links here from hero & navbar)
 scripts/               feed channel health probe
 ```

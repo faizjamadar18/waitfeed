@@ -1,7 +1,7 @@
 // WaitFeed user config — ~/.config/waitfeed/config.json.
 //
 // There is no separate installer step: the reader itself is the setup. The
-// first /news open materializes the file with defaults, keys 1-4 toggle the
+// first /feed open materializes the file with defaults, keys 1-4 toggle the
 // channels and persist instantly. Unknown or half-written files always fall
 // back to defaults — a hand-edited config can never break the ticker.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
@@ -59,7 +59,7 @@ export type HostId = "opencode" | "claude" | "agy"
 export const HOST_IDS: readonly HostId[] = ["opencode", "claude", "agy"]
 
 export interface WaitFeedConfig {
-  /** False until the user's first keypress inside /news marks setup complete. */
+  /** False until the user's first keypress inside /feed marks setup complete. */
   setupDone: boolean
   sources: Record<ChannelKey, boolean>
   /** Bring-your-own RSS/Atom channels (max 10) — badges as RSS. */

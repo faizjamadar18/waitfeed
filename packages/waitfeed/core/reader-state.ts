@@ -1,4 +1,4 @@
-// WaitFeed reader memory — what the /news panel itself already brought to
+// WaitFeed reader memory — what the /feed panel itself already brought to
 // the user, kept on disk so it survives restarts. The ledger only
 // ever records facts the software can prove about its own actions:
 //

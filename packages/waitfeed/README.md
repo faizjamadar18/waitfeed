@@ -17,15 +17,13 @@ never empties the rotation — recent items are carried over for 36 hours.
 One package, three terminal AI coding agents:
 
 - **[OpenCode](https://opencode.ai)** — the original home: the ticker lives
-  above the prompt, `/feed` opens the fullscreen reader, and each card gets
-  a short story written **only** from the fetched description (never
-  invented) by your own session's model. The story pool holds 60 ready
-  cards so the ticker never loops the same handful.
+  above the prompt, and `/feed` opens the fullscreen reader. Every card is
+  the fetched headline, the feed's own description, and the origin link —
+  the same keyless card the other hosts show, with nothing invented.
 - **[Claude Code](https://claude.com/claude-code)** — the same card in the
   band above the prompt: shown only while Claude works, gone the moment the
-  turn ends, you press **Esc**, or the agent waits on you. Headline mode (the
-  feed's own description — this host has no keyless LLM path); a `/feed`
-  reader pane too. Full behavior in
+  turn ends, you press **Esc**, or the agent waits on you; a `/feed` reader
+  pane too. Full behavior in
   [`claude/README.md`](claude/README.md).
 - **Google Antigravity (AGY)** — the same card in the agent statusline,
   shown while the agent is working (`working`/`tool_use`/`reviewing`) and
@@ -124,6 +122,7 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
 | `rssUrls` | `[]` | your own RSS/Atom feeds |
 | `dwellSeconds` | `20` | card hold time during a run (5–120s) |
 | `newsMode` | `"auto"` | `"auto"` shows the card only while the agent works, `"hide"` forces it off mid-run; nothing renders at idle (`"show"` is a legacy alias of `"auto"`) |
+| `newsModes` | — | optional per-host overrides (`opencode`/`claude`/`agy`); `npx waitfeed hide <host>` writes one |
 | `setupDone` | `false` | set by your first keypress inside the reader |
 
 Data lives locally in `~/.config/waitfeed/`. The only network calls are to the
@@ -133,16 +132,15 @@ Nothing else ever leaves your machine.
 
 ## Honest limits
 
-- Items whose fetched description is too thin to write a real story from stay
-  invisible instead of getting a padded look-alike (story cards — OpenCode).
-- If the story layer is unavailable, OpenCode's whole view flips to
-  plain-headline mode until the next cycle re-probes — the two looks are
-  never mixed.
-- Claude Code and Antigravity always render headline mode (headline +
-  description + link): those hosts have no keyless LLM path, and the
-  project bans API keys.
+- Items whose fetched description is too thin are dropped rather than padded
+  out with filler.
+- A dead channel never empties the rotation: recent items are carried for
+  36 hours.
+- Every host renders the same keyless card — headline, the feed's own
+  description, and the origin link. There is no LLM in the loop, so the
+  project stays free of API keys by design.
 - First run: the ticker stays honestly empty for a few seconds until the
-  first stories land.
+  first fetch lands.
 
 ## Requirements
 
