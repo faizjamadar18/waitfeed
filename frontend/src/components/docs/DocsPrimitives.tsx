@@ -591,13 +591,13 @@ interface DocsTableProps {
 export function DocsTable({ headers, rows }: DocsTableProps) {
   return (
     <div className="w-full overflow-x-auto rounded-xs border border-[#e3e2d8] bg-[#fffef2]">
-      <table className="w-full text-left border-collapse">
+      <table className="w-full min-w-[560px] md:min-w-0 text-left border-collapse">
         <thead>
           <tr className="bg-[#f3f2e7] border-b border-[#e3e2d8]">
             {headers.map((h) => (
               <th
                 key={h}
-                className="px-4 py-2.5 font-decima text-[10px] font-normal uppercase tracking-[0.06em] text-[#191918]/65 whitespace-nowrap"
+                className="px-3 sm:px-4 py-2.5 font-decima text-[10px] font-normal uppercase tracking-[0.06em] text-[#191918]/65 whitespace-nowrap"
               >
                 {h}
               </th>
@@ -613,7 +613,7 @@ export function DocsTable({ headers, rows }: DocsTableProps) {
               {cells.map((cell, cellIdx) => (
                 <td
                   key={cellIdx}
-                  className="px-4 py-3 text-[#191918]/80 leading-relaxed"
+                  className="px-3 sm:px-4 py-3 text-[#191918]/80 leading-relaxed"
                 >
                   {cell}
                 </td>

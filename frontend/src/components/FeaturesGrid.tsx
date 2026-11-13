@@ -65,10 +65,10 @@ const FEATURES: FeatureCardItem[] = [
 
 export function FeaturesGrid() {
   return (
-    <section id="features" className="w-full pt-24 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
+    <section id="features" className="w-full pt-16 sm:pt-24 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
       <div className="w-full max-w-266 flex flex-col items-center justify-center gap-10">
         {/* Header (matches Relace Header #features-header: 20px gap, 0 20px padding) */}
-        <div className="w-full flex flex-col items-start justify-start gap-5 px-5">
+        <div className="w-full flex flex-col items-start justify-start gap-5 px-0 sm:px-5">
           {/* Overline (gap: 10px, 6px x 5px dot) */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -113,7 +113,7 @@ export function FeaturesGrid() {
           initial="hidden"
           whileInView="visible"
           viewport={relaceViewport}
-          className="w-full p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5"
+          className="w-full p-0 sm:p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5"
         >
           {FEATURES.map((feat) => {
             const Icon = feat.icon;

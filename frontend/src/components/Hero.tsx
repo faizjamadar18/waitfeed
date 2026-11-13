@@ -9,7 +9,7 @@ import { RELACE_EASE } from "@/lib/motion";
 
 export function Hero() {
   return (
-    <section id="hero" className="w-full pt-24 sm:pt-28 pb-12 sm:pb-20">
+    <section id="hero" className="w-full pt-16 sm:pt-28 pb-12 sm:pb-20">
       <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col gap-10 sm:gap-14">
         {/* Header Row: Left Title & Right Paragraph with Action Buttons */}
         <div className="flex flex-col lg:flex-row items-start justify-between gap-8 lg:gap-12 w-full text-left">

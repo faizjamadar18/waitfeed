@@ -168,13 +168,12 @@ export function ModelsAndInfra() {
 
           {/* Centered Spec-Compliant Job Queue Table Panel (Zero Scrollbars) */}
           <div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[94%] sm:w-[90%] max-w-200 select-none flex flex-col justify-start overflow-hidden"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[94%] sm:w-[90%] max-w-200 select-none flex flex-col justify-start overflow-hidden p-3 sm:px-[19px] sm:py-4"
             style={{
               backgroundColor: "rgba(245, 241, 230, 0.80)",
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
               borderRadius: 0,
-              padding: "16px 19px 16px 19px",
               height: "auto",
               boxShadow: "none",
               overflow: "hidden",
@@ -186,14 +185,11 @@ export function ModelsAndInfra() {
             <div className="w-full overflow-hidden scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <div className="w-full">
                 {/* 1) Header Row (Compact h-7 matching data rows, perfectly aligned) */}
-                <div
-                  className="grid w-full h-7 items-center text-[12px] sm:text-sm font-sans font-medium text-[#1a1a1a]"
-                  style={{ gridTemplateColumns: "28% 34% 22% 16%" }}
-                >
-                  <div className="pl-2 sm:pl-2.75 pr-1 sm:pr-2 truncate">Source</div>
-                  <div className="pl-2 sm:pl-2.75 pr-1 sm:pr-2 truncate">Content</div>
-                  <div className="pl-2 sm:pl-2.75 pr-1 sm:pr-2 truncate">Refresh</div>
-                  <div className="pl-2.5 sm:pl-2.5 pr-1 sm:pr-2 min-w-max">Status</div>
+                <div className="grid w-full h-7 items-center grid-cols-[24%_30%_16%_30%] lg:grid-cols-[28%_34%_22%_16%] text-[10px] sm:text-sm font-sans font-medium text-[#1a1a1a]">
+                  <div className="pl-1.5 sm:pl-2.75 pr-1 sm:pr-2 truncate">Source</div>
+                  <div className="pl-1.5 sm:pl-2.75 pr-1 sm:pr-2 truncate">Content</div>
+                  <div className="pl-1.5 sm:pl-2.75 pr-1 sm:pr-2 truncate">Refresh</div>
+                  <div className="pl-1.5 sm:pl-2.5 pr-1 sm:pr-2 min-w-max">Status</div>
                 </div>
 
                 {/* Animated Top Border of the Table (scaleX 0 -> 1) */}
@@ -246,9 +242,8 @@ export function ModelsAndInfra() {
                     return (
                       <div
                         key={row.source}
-                        className="grid w-full h-7 items-stretch border-l border-r border-b border-solid transition-[background-color,border-color] duration-280 ease-out relative"
+                        className="grid w-full h-7 items-stretch border-l border-r border-b border-solid transition-[background-color,border-color] duration-280 ease-out relative grid-cols-[24%_30%_16%_30%] lg:grid-cols-[28%_34%_22%_16%]"
                         style={{
-                          gridTemplateColumns: "28% 34% 22% 16%",
                           borderColor: isActive ? "#FBA92C" : "rgba(26, 26, 26, 0.85)",
                           backgroundColor: isActive
                             ? "rgba(251, 169, 44, 0.28)"
@@ -262,7 +257,7 @@ export function ModelsAndInfra() {
                       >
                         {/* Source */}
                         <div
-                          className={`h-full flex items-center pl-2 sm:pl-2.75 pr-1 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[10px] sm:text-[11px] tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
+                          className={`h-full flex items-center pl-1.5 sm:pl-2.75 pr-0.5 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
                             }`}
                           style={{
                             fontFamily:
@@ -276,7 +271,7 @@ export function ModelsAndInfra() {
 
                         {/* Content */}
                         <div
-                          className={`h-full flex items-center pl-2 sm:pl-2.75 pr-1 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[10px] sm:text-[11px] tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
+                          className={`h-full flex items-center pl-1.5 sm:pl-2.75 pr-0.5 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
                             }`}
                           style={{
                             fontFamily:
@@ -290,7 +285,7 @@ export function ModelsAndInfra() {
 
                         {/* Refresh */}
                         <div
-                          className={`h-full flex items-center pl-2 sm:pl-2.75 pr-1 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[10px] sm:text-[11px] tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
+                          className={`h-full flex items-center pl-1.5 sm:pl-2.75 pr-0.5 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
                             }`}
                           style={{
                             fontFamily:
@@ -304,7 +299,7 @@ export function ModelsAndInfra() {
 
                         {/* Status Cell (Full-bleed square rectangle, 0 border-radius, edge-to-edge) */}
                         <div
-                          className="h-full p-0 overflow-hidden relative min-w-26"
+                          className="h-full p-0 overflow-hidden relative min-w-0"
                           style={{
                             backgroundColor: isPending
                               ? "transparent"
@@ -316,7 +311,7 @@ export function ModelsAndInfra() {
                         >
                           {/* PENDING Layer (rolls down 16px and fades out) */}
                           <div
-                            className="absolute inset-0 px-2.5 flex items-center gap-2 uppercase whitespace-nowrap select-none text-[#1a1a1a]/55 text-[10.5px] sm:text-[11px] tracking-[0.08em] font-normal"
+                            className="absolute inset-0 px-1.5 sm:px-2.5 flex items-center gap-1 sm:gap-2 uppercase whitespace-nowrap select-none text-[#1a1a1a]/55 text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] font-normal"
                             style={{
                               fontFamily:
                                 "'JetBrains Mono', 'Geist Mono', 'IBM Plex Mono', ui-monospace, monospace",
@@ -351,7 +346,7 @@ export function ModelsAndInfra() {
 
                           {/* SUCCEEDED Layer (rolls from -16px to 0 and fades in) */}
                           <div
-                            className="absolute inset-0 px-2.5 flex items-center gap-2 uppercase whitespace-nowrap select-none text-[10.5px] sm:text-[11px] tracking-[0.08em] font-normal transition-colors duration-280"
+                            className="absolute inset-0 px-1.5 sm:px-2.5 flex items-center gap-1 sm:gap-2 uppercase whitespace-nowrap select-none text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] font-normal transition-colors duration-280"
                             style={{
                               fontFamily:
                                 "'JetBrains Mono', 'Geist Mono', 'IBM Plex Mono', ui-monospace, monospace",

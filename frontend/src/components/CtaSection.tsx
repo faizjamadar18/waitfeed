@@ -8,10 +8,10 @@ import { RELACE_EASE, relaceViewport, transitionWithDelay } from "@/lib/motion";
 
 export function CtaSection() {
   return (
-    <section id="install" className="w-full pt-28 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
+    <section id="install" className="w-full pt-16 sm:pt-28 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
       <div className="w-full max-w-266 flex flex-col items-center justify-center">
         {/* Top CTA Row: Left Heading/Subtitle + Right Buttons (matches Relace #framer-7ynk1o) */}
-        <div className="w-full flex flex-col md:flex-row items-start md:items-end justify-between gap-6 px-5 pb-10">
+        <div className="w-full flex flex-col xl:flex-row items-start xl:items-end justify-between gap-6 px-0 sm:px-5 pb-10">
           {/* Left: Heading & Subtitle */}
           <div className="flex-1 flex flex-col items-start gap-3">
             <motion.h2
@@ -19,7 +19,7 @@ export function CtaSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={relaceViewport}
               transition={transitionWithDelay(0)}
-              className="text-4xl sm:text-5xl md:text-[64px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-black whitespace-nowrap"
+              className="text-4xl sm:text-5xl md:text-[64px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-black sm:whitespace-nowrap"
             >
               Get started in{" "}
               <strong className="font-display font-normal text-[#fcaa2d]">minutes</strong>
@@ -41,11 +41,11 @@ export function CtaSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={relaceViewport}
             transition={transitionWithDelay(0.1)}
-            className="flex flex-row items-center gap-4 shrink-0"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto shrink-0"
           >
             {/* npx waitfeed init (Accent Yellow Button) */}
             <CopyCommandButton
-              className="px-5 py-4 text-xs tracking-[0.04em] rounded-none font-medium"
+              className="px-5 py-4 text-xs tracking-[0.04em] rounded-none font-medium w-full sm:w-auto justify-center"
               roundedNone
             />
 
@@ -55,7 +55,7 @@ export function CtaSection() {
               target="_blank"
               variant="beige"
               showArrow
-              className="px-6 py-5 uppercase text-[11px]! tracking-[0.04em] rounded-none"
+              className="px-6 py-5 uppercase text-[11px]! tracking-[0.04em] rounded-none w-full sm:w-auto justify-center"
             >
               View on GitHub
             </CtaButton>

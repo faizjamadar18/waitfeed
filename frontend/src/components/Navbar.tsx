@@ -25,7 +25,10 @@ export function Navbar() {
           aria-label="WaitFeed home"
           className="group logo flex items-center text-[#191918] focus-visible:outline-hidden"
         >
-          <WaitFeedBrand />
+          <WaitFeedBrand
+            markClassName="w-6 h-6 sm:w-7 sm:h-7"
+            textClassName="text-[19px] sm:text-[22px]"
+          />
         </Link>
 
         {/* Right: Actions */}
@@ -49,7 +52,7 @@ export function Navbar() {
             target="_blank"
             variant="accent"
             showArrow
-            className="py-2! pl-4! pr-3! gap-1.5! text-[11px]! font-medium! uppercase tracking-wider text-[#191918]!"
+            className="py-2! pl-3! pr-2.5! sm:pl-4! sm:pr-3! gap-1.5! text-[11px]! font-medium! uppercase tracking-wider text-[#191918]!"
           >
             GITHUB
           </CtaButton>

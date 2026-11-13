@@ -485,7 +485,7 @@ export function HeroTerminal() {
         </form>
 
         {/* Bottom Statusbar */}
-        <div className="flex items-center justify-between gap-2 border-t border-[#1E1E22] px-4 py-2 text-[9px] text-white/40 font-decima uppercase tracking-wider">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-[#1E1E22] px-4 py-2 text-[9px] text-white/40 font-decima uppercase tracking-wider">
           <span>Claude Opus 5.5 · $0.04</span>
           {status === "working" ? (
             <button

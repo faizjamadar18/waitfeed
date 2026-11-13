@@ -364,10 +364,16 @@ export function EverythingYouNeed() {
         : "116px";
 
   useEffect(() => {
+    // Pinned scroll-driven tabs exist only from md up; below that the section
+    // is a normal stacked flow and must never hijack the page scroll.
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
     let animationFrameId: number;
 
     function handleScroll() {
-      if (!containerRef.current) return;
+      if (!containerRef.current || !desktopQuery.matches) {
+        setScrollProgress(0);
+        return;
+      }
       const rect = containerRef.current.getBoundingClientRect();
       const totalScrollable = containerRef.current.offsetHeight - window.innerHeight;
       if (totalScrollable <= 0) return;
@@ -393,16 +399,20 @@ export function EverythingYouNeed() {
     }
 
     window.addEventListener("scroll", onScrollThrottled, { passive: true });
+    desktopQuery.addEventListener("change", onScrollThrottled);
     handleScroll();
 
     return () => {
       window.removeEventListener("scroll", onScrollThrottled);
+      desktopQuery.removeEventListener("change", onScrollThrottled);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
   function handleTabClick(index: number) {
     setActiveTab(index);
+    // Mobile stacks the tabs above the terminal: switch in place, no scroll jump.
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
     if (!containerRef.current) return;
 
     isClickingRef.current = true;
@@ -428,15 +438,14 @@ export function EverythingYouNeed() {
     <section
       id="how-it-works"
       ref={containerRef}
-      className="relative w-full"
-      style={{ height: "260vh" }}
+      className="relative w-full h-auto md:h-[260vh]"
     >
-      {/* Pinned Sticky Viewport Window */}
-      <div className="sticky top-0 h-screen w-full flex flex-col justify-center items-center overflow-hidden">
-        <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-between py-6 h-full max-h-205">
+      {/* Pinned Sticky Viewport Window (md+) — falls back to normal document flow on mobile so nothing is clipped */}
+      <div className="w-full flex flex-col md:sticky md:top-0 md:h-screen md:justify-center md:items-center md:overflow-hidden">
+        <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-start md:justify-between gap-10 md:gap-0 py-16 sm:py-20 md:py-6 md:h-full md:max-h-205">
           {/* Top Decorative Border track */}
           <div className="w-full flex flex-col gap-2 flex-none">
-            <div className="flex items-center justify-between text-[10px] font-decima text-[#191918]/50 uppercase tracking-widest px-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 text-[9px] sm:text-[10px] font-decima text-[#191918]/50 uppercase tracking-widest px-1">
               <div className="relative h-3.5 flex items-center">
                 <AnimatePresence initial={false} mode="sync">
                   <motion.span
@@ -503,7 +512,7 @@ export function EverythingYouNeed() {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col justify-center">
+          <div className="w-full flex flex-col justify-center md:flex-1">
             {/* Two Column Layout: Left Column (Heading + Rail Tabs), Right Column (Terminal Preview) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14 items-start">
               {/* Left Column: Heading + Interactive Agent Tabs (Strictly anchored at top) */}
@@ -521,13 +530,13 @@ export function EverythingYouNeed() {
                 </motion.h2>
 
                 {/* Interactive Agent Tabs with Vertical Rail */}
-                <div className="relative pl-7 sm:pl-9 py-1 w-full min-h-48.75">
+                <div className="relative pl-0 md:pl-9 py-1 w-full min-h-48.75">
                   {/* Background Vertical Dotted Rail Track (Constant fixed height, never stretches/shrinks) */}
-                  <div className="absolute left-0.75 -translate-x-1/2 top-3.5 h-41.5 w-px border-l-2 border-dotted border-[#191918]/25 pointer-events-none" />
+                  <div className="hidden md:block absolute left-0.75 -translate-x-1/2 top-3.5 h-41.5 w-px border-l-2 border-dotted border-[#191918]/25 pointer-events-none" />
 
                   {/* Top Terminal Dot */}
                   <motion.div
-                    className="absolute left-0.75 top-3.5 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                    className="hidden md:block absolute left-0.75 top-3.5 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
                     animate={{
                       backgroundColor: activeTab === 0 ? "#fcaa2d" : "#BDBDB6",
                     }}
@@ -544,7 +553,7 @@ export function EverythingYouNeed() {
 
                   {/* Bottom Terminal Dot */}
                   <motion.div
-                    className="absolute left-0.75 top-45 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                    className="hidden md:block absolute left-0.75 top-45 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
                     animate={{
                       backgroundColor: activeTab === 2 ? "#fcaa2d" : "#BDBDB6",
                     }}
@@ -561,7 +570,7 @@ export function EverythingYouNeed() {
 
                   {/* Sliding Active Amber Indicator Segment (Constant 64px height, glides smoothly) */}
                   <motion.div
-                    className="absolute left-0.75 -translate-x-1/2 w-0.5 h-16 bg-[#fcaa2d] rounded-full pointer-events-none"
+                    className="hidden md:block absolute left-0.75 -translate-x-1/2 w-0.5 h-16 bg-[#fcaa2d] rounded-full pointer-events-none"
                     animate={{ top: indicatorTop }}
                     transition={
                       shouldReduceMotion

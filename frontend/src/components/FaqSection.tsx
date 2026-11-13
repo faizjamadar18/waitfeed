@@ -66,10 +66,10 @@ export function FaqSection() {
   }
 
   return (
-    <section id="faq" className="w-full pt-28 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
+    <section id="faq" className="w-full pt-16 sm:pt-28 pb-0 px-5 sm:px-10 flex flex-col items-center justify-center">
       <div className="w-full max-w-266 flex flex-col md:flex-row items-start justify-start gap-10 md:gap-0">
         {/* Left Column: Header (matches Relace #faq-header: flex: 1 0 0, 0 20px padding) */}
-        <div className="w-full md:w-2/5 flex flex-col items-start gap-5 px-5 shrink-0">
+        <div className="w-full md:w-2/5 flex flex-col items-start gap-5 px-0 sm:px-5 shrink-0">
           {/* Overline */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -97,7 +97,7 @@ export function FaqSection() {
         </div>
 
         {/* Right Column: FAQ Accordion List (matches Relace #faq-list: flex: 3 0 0) */}
-        <div className="w-full md:w-3/5 flex flex-col px-5 md:px-0">
+        <div className="w-full md:w-3/5 flex flex-col px-0 sm:px-5 md:px-0">
           <motion.ul
             variants={staggerContainerVariants(0.06, 0.05)}
             initial="hidden"

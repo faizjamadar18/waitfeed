@@ -176,7 +176,7 @@ function DocsAnimatedSection({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={DOCS_VIEWPORT}
       transition={DOCS_SECTION_TRANSITION}
-      className="scroll-mt-10 flex flex-col gap-6"
+      className="scroll-mt-24 md:scroll-mt-12 flex flex-col gap-6"
     >
       {children}
     </motion.section>
@@ -434,7 +434,7 @@ export function DocsPageContent() {
                     }}
                     onKeyDown={handleSearchKeyDown}
                     placeholder="Search docs (rss, claude, hide...)"
-                    className="w-full bg-[#f3f2e7] border border-[#e3e2d8] rounded-xs pl-9 pr-10 py-2 text-sm font-parabole text-[#191918] outline-none transition-colors docs-search-input"
+                    className="w-full bg-[#f3f2e7] border border-[#e3e2d8] rounded-xs pl-9 pr-10 py-2 text-base sm:text-sm font-parabole text-[#191918] outline-none transition-colors docs-search-input"
                   />
                   {query ? (
                     <button
@@ -566,13 +566,13 @@ export function DocsPageContent() {
       </section>
 
       {/* Two-Column Editorial Docs Layout — exact max-w-266 alignment */}
-      <div className="max-w-266 mx-auto px-5 sm:px-10 pt-8 sm:pt-12 flex flex-col lg:flex-row items-start gap-10 lg:gap-12">
+      <div className="max-w-266 mx-auto px-5 sm:px-10 pt-8 sm:pt-12 flex flex-col md:flex-row md:items-start gap-10 md:gap-8 lg:gap-12">
         {/* Mobile Section Picker */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.48, ease: RELACE_EASE, delay: 0.1 }}
-          className="w-full lg:hidden sticky top-2 z-30 bg-[#fffef2]/95 backdrop-blur-xs border border-[#e3e2d8] rounded-xs p-2.5"
+          className="w-full md:hidden sticky top-2 z-30 bg-[#fffef2]/95 backdrop-blur-xs border border-[#e3e2d8] rounded-xs p-2.5"
         >
           <label
             htmlFor="mobile-docs-picker"
@@ -584,7 +584,7 @@ export function DocsPageContent() {
             id="mobile-docs-picker"
             value={activeSection}
             onChange={(e) => jumpTo(e.target.value)}
-            className="w-full bg-[#f3f2e7] border border-[#e3e2d8] rounded-xs px-3 py-2 text-sm font-parabole text-[#191918] outline-none"
+            className="w-full bg-[#f3f2e7] border border-[#e3e2d8] rounded-xs px-3 py-2 text-base sm:text-sm font-parabole text-[#191918] outline-none"
           >
             {DOCS_NAV_GROUPS.map((group) => (
               <optgroup key={group.title} label={group.title}>
@@ -598,13 +598,13 @@ export function DocsPageContent() {
           </select>
         </motion.div>
 
-        {/* Left Sidebar Navigation */}
-        <aside className="hidden lg:flex w-56 shrink-0 sticky top-8 flex-col">
+        {/* Left Sidebar Navigation — sticky below md+ so the article scrolls independently */}
+        <aside className="hidden md:flex w-56 shrink-0 self-start sticky top-8 flex-col">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: RELACE_EASE, delay: 0.12 }}
-            className="max-h-[calc(100vh-4rem)] overflow-y-auto pr-2 flex flex-col gap-5"
+            className="max-h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain pr-2 flex flex-col gap-5"
           >
           <nav aria-label="Documentation sections" className="flex flex-col gap-4">
             {DOCS_NAV_GROUPS.map((group) => (
@@ -674,14 +674,14 @@ export function DocsPageContent() {
         </aside>
 
         {/* Main Reading Column */}
-        <main className="flex-1 min-w-0 flex flex-col gap-16">
+        <main className="flex-1 min-w-0 flex flex-col gap-12 sm:gap-16">
           {/* 1. INTRODUCTION */}
           <motion.section
             id="introduction"
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.52, ease: RELACE_EASE, delay: 0.14 }}
-            className="scroll-mt-10 flex flex-col gap-6"
+            className="scroll-mt-24 md:scroll-mt-12 flex flex-col gap-6"
           >
             <DocsSectionHeader
               id="introduction"
