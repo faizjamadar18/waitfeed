@@ -72,6 +72,11 @@ html, body {
   text-size-adjust: 100%;
 }
 
+body:has(.docs-root) {
+  background-color: #000000;
+  color: #ededed;
+}
+
 ::selection {
   background-color: var(--accent-color);
   color: #ffffff;

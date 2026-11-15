@@ -1,23 +1,12 @@
 import type { Metadata } from "next";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
-import { DocsPageContent } from "@/components/docs/DocsPageContent";
+import { VercelDocsLayout } from "@/components/docs/VercelDocsLayout";
 
 export const metadata: Metadata = {
-  title: "Docs — WaitFeed",
+  title: "WaitFeed Documentation — Real-time Tech Feeds for AI Coding Agents",
   description:
-    "Simple, step-by-step guide to installing and using WaitFeed with OpenCode, Claude Code, and Google Antigravity.",
+    "Complete developer guide, zero-token architecture, CLI reference, and host adapter documentation for WaitFeed across OpenCode, Claude Code, and Antigravity.",
 };
 
 export default function DocsPage() {
-  return (
-    <div className="flex flex-col min-h-screen bg-[#fffef2] text-[#191918]">
-      <Navbar />
-      <div className="flex-1">
-        <DocsPageContent />
-      </div>
-      <Footer />
-    </div>
-  );
+  return <VercelDocsLayout />;
 }
-
