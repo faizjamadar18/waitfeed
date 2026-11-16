@@ -52,13 +52,13 @@ export function VercelCodeBlock({
           type="button"
           onClick={handleCopy}
           aria-label={copied ? "Copied code" : "Copy code"}
-          className="flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-md text-neutral-300 hover:text-white bg-neutral-800/70 hover:bg-neutral-700 border border-neutral-700/60 transition-colors cursor-pointer"
+          className="flex items-center justify-center shrink-0 p-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer"
         >
           {copied ? (
             <>
               <svg
                 viewBox="0 0 16 16"
-                className="w-3.5 h-3.5 text-amber-400"
+                className="w-4 h-4 text-amber-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -67,13 +67,12 @@ export function VercelCodeBlock({
               >
                 <polyline points="3 8.5 6.5 12 13 4" />
               </svg>
-              <span className="text-amber-300 text-[11px]">Copied</span>
             </>
           ) : (
             <>
               <svg
                 viewBox="0 0 16 16"
-                className="w-3.5 h-3.5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
@@ -83,7 +82,6 @@ export function VercelCodeBlock({
                 <rect x="5.5" y="5.5" width="7" height="7" rx="1.2" />
                 <path d="M10.5 3.5H4a1.2 1.2 0 0 0-1.2 1.2v6.5" />
               </svg>
-              <span className="text-[11px]">Copy</span>
             </>
           )}
         </button>
@@ -182,13 +180,13 @@ export function VercelCliTabs({ command }: VercelCliTabsProps) {
           type="button"
           onClick={handleCopy}
           aria-label={copied ? "Copied command" : "Copy command"}
-          className="flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-md text-neutral-300 hover:text-white bg-neutral-800/70 hover:bg-neutral-700 border border-neutral-700/60 transition-colors cursor-pointer"
+          className="flex items-center justify-center shrink-0 p-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer"
         >
           {copied ? (
             <>
               <svg
                 viewBox="0 0 16 16"
-                className="w-3.5 h-3.5 text-amber-400"
+                className="w-4 h-4 text-amber-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -197,13 +195,12 @@ export function VercelCliTabs({ command }: VercelCliTabsProps) {
               >
                 <polyline points="3 8.5 6.5 12 13 4" />
               </svg>
-              <span className="text-amber-300 text-[11px] font-medium">Copied</span>
             </>
           ) : (
             <>
               <svg
                 viewBox="0 0 16 16"
-                className="w-3.5 h-3.5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
@@ -213,7 +210,6 @@ export function VercelCliTabs({ command }: VercelCliTabsProps) {
                 <rect x="5.5" y="5.5" width="7" height="7" rx="1.2" />
                 <path d="M10.5 3.5H4a1.2 1.2 0 0 0-1.2 1.2v6.5" />
               </svg>
-              <span className="text-[11px]">Copy</span>
             </>
           )}
         </button>
