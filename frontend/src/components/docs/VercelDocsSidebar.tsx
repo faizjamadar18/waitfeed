@@ -78,7 +78,7 @@ export function VercelDocsSidebar({
       {/* Nav tree */}
       <nav
         aria-label="Docs navigation"
-        className="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-xs select-none"
+        className="docs-sidebar-scroll flex-1 overflow-y-auto px-3 py-4 space-y-6 text-xs select-none"
       >
         {filteredGroups.length === 0 ? (
           <div className="px-2 py-6 text-center text-neutral-500">

@@ -141,6 +141,15 @@ html:has(.docs-root)::-webkit-scrollbar-thumb:hover,
   background: #525252;
 }
 
+/* Sidebar scrolls without showing a scrollbar */
+.docs-sidebar-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.docs-sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .terminal-prompt-input::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
