@@ -58,7 +58,7 @@ export function VercelCodeBlock({
             <>
               <svg
                 viewBox="0 0 16 16"
-                className="w-3.5 h-3.5 text-emerald-400"
+                className="w-3.5 h-3.5 text-amber-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -67,7 +67,7 @@ export function VercelCodeBlock({
               >
                 <polyline points="3 8.5 6.5 12 13 4" />
               </svg>
-              <span className="text-emerald-400 text-[11px]">Copied</span>
+              <span className="text-amber-300 text-[11px]">Copied</span>
             </>
           ) : (
             <>
@@ -188,7 +188,7 @@ export function VercelCliTabs({ command }: VercelCliTabsProps) {
             <>
               <svg
                 viewBox="0 0 16 16"
-                className="w-3.5 h-3.5 text-emerald-400"
+                className="w-3.5 h-3.5 text-amber-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -197,7 +197,7 @@ export function VercelCliTabs({ command }: VercelCliTabsProps) {
               >
                 <polyline points="3 8.5 6.5 12 13 4" />
               </svg>
-              <span className="text-emerald-400 text-[11px] font-medium">Copied</span>
+              <span className="text-amber-300 text-[11px] font-medium">Copied</span>
             </>
           ) : (
             <>

@@ -110,6 +110,37 @@ body:has(.docs-root) {
   background: var(--text-muted);
 }
 
+/* Docs page scrollbars follow the dark black/white/amber theme.
+   Root cause of the white bars: the global scrollbar rules above paint the
+   track with the landing page's cream variable. The docs page must override
+   both the root scroller (html) and every inner scroller (sidebar, TOC,
+   search results) with the standard properties first, so Chromium and
+   Firefox both honor the dark track. */
+html:has(.docs-root) {
+  color-scheme: dark;
+  background-color: #000000;
+  scrollbar-color: #3f3f46 #000000;
+  scrollbar-width: thin;
+}
+.docs-root,
+.docs-root * {
+  scrollbar-color: #3f3f46 #000000;
+  scrollbar-width: thin;
+}
+html:has(.docs-root)::-webkit-scrollbar-track,
+.docs-root ::-webkit-scrollbar-track {
+  background: #000000;
+}
+html:has(.docs-root)::-webkit-scrollbar-thumb,
+.docs-root ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+html:has(.docs-root)::-webkit-scrollbar-thumb:hover,
+.docs-root ::-webkit-scrollbar-thumb:hover {
+  background: #525252;
+}
+
 .terminal-prompt-input::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }

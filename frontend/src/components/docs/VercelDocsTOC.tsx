@@ -1,25 +1,10 @@
 "use client";
 
-interface TocItem {
-  id: string;
-  label: string;
-}
+import { VERCEL_DOCS_NAV_GROUPS } from "@/data/docsData";
 
-const TOC_ITEMS: TocItem[] = [
-  { id: "overview", label: "Overview" },
-  { id: "quickstart", label: "Quickstart" },
-  { id: "agent-opencode", label: "OpenCode Setup" },
-  { id: "agent-claude", label: "Claude Code Setup" },
-  { id: "agent-agy", label: "Antigravity (AGY)" },
-  { id: "architecture", label: "Zero-Token Architecture" },
-  { id: "feeds-builtin", label: "Built-in Channels" },
-  { id: "feeds-custom", label: "Custom RSS Feeds" },
-  { id: "config-schema", label: "config.json Schema" },
-  { id: "config-storage", label: "Local Storage & Locks" },
-  { id: "cli-init", label: "CLI Reference" },
-  { id: "smart-visibility", label: "Smart Visibility Guarantee" },
-  { id: "faq", label: "Troubleshooting & FAQ" },
-];
+const TOC_ITEMS = VERCEL_DOCS_NAV_GROUPS.flatMap((group) =>
+  group.items.map((item) => ({ id: item.id, label: item.label }))
+);
 
 interface VercelDocsTOCProps {
   activeSectionId: string;
@@ -65,7 +50,8 @@ export function VercelDocsTOC({
                         e.preventDefault();
                         onSelectSection(item.id);
                       }}
-                      className={`block py-0.5 transition-colors duration-150 truncate ${
+                      aria-current={isActive ? "page" : undefined}
+                      className={`block truncate py-0.5 transition-colors duration-150 ${
                         isActive
                           ? "text-white font-medium"
                           : "text-neutral-400 hover:text-neutral-200"
@@ -86,7 +72,7 @@ export function VercelDocsTOC({
         {/* Community & Helpful Links */}
         <div className="flex flex-col gap-2.5 text-xs text-neutral-400">
           <a
-            href="https://github.com/faizjamadar/waitfeed/issues/new"
+            href="https://github.com/faizjamadar18/waitfeed/issues/new"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-white transition-colors flex items-center gap-1.5"
@@ -108,7 +94,7 @@ export function VercelDocsTOC({
           </a>
 
           <a
-            href="https://github.com/faizjamadar/waitfeed"
+            href="https://github.com/faizjamadar18/waitfeed/blob/main/frontend/src/app/docs/page.tsx"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-white transition-colors flex items-center gap-1.5"
@@ -125,7 +111,7 @@ export function VercelDocsTOC({
               <path d="M12 2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z" />
               <path d="M6 10l2-2 2 2" />
             </svg>
-            <span>Edit on GitHub</span>
+            <span>Edit this page</span>
           </a>
 
           <button

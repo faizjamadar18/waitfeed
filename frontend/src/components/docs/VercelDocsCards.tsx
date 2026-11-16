@@ -43,9 +43,11 @@ export function VercelCard({
         {/* Title */}
         <h3 className="text-sm sm:text-base font-semibold text-white tracking-tight flex items-center justify-between">
           <span>{title}</span>
-          <span className="text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all text-sm">
-            →
-          </span>
+          {(href || onClick) && (
+            <span className="text-neutral-400 group-hover:text-white group-hover:translate-x-0.5 transition-all text-sm">
+              →
+            </span>
+          )}
         </h3>
 
         {/* Description */}

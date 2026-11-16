@@ -17,17 +17,17 @@ export function VercelCallout({
 }: VercelCalloutProps) {
   const styles = {
     note: {
-      border: "border-blue-900/60",
-      bg: "bg-blue-950/20",
-      iconColor: "text-blue-400",
-      titleColor: "text-blue-300",
+      border: "border-amber-900/60",
+      bg: "bg-amber-950/20",
+      iconColor: "text-amber-400",
+      titleColor: "text-amber-300",
       defaultTitle: "Note",
     },
     tip: {
-      border: "border-emerald-900/60",
-      bg: "bg-emerald-950/20",
-      iconColor: "text-emerald-400",
-      titleColor: "text-emerald-300",
+      border: "border-amber-900/60",
+      bg: "bg-amber-950/20",
+      iconColor: "text-amber-400",
+      titleColor: "text-amber-300",
       defaultTitle: "Tip",
     },
     warning: {
@@ -38,10 +38,10 @@ export function VercelCallout({
       defaultTitle: "Warning",
     },
     important: {
-      border: "border-purple-900/60",
-      bg: "bg-purple-950/20",
-      iconColor: "text-purple-400",
-      titleColor: "text-purple-300",
+      border: "border-amber-900/60",
+      bg: "bg-amber-950/20",
+      iconColor: "text-amber-400",
+      titleColor: "text-amber-300",
       defaultTitle: "Important",
     },
   }[type];

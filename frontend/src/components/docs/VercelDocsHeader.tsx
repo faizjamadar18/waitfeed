@@ -26,8 +26,8 @@ export function VercelDocsHeader({
           >
             <WaitFeedBrand
               isDark={true}
-              markClassName="w-6 h-6 sm:w-6.5 sm:h-6.5"
-              textClassName="text-[18px] sm:text-[20px] font-semibold text-white tracking-tight"
+              markClassName="w-6 h-6"
+              textClassName="text-[19px]"
             />
           </Link>
           <span className="text-neutral-600 font-light select-none text-lg">/</span>
@@ -102,13 +102,13 @@ export function VercelDocsHeader({
               href="#agent-opencode"
               className="hover:text-white transition-colors"
             >
-              Adapters
+              Agents
             </a>
             <a
               href="#architecture"
               className="hover:text-white transition-colors"
             >
-              Architecture
+              How it works
             </a>
             <a
               href="#config-schema"
@@ -129,7 +129,7 @@ export function VercelDocsHeader({
           {/* External links */}
           <div className="flex items-center gap-2">
             <a
-              href="https://github.com/faizjamadar/waitfeed"
+              href="https://github.com/faizjamadar18/waitfeed"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="WaitFeed on GitHub"

@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { VERCEL_DOCS_NAV_GROUPS, type DocsNavItem } from "@/data/docsData";
+import {
+  VERCEL_DOCS_NAV_GROUPS,
+  WAITFEED_VERSION,
+  type DocsNavItem,
+} from "@/data/docsData";
 
 interface VercelDocsSidebarProps {
   activeSectionId: string;
@@ -97,7 +101,8 @@ export function VercelDocsSidebar({
                           e.preventDefault();
                           handleItemClick(item);
                         }}
-                        className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors duration-150 ${
+                        aria-current={isActive ? "page" : undefined}
+                        className={`relative flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors duration-150 ${
                           isActive
                             ? "bg-white/[0.08] text-white font-medium shadow-xs"
                             : "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
@@ -109,18 +114,7 @@ export function VercelDocsSidebar({
                             className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-amber-400 rounded-r-xs"
                           />
                         )}
-                        <span className="truncate pr-2">{item.label}</span>
-                        {item.badge && (
-                          <span
-                            className={`shrink-0 text-[10px] font-mono px-1.5 py-0.5 rounded-xs border transition-colors ${
-                              isActive
-                                ? "bg-amber-400/15 text-amber-300 border-amber-400/40"
-                                : "bg-neutral-900 text-neutral-300 border-neutral-800 group-hover:border-neutral-700"
-                            }`}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
+                        <span className="truncate">{item.label}</span>
                       </a>
                     </li>
                   );
@@ -133,7 +127,7 @@ export function VercelDocsSidebar({
 
       {/* Bottom link info */}
       <div className="p-3 border-t border-neutral-800/60 bg-neutral-950/60 text-[11px] text-neutral-400 flex items-center justify-between">
-        <span className="font-mono">waitfeed v0.1.0</span>
+        <span className="font-mono">waitfeed v{WAITFEED_VERSION}</span>
         <span className="text-[10px] text-neutral-400">MIT License</span>
       </div>
     </div>

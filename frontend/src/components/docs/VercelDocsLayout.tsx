@@ -6,23 +6,7 @@ import { VercelDocsSidebar } from "./VercelDocsSidebar";
 import { VercelDocsTOC } from "./VercelDocsTOC";
 import { VercelDocsSearchModal } from "./VercelDocsSearchModal";
 import { DocsPageContent } from "./DocsPageContent";
-
-const ALL_SECTION_IDS = [
-  "overview",
-  "agent-setup",
-  "quickstart",
-  "agent-opencode",
-  "agent-claude",
-  "agent-agy",
-  "architecture",
-  "feeds-builtin",
-  "feeds-custom",
-  "config-schema",
-  "config-storage",
-  "cli-init",
-  "smart-visibility",
-  "faq",
-];
+import { DOCS_SECTION_IDS } from "@/data/docsData";
 
 export function VercelDocsLayout() {
   const [activeSectionId, setActiveSectionId] = useState("overview");
@@ -47,11 +31,11 @@ export function VercelDocsLayout() {
       const scrollY = window.scrollY;
       const headerOffset = 140;
 
-      for (let i = ALL_SECTION_IDS.length - 1; i >= 0; i--) {
-        const id = ALL_SECTION_IDS[i];
+      for (let i = DOCS_SECTION_IDS.length - 1; i >= 0; i--) {
+        const id = DOCS_SECTION_IDS[i];
         const el = document.getElementById(id);
         if (el) {
-          const top = el.offsetTop - headerOffset;
+          const top = el.getBoundingClientRect().top + scrollY - headerOffset;
           if (scrollY >= top) {
             setActiveSectionId(id);
             break;

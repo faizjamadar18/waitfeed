@@ -51,7 +51,11 @@ export function WaitFeedBrand({
 }) {
   return (
     <div className={`flex items-end gap-1 sm:gap-1.5 select-none ${className}`}>
-      <WaitFeedMark className={`${markClassName} shrink-0`} />
+      {isDark ? (
+        <WaitFeedMarkInverted className={`${markClassName} shrink-0`} />
+      ) : (
+        <WaitFeedMark className={`${markClassName} shrink-0`} />
+      )}
       <span
         className={`font-logo ${textClassName} leading-none translate-y-px`}
       >

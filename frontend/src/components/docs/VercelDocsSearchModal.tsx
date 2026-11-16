@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   VERCEL_DOCS_NAV_GROUPS,
-  EDITOR_GUIDES,
+  AGENT_GUIDES,
   BUILTIN_CHANNELS,
-  SIMPLE_CLI_COMMANDS,
+  CLI_COMMANDS,
+  CONFIG_OPTIONS,
   LOCAL_FILES_EXPLAINED,
   BEGINNER_FAQS,
 } from "@/data/docsData";
@@ -52,15 +53,15 @@ export function VercelDocsSearchModal({
       });
     });
 
-    // Editor guides
-    EDITOR_GUIDES.forEach((guide) => {
+    // Agent guides
+    AGENT_GUIDES.forEach((guide) => {
       list.push({
-        id: `editor-${guide.key}`,
-        sectionId: `agent-${guide.key}`,
-        category: "AI Agent",
-        title: `${guide.name} (${guide.badge})`,
-        description: guide.whereItShows,
-        keywords: `${guide.name} ${guide.badge} ${guide.howToHide} ${guide.howToReadMore} opencode claude antigravity`,
+        id: `agent-${guide.key}`,
+        sectionId: guide.id,
+        category: "Agent",
+        title: guide.name,
+        description: guide.summary,
+        keywords: `${guide.name} ${guide.where} ${guide.readMore} ${guide.toggle} ${guide.requires} opencode claude antigravity`,
       });
     });
 
@@ -69,41 +70,46 @@ export function VercelDocsSearchModal({
       list.push({
         id: `channel-${ch.badge}`,
         sectionId: "feeds-builtin",
-        category: "Feed Channel",
+        category: "Channel",
         title: `${ch.name} [${ch.badge}]`,
-        description: ch.whatYouGet,
-        keywords: `${ch.name} ${ch.badge} ${ch.whatYouGet} rss atom feed`,
+        description: ch.description,
+        keywords: `${ch.name} ${ch.badge} ${ch.description} rss atom feed`,
+      });
+    });
+
+    // Config keys
+    CONFIG_OPTIONS.forEach((option) => {
+      list.push({
+        id: `config-${option.key}`,
+        sectionId: "config-schema",
+        category: "Config",
+        title: option.key,
+        description: option.description,
+        keywords: `${option.key} ${option.type} ${option.defaultValue} ${option.description} config json`,
       });
     });
 
     // CLI Commands
-    SIMPLE_CLI_COMMANDS.forEach((cmd) => {
-      const targetId = cmd.command.includes("init")
-        ? "cli-init"
-        : cmd.command.includes("show") || cmd.command.includes("hide")
-        ? "cli-show-hide"
-        : cmd.command.includes("toggle")
-        ? "cli-toggle"
-        : "cli-remove";
+    CLI_COMMANDS.forEach((cmd) => {
       list.push({
         id: `cli-${cmd.command.replace(/\s+/g, "-")}`,
-        sectionId: targetId,
-        category: "CLI Command",
+        sectionId: "cli-init",
+        category: "CLI",
         title: cmd.command,
-        description: cmd.whatItDoes,
-        keywords: `${cmd.command} ${cmd.whenToUse} ${cmd.whatItDoes} terminal shell`,
+        description: cmd.summary,
+        keywords: `${cmd.command} ${cmd.summary} ${cmd.note ?? ""} terminal shell`,
       });
     });
 
-    // Local Files
+    // Local files
     LOCAL_FILES_EXPLAINED.forEach((file) => {
       list.push({
         id: `file-${file.path}`,
         sectionId: "config-storage",
-        category: "Storage File",
+        category: "Local file",
         title: `${file.path} — ${file.role}`,
-        description: file.plainDesc,
-        keywords: `${file.path} ${file.role} ${file.plainDesc} cache json lock`,
+        description: file.detail,
+        keywords: `${file.path} ${file.role} ${file.detail} ${file.retention} cache json lock`,
       });
     });
 
@@ -205,7 +211,7 @@ export function VercelDocsSearchModal({
               setRawSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search documentation, guides, CLI commands, and config..."
+            placeholder="Search docs, config keys, and CLI commands..."
             className="flex-1 bg-transparent text-sm text-white placeholder-neutral-500 focus:outline-hidden"
           />
           <kbd
