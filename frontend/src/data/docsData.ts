@@ -41,15 +41,15 @@ export const VERCEL_DOCS_NAV_GROUPS: DocsNavGroup[] = [
     title: "Agents",
     items: [
       {
-        id: "agent-opencode",
-        label: "OpenCode",
-        summary: "Prompt card, /feed popup, Ctrl+O",
-        group: "Agents",
-      },
-      {
         id: "agent-claude",
         label: "Claude Code",
         summary: "AbovePrompt band, /feed pane, Ctrl+N",
+        group: "Agents",
+      },
+      {
+        id: "agent-opencode",
+        label: "OpenCode",
+        summary: "Prompt card, /feed popup, Ctrl+O",
         group: "Agents",
       },
       {
@@ -141,6 +141,24 @@ export interface AgentGuide {
 
 export const AGENT_GUIDES: AgentGuide[] = [
   {
+    key: "claude",
+    id: "agent-claude",
+    name: "Claude Code",
+    summary: "AbovePrompt band card and a /feed reader pane.",
+    where:
+      "Claude's `AbovePrompt` band, gated on the host's own `isWorking` state.",
+    readMore:
+      "Type `/feed` for a reader pane: ↑/↓ move, Enter opens and marks read, Esc closes.",
+    toggle:
+      "`Ctrl+N` toggles just the card mid-run. init binds it unless the key is already taken.",
+    requires: "Claude Code v2.1.295 or later.",
+    notes: [
+      "The card disappears when the turn ends, when Claude waits on you, or when you press Esc.",
+      "init stages the scheduler and mod into `~/.claude/waitfeed/` and writes the `SessionStart` hook.",
+      "Re-running init prunes older WaitFeed statusline entries; foreign hooks stay untouched.",
+    ],
+  },
+  {
     key: "opencode",
     id: "agent-opencode",
     name: "OpenCode",
@@ -165,24 +183,6 @@ export const AGENT_GUIDES: AgentGuide[] = [
   "plugins": ["waitfeed"]
 }`,
     },
-  },
-  {
-    key: "claude",
-    id: "agent-claude",
-    name: "Claude Code",
-    summary: "AbovePrompt band card and a /feed reader pane.",
-    where:
-      "Claude's `AbovePrompt` band, gated on the host's own `isWorking` state.",
-    readMore:
-      "Type `/feed` for a reader pane: ↑/↓ move, Enter opens and marks read, Esc closes.",
-    toggle:
-      "`Ctrl+N` toggles just the card mid-run. init binds it unless the key is already taken.",
-    requires: "Claude Code v2.1.295 or later.",
-    notes: [
-      "The card disappears when the turn ends, when Claude waits on you, or when you press Esc.",
-      "init stages the scheduler and mod into `~/.claude/waitfeed/` and writes the `SessionStart` hook.",
-      "Re-running init prunes older WaitFeed statusline entries; foreign hooks stay untouched.",
-    ],
   },
   {
     key: "agy",

@@ -99,7 +99,7 @@ export function VercelDocsHeader({
               Quickstart
             </a>
             <a
-              href="#agent-opencode"
+              href="#agent-claude"
               className="hover:text-white transition-colors"
             >
               Agents

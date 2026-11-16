@@ -239,8 +239,8 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
             A quiet news ticker for AI coding agents.
           </h1>
           <p className="max-w-2xl text-base leading-7 text-neutral-400 sm:text-lg">
-            WaitFeed shows a rotating tech-news card while OpenCode, Claude
-            Code, or Antigravity works. It disappears at idle. No LLM calls,
+            WaitFeed shows a rotating tech-news card while Claude Code,
+            OpenCode, or Antigravity works. It disappears at idle. No LLM calls,
             API keys, or server.
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-wider text-neutral-500">
@@ -354,7 +354,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
 
           <Step number={2} title="Start an agent">
             <p className="text-sm leading-6 text-neutral-300">
-              Open OpenCode, Claude Code, or <InlineCode>agy</InlineCode> and
+              Open Claude Code, OpenCode, or <InlineCode>agy</InlineCode> and
               give it a task. WaitFeed stays hidden until the agent starts
               working.
             </p>
@@ -364,8 +364,8 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
             <p className="text-sm leading-6 text-neutral-300">
               The card rotates above the prompt or in the statusline. Open{" "}
               <InlineCode>/feed</InlineCode> for the reader; press{" "}
-              <InlineCode>Ctrl+O</InlineCode> in OpenCode or{" "}
-              <InlineCode>Ctrl+N</InlineCode> in Claude Code to hide the card.
+              <InlineCode>Ctrl+N</InlineCode> in Claude Code or{" "}
+              <InlineCode>Ctrl+O</InlineCode> in OpenCode to hide the card.
             </p>
           </Step>
         </div>
