@@ -221,8 +221,8 @@ export function VercelCliTabs({ command }: VercelCliTabsProps) {
 
       {/* Code body */}
       <div className="p-4 sm:p-5 flex items-center font-mono text-sm sm:text-base text-white">
-        <span className="text-amber-400/80 mr-3 select-none font-bold">$</span>
-        <span className="text-amber-300 font-medium">{currentCode}</span>
+        <span className="text-neutral-500 mr-3 select-none font-bold">$</span>
+        <span className="text-neutral-200 font-medium">{currentCode}</span>
       </div>
     </div>
   );
