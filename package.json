@@ -32,7 +32,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "esbuild": "^0.25.12",
-    "typescript": "^5.6.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.12"
   }
 }
