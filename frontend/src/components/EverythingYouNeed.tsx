@@ -654,7 +654,7 @@ export function EverythingYouNeed() {
                 whileInView={{ opacity: 1, scale: 1, y: 0 }}
                 viewport={relaceViewport}
                 transition={{ duration: 0.6, ease: RELACE_EASE, delay: 0.1 }}
-                className="relative w-full max-w-133 mx-auto aspect-[464/408]"
+                className="relative w-full max-w-133 mx-auto aspect-464/408"
               >
                 <div
                   ref={terminalRef}
