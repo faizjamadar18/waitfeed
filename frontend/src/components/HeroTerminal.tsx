@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface TechCard {
@@ -137,6 +137,16 @@ const INITIAL_HISTORY = [
 const LINE_INTERVALS = [400, 850, 1300, 1800, 2350, 2900, 3500, 4150];
 const STEP_LABELS = ["agent working", "ticker streaming", "toggle on demand"];
 
+// The whole mock is laid out once at its previous hero footprint — 560px wide
+// (the old `max-w-140`) and 408px tall — and then scaled by the measured slot
+// width, so type, padding and borders shrink together instead of rewriting the
+// layout at every breakpoint.
+const DESIGN_WIDTH = 560;
+const DESIGN_HEIGHT = 408;
+// Below this scale the card is a 4–6px-type miniature: keep it as artwork and
+// take it out of the tab order instead of offering an unusable input.
+const MIN_INTERACTIVE_SCALE = 0.6;
+
 export function HeroTerminal() {
   const [history, setHistory] = useState<string[]>(INITIAL_HISTORY);
   const [status, setStatus] = useState<"working" | "idle">("idle");
@@ -147,6 +157,7 @@ export function HeroTerminal() {
   const [slotVisible, setSlotVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [scale, setScale] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const timeAccumRef = useRef<number>(0);
@@ -156,6 +167,23 @@ export function HeroTerminal() {
   const userInteractingRef = useRef<boolean>(false);
   const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const scriptIndexRef = useRef<number>(0);
+
+  // Measure the overlay slot and scale the fixed-size card to fill it.
+  // Layout effect + ResizeObserver: no wrong-size frame is ever painted.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const width = el.clientWidth;
+      if (width > 0) setScale(width / DESIGN_WIDTH);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const handleSubmitPrompt = useCallback((newPrompt: string) => {
     userInteractingRef.current = false;
@@ -349,191 +377,209 @@ export function HeroTerminal() {
   const tickerOpen = slotVisible && !dismissed;
   const activeStepIndices =
     status === "working" ? (dismissed ? [0, 2] : [0, 1]) : [];
+  const interactive = scale >= MIN_INTERACTIVE_SCALE;
 
   return (
     <div
       ref={containerRef}
-      role="group"
-      aria-label="Demo: tech ticker shows while agent works and toggles on demand"
+      role={interactive ? "group" : undefined}
+      aria-label={
+        interactive
+          ? "Demo: tech ticker shows while agent works and toggles on demand"
+          : undefined
+      }
       onKeyDown={handleTerminalKeyDown}
-      className="w-full select-none"
+      className="relative h-full w-full select-none"
     >
-      {/* Terminal Frame */}
-      <div className="border border-[#1E1E22] bg-[#0A0A0C] font-mono text-[12px] leading-normal text-[#EDEDF0] shadow-2xl">
-        {/* Top Header Bar */}
-        <div className="flex items-center gap-1.5 border-b border-[#1E1E22] px-3 py-2 text-[10px] text-[#5C5C66]">
-          <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
-          <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
-          <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
-          <span className="ml-2 text-[#8A8A94]">surface 01 — terminal</span>
-          <span className="ml-auto flex items-center gap-1.5 text-[#8A8A94]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />
-            live
-          </span>
-        </div>
+      {/* Fixed design-size card; the measured scale keeps it pixel-locked to the slot */}
+      <div
+        inert={!interactive}
+        className="absolute left-0 top-0 flex flex-col"
+        style={{
+          width: DESIGN_WIDTH,
+          height: DESIGN_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          visibility: scale > 0 ? "visible" : "hidden",
+        }}
+      >
+        {/* Terminal Frame */}
+        <div className="flex min-h-0 flex-1 flex-col border border-[#1E1E22] bg-[#0A0A0C] font-mono text-[12px] leading-normal text-[#EDEDF0] shadow-2xl">
+          {/* Top Header Bar */}
+          <div className="flex shrink-0 items-center gap-1.5 border-b border-[#1E1E22] px-3 py-2 text-[10px] text-[#5C5C66]">
+            <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+            <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+            <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+            <span className="ml-2 text-[#8A8A94]">surface 01 — terminal</span>
+            <span className="ml-auto flex items-center gap-1.5 text-[#8A8A94]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />
+              live
+            </span>
+          </div>
 
-        {/* Activity Log (Continuous Terminal Flow) */}
-        <div
-          aria-hidden="true"
-          className="flex h-36 sm:h-44 flex-col justify-end overflow-hidden px-4 pb-2 pt-3"
-        >
-          {history.map((line, idx) => (
-            <div
-              key={`hist-${idx}`}
-              className={cn(
-                "shrink-0 truncate",
-                line.startsWith(">") ? "text-[#EDEDF0]" : line.startsWith("  ") ? "text-[#5C5C66]" : "text-[#8A8A94]"
-              )}
-            >
-              <span className="whitespace-pre">{line}</span>
-            </div>
-          ))}
-          {prompt ? (
-            <div className="shrink-0 truncate text-[#EDEDF0]">
-              <span className="mr-2 text-[#5C5C66]">&gt;</span>
-              {prompt}
-            </div>
-          ) : null}
-          {visibleLines.map((line, idx) => (
-            <div
-              key={`line-${idx}`}
-              className={cn(
-                "shrink-0 truncate",
-                line.startsWith("  ") ? "text-[#5C5C66]" : "text-[#8A8A94]"
-              )}
-            >
-              <span className="whitespace-pre">{line}</span>
-            </div>
-          ))}
-          {status === "working" && (
-            <div className="shrink-0 text-[#5C5C66]">
-              <span className="mr-2 inline-block animate-spin text-[#fcaa2d]">⠋</span>
-              working…
-            </div>
-          )}
-        </div>
+          {/* Activity Log (Continuous Terminal Flow) */}
+          <div
+            aria-hidden="true"
+            className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-4 pb-2 pt-3"
+          >
+            {history.map((line, idx) => (
+              <div
+                key={`hist-${idx}`}
+                className={cn(
+                  "shrink-0 truncate",
+                  line.startsWith(">") ? "text-[#EDEDF0]" : line.startsWith("  ") ? "text-[#5C5C66]" : "text-[#8A8A94]"
+                )}
+              >
+                <span className="whitespace-pre">{line}</span>
+              </div>
+            ))}
+            {prompt ? (
+              <div className="shrink-0 truncate text-[#EDEDF0]">
+                <span className="mr-2 text-[#5C5C66]">&gt;</span>
+                {prompt}
+              </div>
+            ) : null}
+            {visibleLines.map((line, idx) => (
+              <div
+                key={`line-${idx}`}
+                className={cn(
+                  "shrink-0 truncate",
+                  line.startsWith("  ") ? "text-[#5C5C66]" : "text-[#8A8A94]"
+                )}
+              >
+                <span className="whitespace-pre">{line}</span>
+              </div>
+            ))}
+            {status === "working" && (
+              <div className="shrink-0 text-[#5C5C66]">
+                <span className="mr-2 inline-block animate-spin text-[#fcaa2d]">⠋</span>
+                working…
+              </div>
+            )}
+          </div>
 
-        {/* Ticker Slot Area (Collapsible, toggles on demand) */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-out overflow-hidden text-[11px]",
-            tickerOpen
-              ? "max-h-28 border-t border-[#1E1E22] px-4 py-2.5 opacity-100"
-              : "max-h-0 border-t-0 border-transparent px-4 py-0 opacity-0 pointer-events-none"
-          )}
-        >
-          <div className={cn("border-l-2 pl-2.5", currentCard.borderAccent)}>
-            {/* Header: Badge, Title, Meta (▲ score · time) */}
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex min-w-0 items-center gap-2">
-                <span
-                  className={cn(
-                    "shrink-0 px-1 text-[9px] font-bold leading-normal",
-                    currentCard.badgeBg,
-                    currentCard.badgeText
-                  )}
-                >
-                  {currentCard.channel}
+          {/* Ticker Slot Area (Collapsible, toggles on demand) */}
+          <div
+            className={cn(
+              "shrink-0 transition-all duration-300 ease-out overflow-hidden text-[11px]",
+              tickerOpen
+                ? "max-h-28 border-t border-[#1E1E22] px-4 py-2.5 opacity-100"
+                : "max-h-0 border-t-0 border-transparent px-4 py-0 opacity-0 pointer-events-none"
+            )}
+          >
+            <div className={cn("border-l-2 pl-2.5", currentCard.borderAccent)}>
+              {/* Header: Badge, Title, Meta (▲ score · time) */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      "shrink-0 px-1 text-[9px] font-bold leading-normal",
+                      currentCard.badgeBg,
+                      currentCard.badgeText
+                    )}
+                  >
+                    {currentCard.channel}
+                  </span>
+                  <span className="truncate font-bold text-[#EDEDF0]">{currentCard.title}</span>
                 </span>
-                <span className="truncate font-bold text-[#EDEDF0]">{currentCard.title}</span>
-              </span>
-              <span className="shrink-0 font-mono text-[11px] flex items-center gap-1.5">
-                <span className="text-[#27AD75]">{currentCard.score}</span>
-                <span className="text-[#5C5C66]">·</span>
-                <span className="text-[#8A8A94]">{currentCard.time}</span>
-              </span>
-            </div>
-
-            {/* 2-Line Summary */}
-            <div className="line-clamp-2 h-8 leading-normal text-[#8A8A94] mt-0.5">
-              {currentCard.copy}
-            </div>
-
-            {/* Footer: URL and Domain */}
-            <div className="flex items-baseline justify-between gap-3 text-[10px] mt-0.5">
-              <span className="flex min-w-0 items-baseline">
-                <span className="truncate text-[#818CF8]">↗ {currentCard.url}</span>
-                <span className="ml-2 hidden shrink-0 text-[#5C5C66] sm:inline">
-                  ⌘ click / /feed
+                <span className="shrink-0 font-mono text-[11px] flex items-center gap-1.5">
+                  <span className="text-[#27AD75]">{currentCard.score}</span>
+                  <span className="text-[#5C5C66]">·</span>
+                  <span className="text-[#8A8A94]">{currentCard.time}</span>
                 </span>
-              </span>
-              <span className="shrink-0 text-[#5C5C66]">{currentCard.domain}</span>
+              </div>
+
+              {/* 2-Line Summary */}
+              <div className="line-clamp-2 h-8 leading-normal text-[#8A8A94] mt-0.5">
+                {currentCard.copy}
+              </div>
+
+              {/* Footer: URL and Domain */}
+              <div className="flex items-baseline justify-between gap-3 text-[10px] mt-0.5">
+                <span className="flex min-w-0 items-baseline">
+                  <span className="truncate text-[#818CF8]">↗ {currentCard.url}</span>
+                  <span className="ml-2 shrink-0 text-[#5C5C66]">
+                    ⌘ click / /feed
+                  </span>
+                </span>
+                <span className="shrink-0 text-[#5C5C66]">{currentCard.domain}</span>
+              </div>
             </div>
+          </div>
+
+          {/* Input Prompt Line */}
+          <form
+            onSubmit={handleFormSubmit}
+            className="flex shrink-0 items-center gap-2 border-t border-[#1E1E22] px-4 py-2.5 focus-within:bg-[#111114] focus-within:shadow-[inset_2px_0_0_white]"
+          >
+            <span className="sr-only">Type to prompt Claude Code</span>
+            <span aria-hidden="true" className="text-white font-bold text-sm select-none">
+              &gt;
+            </span>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder="type anything to prompt Claude Code..."
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              maxLength={80}
+              className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#EDEDF0] caret-white outline-none terminal-prompt-input"
+            />
+            {!inputValue && (
+              <span className="w-1.5 h-3.5 bg-white animate-pulse shrink-0" aria-hidden="true" />
+            )}
+          </form>
+
+          {/* Bottom Statusbar */}
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-[#1E1E22] px-4 py-2 text-[9px] text-white/40 font-decima uppercase tracking-wider">
+            <span>Claude Opus 5.5 · $0.04</span>
+            {status === "working" ? (
+              <button
+                type="button"
+                onClick={handleToggleFeed}
+                className={cn(
+                  "cursor-pointer rounded-xs border px-1.5 py-0.5 transition-colors",
+                  dismissed
+                    ? "border-[#fcaa2d]/60 bg-[#fcaa2d]/10 text-[#fcaa2d]"
+                    : "border-[#2A2A32] bg-[#141418] text-[#8A8A94] hover:border-[#fcaa2d]/50 hover:text-[#EDEDF0]"
+                )}
+                title="Toggle feed on demand"
+              >
+                {dismissed ? "show feed" : "hide feed"}
+              </button>
+            ) : (
+              <span className="inline text-[#5C5C66]">idle · feed quiet</span>
+            )}
+            <span>82% context</span>
           </div>
         </div>
 
-        {/* Input Prompt Line */}
-        <form
-          onSubmit={handleFormSubmit}
-          className="flex items-center gap-2 border-t border-[#1E1E22] px-4 py-2.5 focus-within:bg-[#111114] focus-within:shadow-[inset_2px_0_0_#D97757]"
-        >
-          <span className="sr-only">Type to prompt Claude Code</span>
-          <span aria-hidden="true" className="text-[#D97757] font-bold text-sm select-none">
-            &gt;
-          </span>
-          <input
-            type="text"
-            value={inputValue}
-            onChange={handleInputChange}
-            placeholder="type anything to prompt Claude Code..."
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            maxLength={80}
-            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-[#EDEDF0] caret-[#D97757] outline-none terminal-prompt-input"
-          />
-          {!inputValue && (
-            <span className="w-1.5 h-3.5 bg-[#D97757] animate-pulse shrink-0" aria-hidden="true" />
-          )}
-        </form>
-
-        {/* Bottom Statusbar */}
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-[#1E1E22] px-4 py-2 text-[9px] text-white/40 font-decima uppercase tracking-wider">
-          <span>Claude Opus 5.5 · $0.04</span>
-          {status === "working" ? (
-            <button
-              type="button"
-              onClick={handleToggleFeed}
-              className={cn(
-                "cursor-pointer rounded-xs border px-1.5 py-0.5 transition-colors",
-                dismissed
-                  ? "border-[#fcaa2d]/60 bg-[#fcaa2d]/10 text-[#fcaa2d]"
-                  : "border-[#2A2A32] bg-[#141418] text-[#8A8A94] hover:border-[#fcaa2d]/50 hover:text-[#EDEDF0]"
+        {/* Stepper below the terminal window */}
+        <ol className="m-0 mt-3 flex shrink-0 list-none flex-wrap items-center gap-x-2 gap-y-1 p-0 font-mono text-[11px]">
+          {STEP_LABELS.map((step, idx) => (
+            <li key={step} className="flex items-center gap-2">
+              {idx > 0 && (
+                <span aria-hidden="true" className="text-[#8A8A94]/60">
+                  →
+                </span>
               )}
-              title="Toggle feed on demand"
-            >
-              {dismissed ? "feed hidden · toggle on demand" : "toggle on demand · hide feed"}
-            </button>
-          ) : (
-            <span className="hidden sm:inline text-[#5C5C66]">idle · feed quiet</span>
-          )}
-          <span>82% context</span>
-        </div>
-      </div>
-
-      {/* Stepper below the terminal window */}
-      <ol className="m-0 mt-3 flex list-none flex-wrap items-center gap-x-2 gap-y-1 p-0 font-mono text-[11px]">
-        {STEP_LABELS.map((step, idx) => (
-          <li key={step} className="flex items-center gap-2">
-            {idx > 0 && (
-              <span aria-hidden="true" className="text-[#8A8A94]/60">
-                →
+              <span
+                aria-current={activeStepIndices.includes(idx) ? "step" : undefined}
+                className={cn(
+                  "border px-1.5 py-0.5 transition-colors",
+                  activeStepIndices.includes(idx)
+                    ? "border-[#fcaa2d] text-[#EDEDF0]"
+                    : "border-transparent text-[#9E9EA8]"
+                )}
+              >
+                {step}
               </span>
-            )}
-            <span
-              aria-current={activeStepIndices.includes(idx) ? "step" : undefined}
-              className={cn(
-                "border px-1.5 py-0.5 transition-colors",
-                activeStepIndices.includes(idx)
-                  ? "border-[#fcaa2d] text-[#EDEDF0]"
-                  : "border-transparent text-[#9E9EA8]"
-              )}
-            >
-              {step}
-            </span>
-          </li>
-        ))}
-      </ol>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }

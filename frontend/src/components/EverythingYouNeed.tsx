@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, memo } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { RELACE_EASE, relaceViewport } from "@/lib/motion";
@@ -10,6 +10,12 @@ interface AgentTab {
   name: string;
   description: string;
 }
+
+// The terminal preview is laid out once at its desktop footprint (464 × 408)
+// and scaled by the measured column width, so width and height always shrink in
+// the same proportion instead of the frame going portrait on tablets.
+const TERMINAL_DESIGN_WIDTH = 464;
+const TERMINAL_DESIGN_HEIGHT = 408;
 
 const TABS: AgentTab[] = [
   {
@@ -121,7 +127,7 @@ const ClaudeCodeTerminalContent = memo(function ClaudeCodeTerminalContent() {
 
         {/* Authentic ANSI Shadow ASCII Art for CLAUDE CODE */}
         <div className="py-0.5 overflow-hidden">
-          <pre className="font-mono text-[#D97757] text-[7.5px] sm:text-[8.5px] leading-[1.05] font-bold select-none tracking-tight">
+          <pre className="font-mono text-[#D97757] text-[8.5px] leading-[1.05] font-bold select-none tracking-tight">
             {CLAUDE_ASCII.join("\n")}
           </pre>
         </div>
@@ -137,7 +143,7 @@ const ClaudeCodeTerminalContent = memo(function ClaudeCodeTerminalContent() {
         </div>
 
         {/* WaitFeed Wait-State Slot */}
-        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
+        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 flex flex-col gap-1 border-l-2 border-l-[#27AD75]">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-bold">
               <span className="bg-[#27AD75] text-[#0A0A0C] px-1 text-[9px] font-bold">
@@ -149,10 +155,10 @@ const ClaudeCodeTerminalContent = memo(function ClaudeCodeTerminalContent() {
               ▲ 31.2k · 2h
             </span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+          <p className="text-[11px] text-[#8A8A94] line-clamp-2">
             Fast LLM serving engine. PagedAttention memory management achieves 24x higher throughput.
           </p>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+          <div className="flex items-center justify-between text-[10px] text-[#5C5C66]">
             <span className="text-[#818CF8]">↗ github.com/vllm-project/vllm</span>
             <span>wait-state stream</span>
           </div>
@@ -177,7 +183,7 @@ const AntigravityTerminalContent = memo(function AntigravityTerminalContent() {
         <div className="py-1">
           <svg
             viewBox="0 0 108 110"
-            className="w-20 h-20 sm:w-24 sm:h-24"
+            className="w-24 h-24"
             shapeRendering="crispEdges"
             aria-label="Antigravity Rainbow Logo"
           >
@@ -195,7 +201,7 @@ const AntigravityTerminalContent = memo(function AntigravityTerminalContent() {
         </div>
 
         {/* Welcome to Antigravity! */}
-        <div className="text-xs sm:text-sm font-bold tracking-tight font-mono">
+        <div className="text-sm font-bold tracking-tight font-mono">
           <span className="text-[#EDEDF0]">Welcome to </span>
           <span className="text-[#58A6FF]">Antigravity!</span>
         </div>
@@ -211,7 +217,7 @@ const AntigravityTerminalContent = memo(function AntigravityTerminalContent() {
         </div>
 
         {/* WaitFeed Statusline Hook Card */}
-        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
+        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 flex flex-col gap-1 border-l-2 border-l-[#fcaa2d]">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-bold">
               <span className="bg-[#fcaa2d] text-[#0A0A0C] px-1 text-[9px] font-bold">
@@ -225,10 +231,10 @@ const AntigravityTerminalContent = memo(function AntigravityTerminalContent() {
               ▲ 1.4k · 3h
             </span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+          <p className="text-[11px] text-[#8A8A94] line-clamp-2">
             Official SQLite Wasm release brings ACID-compliant local database storage via OPFS.
           </p>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+          <div className="flex items-center justify-between text-[10px] text-[#5C5C66]">
             <span className="text-[#818CF8]">↗ sqlite.org/wasm</span>
             <span>dwell clock: 20s</span>
           </div>
@@ -253,7 +259,7 @@ const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
         <div className="py-1">
           <svg
             viewBox="0 0 351 77"
-            className="w-full max-w-60 sm:max-w-68 h-auto"
+            className="w-full max-w-68 h-auto"
             shapeRendering="crispEdges"
             aria-label="OpenCode Logo"
           >
@@ -271,7 +277,7 @@ const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
         </div>
 
         {/* OpenCode Slogan / Subtitle */}
-        <p className="font-mono text-[9px] sm:text-[10px] text-[#7A7A85] tracking-wider uppercase select-none">
+        <p className="font-mono text-[10px] text-[#7A7A85] tracking-wider uppercase select-none">
           THE AI CODING AGENT BUILT FOR THE TERMINAL
         </p>
 
@@ -309,7 +315,7 @@ const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
         </div>
 
         {/* WaitFeed Reactive OpenTUI Slot */}
-        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2 sm:p-2.5 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
+        <div className="rounded-xs border border-[#1E1E22] bg-[#0d0d0f] p-2.5 flex flex-col gap-1 border-l-2 border-l-[#8A63F4]">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-bold">
               <span className="bg-[#8A63F4] text-white px-1 text-[9px] font-bold">
@@ -323,10 +329,10 @@ const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
               ▲ 420 · 5h
             </span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-[#8A8A94] line-clamp-2">
+          <p className="text-[11px] text-[#8A8A94] line-clamp-2">
             Memory-efficient parsing patterns utilizing Rust string slices, lifetimes, and zero-allocation token trees.
           </p>
-          <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-[#5C5C66]">
+          <div className="flex items-center justify-between text-[10px] text-[#5C5C66]">
             <span className="text-[#818CF8]">↗ dev.to/rust-ast</span>
             <span>OpenTUI Solid reactive</span>
           </div>
@@ -345,10 +351,30 @@ const OpenCodeTerminalContent = memo(function OpenCodeTerminalContent() {
 
 export function EverythingYouNeed() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const [terminalScale, setTerminalScale] = useState(0);
   const [activeTab, setActiveTab] = useState<number>(0);
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const isClickingRef = useRef<boolean>(false);
   const shouldReduceMotion = useReducedMotion();
+
+  // Measure the terminal's column and scale the fixed design card to it.
+  // Layout effect + ResizeObserver: no wrong-size frame is ever painted.
+  useLayoutEffect(() => {
+    const el = terminalRef.current;
+    const slot = el?.parentElement;
+    if (!el || !slot) return;
+
+    const measure = () => {
+      const width = slot.clientWidth;
+      if (width > 0) setTerminalScale(width / TERMINAL_DESIGN_WIDTH);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(slot);
+    return () => observer.disconnect();
+  }, []);
 
   const reducedTransition = {
     type: "tween" as const,
@@ -633,117 +659,129 @@ export function EverythingYouNeed() {
                 whileInView={{ opacity: 1, scale: 1, y: 0 }}
                 viewport={relaceViewport}
                 transition={{ duration: 0.6, ease: RELACE_EASE, delay: 0.1 }}
-                className="relative w-full max-w-133 mx-auto min-h-98 sm:min-h-102 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-3.5 sm:p-4 flex flex-col justify-between text-white font-mono shadow-2xl select-none"
+                className="relative w-full max-w-133 mx-auto aspect-[464/408]"
               >
-                {/* Top Window Bar */}
-                <div className="flex items-center justify-between pb-2.5 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
-                    <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
-                    <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
-                    <div className="relative h-4 overflow-hidden ml-2 flex-1 w-48">
-                      <AnimatePresence initial={false} mode="sync">
-                        <motion.span
-                          key={activeTab}
-                          className="absolute left-0 top-0 text-[#8A8A94] pointer-events-auto"
-                          initial={{ opacity: 0 }}
-                          animate={{
-                            opacity: 1,
-                            transition: shouldReduceMotion
-                              ? reducedTransition
-                              : { type: "tween", ...T.panelIn },
-                          }}
-                          exit={{
-                            opacity: 0,
-                            transition: shouldReduceMotion
-                              ? reducedTransition
-                              : { type: "tween", ...T.panelOut },
-                            pointerEvents: "none",
-                          }}
-                          style={{ willChange: "opacity" }}
-                        >
-                          {activeTab === 0
-                            ? "claude · ~/projects/waitfeed"
-                            : activeTab === 1
-                              ? "opencode · ~/projects/waitfeed"
-                              : "antigravity · ~/projects/waitfeed"}
-                        </motion.span>
-                      </AnimatePresence>
+                <div
+                  ref={terminalRef}
+                  className="absolute left-0 top-0 rounded-xs overflow-hidden border border-[#1E1E22] bg-[#0A0A0C] p-4 flex flex-col justify-between text-white font-mono shadow-2xl select-none"
+                  style={{
+                    width: TERMINAL_DESIGN_WIDTH,
+                    height: TERMINAL_DESIGN_HEIGHT,
+                    transform: `scale(${terminalScale})`,
+                    transformOrigin: "top left",
+                    visibility: terminalScale > 0 ? "visible" : "hidden",
+                  }}
+                >
+                  {/* Top Window Bar */}
+                  <div className="flex items-center justify-between pb-2.5 border-b border-[#1E1E22] text-[10px] text-[#5C5C66]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+                      <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+                      <span className="h-2 w-2 rounded-full bg-[#8A9397]" />
+                      <div className="relative h-4 overflow-hidden ml-2 flex-1 w-48">
+                        <AnimatePresence initial={false} mode="sync">
+                          <motion.span
+                            key={activeTab}
+                            className="absolute left-0 top-0 text-[#8A8A94] pointer-events-auto"
+                            initial={{ opacity: 0 }}
+                            animate={{
+                              opacity: 1,
+                              transition: shouldReduceMotion
+                                ? reducedTransition
+                                : { type: "tween", ...T.panelIn },
+                            }}
+                            exit={{
+                              opacity: 0,
+                              transition: shouldReduceMotion
+                                ? reducedTransition
+                                : { type: "tween", ...T.panelOut },
+                              pointerEvents: "none",
+                            }}
+                            style={{ willChange: "opacity" }}
+                          >
+                            {activeTab === 0
+                              ? "claude · ~/projects/waitfeed"
+                              : activeTab === 1
+                                ? "opencode · ~/projects/waitfeed"
+                                : "antigravity · ~/projects/waitfeed"}
+                          </motion.span>
+                        </AnimatePresence>
+                      </div>
                     </div>
+                    <span className="flex items-center gap-1.5 text-[#8A8A94]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />
+                      live
+                    </span>
                   </div>
-                  <span className="flex items-center gap-1.5 text-[#8A8A94]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#27AD75]" />
-                    live
-                  </span>
-                </div>
 
-                {/* Terminal Views Layered Stack (Smooth Pure Opacity Crossfade) */}
-                <div className="relative flex-1 w-full my-1 min-h-75 sm:min-h-78 overflow-hidden">
-                  <AnimatePresence initial={false} mode="sync">
-                    <motion.div
-                      key={activeTab}
-                      className="absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed pointer-events-auto"
-                      initial={{ opacity: 0 }}
-                      animate={{
-                        opacity: 1,
-                        transition: shouldReduceMotion
-                          ? reducedTransition
-                          : { type: "tween", ...T.panelIn },
-                      }}
-                      exit={{
-                        opacity: 0,
-                        transition: shouldReduceMotion
-                          ? reducedTransition
-                          : { type: "tween", ...T.panelOut },
-                        pointerEvents: "none",
-                      }}
-                      style={{ willChange: "opacity" }}
-                    >
-                      {activeTab === 0 && <ClaudeCodeTerminalContent />}
-                      {activeTab === 1 && <OpenCodeTerminalContent />}
-                      {activeTab === 2 && <AntigravityTerminalContent />}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
+                  {/* Terminal Views Layered Stack (Smooth Pure Opacity Crossfade) */}
+                  <div className="relative flex-1 w-full my-1 min-h-78 overflow-hidden">
+                    <AnimatePresence initial={false} mode="sync">
+                      <motion.div
+                        key={activeTab}
+                        className="absolute inset-0 flex flex-col justify-between pt-1 text-xs leading-relaxed pointer-events-auto"
+                        initial={{ opacity: 0 }}
+                        animate={{
+                          opacity: 1,
+                          transition: shouldReduceMotion
+                            ? reducedTransition
+                            : { type: "tween", ...T.panelIn },
+                        }}
+                        exit={{
+                          opacity: 0,
+                          transition: shouldReduceMotion
+                            ? reducedTransition
+                            : { type: "tween", ...T.panelOut },
+                          pointerEvents: "none",
+                        }}
+                        style={{ willChange: "opacity" }}
+                      >
+                        {activeTab === 0 && <ClaudeCodeTerminalContent />}
+                        {activeTab === 1 && <OpenCodeTerminalContent />}
+                        {activeTab === 2 && <AntigravityTerminalContent />}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
 
-                {/* Bottom Statusbar */}
-                <div className="pt-2 border-t border-[#1E1E22] flex items-center justify-between text-[9px] text-white/40 font-decima uppercase tracking-wider relative h-6">
-                  <AnimatePresence initial={false} mode="sync">
-                    <motion.div
-                      key={activeTab}
-                      className="absolute inset-x-0 top-1.5 flex items-center justify-between pointer-events-auto"
-                      initial={{ opacity: 0 }}
-                      animate={{
-                        opacity: 1,
-                        transition: shouldReduceMotion
-                          ? reducedTransition
-                          : { type: "tween", ...T.panelIn },
-                      }}
-                      exit={{
-                        opacity: 0,
-                        transition: shouldReduceMotion
-                          ? reducedTransition
-                          : { type: "tween", ...T.panelOut },
-                        pointerEvents: "none",
-                      }}
-                      style={{ willChange: "opacity" }}
-                    >
-                      <span>
-                        {activeTab === 0
-                          ? "Claude Opus 5.5 · $0.04"
-                          : activeTab === 1
-                            ? "OpenTUI Solid v2.4"
-                            : "? for shortcuts"}
-                      </span>
-                      <span>
-                        {activeTab === 0
-                          ? "82% context"
-                          : activeTab === 1
-                            ? "53 tests passed"
-                            : "Gemini Argon 4 · high"}
-                      </span>
-                    </motion.div>
-                  </AnimatePresence>
+                  {/* Bottom Statusbar */}
+                  <div className="pt-2 border-t border-[#1E1E22] flex items-center justify-between text-[9px] text-white/40 font-decima uppercase tracking-wider relative h-6">
+                    <AnimatePresence initial={false} mode="sync">
+                      <motion.div
+                        key={activeTab}
+                        className="absolute inset-x-0 top-1.5 flex items-center justify-between pointer-events-auto"
+                        initial={{ opacity: 0 }}
+                        animate={{
+                          opacity: 1,
+                          transition: shouldReduceMotion
+                            ? reducedTransition
+                            : { type: "tween", ...T.panelIn },
+                        }}
+                        exit={{
+                          opacity: 0,
+                          transition: shouldReduceMotion
+                            ? reducedTransition
+                            : { type: "tween", ...T.panelOut },
+                          pointerEvents: "none",
+                        }}
+                        style={{ willChange: "opacity" }}
+                      >
+                        <span>
+                          {activeTab === 0
+                            ? "Claude Opus 5.5 · $0.04"
+                            : activeTab === 1
+                              ? "OpenTUI Solid v2.4"
+                              : "? for shortcuts"}
+                        </span>
+                        <span>
+                          {activeTab === 0
+                            ? "82% context"
+                            : activeTab === 1
+                              ? "53 tests passed"
+                              : "Gemini Argon 4 · high"}
+                        </span>
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
                 </div>
               </motion.div>
             </div>

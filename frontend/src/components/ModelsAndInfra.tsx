@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { motion } from "motion/react";
 import { relaceViewport, transitionWithDelay } from "@/lib/motion";
@@ -22,6 +22,12 @@ const ROWS: FeedRow[] = [
 
 // Timeline parameters from specification (10,000ms infinite loop)
 const CYCLE_DURATION = 10000;
+
+// The inset feed card is laid out once at 800 × 229 — the reference's 80%-wide
+// card proportions — and scaled as one unit, so the whole table shrinks with the
+// image instead of reflowing into unreadable columns on phones.
+const CARD_DESIGN_WIDTH = 800;
+const CARD_DESIGN_HEIGHT = 229;
 const ROW_OUTLINE_AT = [800, 2700, 3100, 3500, 3900, 4300];
 const ROW_TEXT_AT = [950, 2850, 3250, 3650, 4050, 4450];
 const ROW_ACTIVE_AT = [2000, 3600, 4300, 4900, 5300, 5700];
@@ -55,6 +61,27 @@ export function ModelsAndInfra() {
     getServerSnapshot
   );
   const startRef = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardScale, setCardScale] = useState(0);
+
+  // Measure the image frame, take the reference's 80% card width, and scale the
+  // fixed design card to it. Layout effect + ResizeObserver: no wrong-size frame
+  // is ever painted.
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    const frame = el?.parentElement;
+    if (!el || !frame) return;
+
+    const measure = () => {
+      const width = frame.clientWidth * 0.8;
+      if (width > 0) setCardScale(width / CARD_DESIGN_WIDTH);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!sectionRef.current) return;
@@ -111,9 +138,9 @@ export function ModelsAndInfra() {
       ref={sectionRef}
       className="w-full py-16 sm:py-24"
     >
-      <div className="max-w-266 mx-auto px-5 sm:px-10 flex flex-col gap-6 sm:gap-8">
+      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4 px-5 min-[810px]:max-w-[1000px] min-[810px]:gap-10 min-[810px]:px-10 min-[1200px]:max-w-266">
         {/* Header */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-5 px-5">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -131,9 +158,9 @@ export function ModelsAndInfra() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={relaceViewport}
             transition={transitionWithDelay(0.05)}
-            className="text-2xl sm:text-3xl md:text-[42px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918] max-w-180"
+            className="text-[32px] min-[810px]:text-[36px] min-[1200px]:text-[40px] font-parabole font-normal leading-[1.1] tracking-[-0.04em] text-[#191918] max-w-180"
           >
-            Real-time engineering feeds from{" "} <br></br>
+            Real-time engineering feeds from{" "} <br className="hidden min-[810px]:inline" />
             <strong className="font-display font-normal text-black">
               primary developer networks
             </strong>
@@ -143,7 +170,7 @@ export function ModelsAndInfra() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={relaceViewport}
             transition={transitionWithDelay(0.1)}
-            className="text-sm sm:text-base text-[#191918]/60 font-parabole leading-relaxed max-w-160"
+            className="text-[16px] text-[#191918]/60 font-parabole leading-relaxed max-w-160"
           >
             Direct streaming ingestion from Hacker News, GitHub Trending, Dev.to,
             Reddit and custom RSS. Dispatched straight to your terminal.
@@ -156,25 +183,31 @@ export function ModelsAndInfra() {
           whileInView={{ opacity: 1, scale: 1, y: 0 }}
           viewport={relaceViewport}
           transition={transitionWithDelay(0.15)}
-          className="relative aspect-1596/900 min-h-110 sm:min-h-0 w-full rounded-xs overflow-hidden border border-[#e3e2d8] bg-[#f3f2e7]"
+          className="relative aspect-[1596/900] w-full rounded-xs overflow-hidden border border-[#e3e2d8] bg-[#f3f2e7]"
         >
           <Image
             src="https://framerusercontent.com/images/Bj6BdvVC7GNAWhZbDFhJ2X9rTFI.webp?width=1596&height=900"
             alt="Mountain ridge at sunset with trees in the foreground"
             fill
-            sizes="(min-width: 1200px) 1064px, (max-width: 809.98px) calc(100vw - 40px), 920px"
+            sizes="(min-width: 1200px) 984px, (min-width: 810px) calc(100vw - 80px), calc(100vw - 40px)"
             className="w-full h-full object-cover select-none"
           />
 
-          {/* Centered Spec-Compliant Job Queue Table Panel (Zero Scrollbars) */}
+          {/* Reference card: 80% of the image, at the 800:229 design size and
+              scaled as one unit, so the table shrinks with the frame instead of
+              reflowing into unreadable columns. */}
           <div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[94%] sm:w-[90%] max-w-200 select-none flex flex-col justify-start overflow-hidden p-3 sm:px-[19px] sm:py-4"
+            ref={cardRef}
+            className="absolute left-1/2 top-1/2 z-10 flex flex-col justify-start select-none overflow-hidden px-[19px] py-4"
             style={{
+              width: CARD_DESIGN_WIDTH,
+              height: CARD_DESIGN_HEIGHT,
+              transform: `translate(-50%, -50%) scale(${cardScale})`,
+              visibility: cardScale > 0 ? "visible" : "hidden",
               backgroundColor: "rgba(245, 241, 230, 0.80)",
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
               borderRadius: 0,
-              height: "auto",
               boxShadow: "none",
               overflow: "hidden",
               scrollbarWidth: "none",
@@ -185,11 +218,11 @@ export function ModelsAndInfra() {
             <div className="w-full overflow-hidden scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <div className="w-full">
                 {/* 1) Header Row (Compact h-7 matching data rows, perfectly aligned) */}
-                <div className="grid w-full h-7 items-center grid-cols-[24%_30%_16%_30%] lg:grid-cols-[28%_34%_22%_16%] text-[10px] sm:text-sm font-sans font-medium text-[#1a1a1a]">
-                  <div className="pl-1.5 sm:pl-2.75 pr-1 sm:pr-2 truncate">Source</div>
-                  <div className="pl-1.5 sm:pl-2.75 pr-1 sm:pr-2 truncate">Content</div>
-                  <div className="pl-1.5 sm:pl-2.75 pr-1 sm:pr-2 truncate">Refresh</div>
-                  <div className="pl-1.5 sm:pl-2.5 pr-1 sm:pr-2 min-w-max">Status</div>
+                <div className="grid w-full h-7 items-center grid-cols-[28%_34%_22%_16%] text-sm font-sans font-medium text-[#1a1a1a]">
+                  <div className="pl-2.75 pr-2 truncate">Source</div>
+                  <div className="pl-2.75 pr-2 truncate">Content</div>
+                  <div className="pl-2.75 pr-2 truncate">Refresh</div>
+                  <div className="pl-2.5 pr-2 min-w-max">Status</div>
                 </div>
 
                 {/* Animated Top Border of the Table (scaleX 0 -> 1) */}
@@ -242,7 +275,7 @@ export function ModelsAndInfra() {
                     return (
                       <div
                         key={row.source}
-                        className="grid w-full h-7 items-stretch border-l border-r border-b border-solid transition-[background-color,border-color] duration-280 ease-out relative grid-cols-[24%_30%_16%_30%] lg:grid-cols-[28%_34%_22%_16%]"
+                        className="grid w-full h-7 items-stretch border-l border-r border-b border-solid transition-[background-color,border-color] duration-280 ease-out relative grid-cols-[28%_34%_22%_16%]"
                         style={{
                           borderColor: isActive ? "#FBA92C" : "rgba(26, 26, 26, 0.85)",
                           backgroundColor: isActive
@@ -257,7 +290,7 @@ export function ModelsAndInfra() {
                       >
                         {/* Source */}
                         <div
-                          className={`h-full flex items-center pl-1.5 sm:pl-2.75 pr-0.5 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
+                          className={`h-full flex items-center pl-2.75 pr-2 border-r border-solid whitespace-nowrap uppercase text-[11px] tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
                             }`}
                           style={{
                             fontFamily:
@@ -271,7 +304,7 @@ export function ModelsAndInfra() {
 
                         {/* Content */}
                         <div
-                          className={`h-full flex items-center pl-1.5 sm:pl-2.75 pr-0.5 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
+                          className={`h-full flex items-center pl-2.75 pr-2 border-r border-solid whitespace-nowrap uppercase text-[11px] tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
                             }`}
                           style={{
                             fontFamily:
@@ -285,7 +318,7 @@ export function ModelsAndInfra() {
 
                         {/* Refresh */}
                         <div
-                          className={`h-full flex items-center pl-1.5 sm:pl-2.75 pr-0.5 sm:pr-2 border-r border-solid whitespace-nowrap uppercase text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
+                          className={`h-full flex items-center pl-2.75 pr-2 border-r border-solid whitespace-nowrap uppercase text-[11px] tracking-[0.08em] text-[#1a1a1a] truncate transition-[color,border-color] duration-280 ${isActive ? "font-bold" : "font-normal"
                             }`}
                           style={{
                             fontFamily:
@@ -311,7 +344,7 @@ export function ModelsAndInfra() {
                         >
                           {/* PENDING Layer (rolls down 16px and fades out) */}
                           <div
-                            className="absolute inset-0 px-1.5 sm:px-2.5 flex items-center gap-1 sm:gap-2 uppercase whitespace-nowrap select-none text-[#1a1a1a]/55 text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] font-normal"
+                            className="absolute inset-0 px-2.5 flex items-center gap-2 uppercase whitespace-nowrap select-none text-[#1a1a1a]/55 text-[11px] tracking-[0.08em] font-normal"
                             style={{
                               fontFamily:
                                 "'JetBrains Mono', 'Geist Mono', 'IBM Plex Mono', ui-monospace, monospace",
@@ -346,7 +379,7 @@ export function ModelsAndInfra() {
 
                           {/* SUCCEEDED Layer (rolls from -16px to 0 and fades in) */}
                           <div
-                            className="absolute inset-0 px-1.5 sm:px-2.5 flex items-center gap-1 sm:gap-2 uppercase whitespace-nowrap select-none text-[9px] sm:text-[11px] tracking-[0.06em] sm:tracking-[0.08em] font-normal transition-colors duration-280"
+                            className="absolute inset-0 px-2.5 flex items-center gap-2 uppercase whitespace-nowrap select-none text-[11px] tracking-[0.08em] font-normal transition-colors duration-280"
                             style={{
                               fontFamily:
                                 "'JetBrains Mono', 'Geist Mono', 'IBM Plex Mono', ui-monospace, monospace",
