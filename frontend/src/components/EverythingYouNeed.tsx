@@ -390,13 +390,12 @@ export function EverythingYouNeed() {
         : "116px";
 
   useEffect(() => {
-    // Pinned scroll-driven tabs exist only from md up; below that the section
-    // is a normal stacked flow and must never hijack the page scroll.
-    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    // Pinned scroll-driven tabs run at every width — the section is 260vh tall on
+    // mobile too, so a finger-scroll steps through the three agents the same way.
     let animationFrameId: number;
 
     function handleScroll() {
-      if (!containerRef.current || !desktopQuery.matches) {
+      if (!containerRef.current) {
         setScrollProgress(0);
         return;
       }
@@ -425,20 +424,16 @@ export function EverythingYouNeed() {
     }
 
     window.addEventListener("scroll", onScrollThrottled, { passive: true });
-    desktopQuery.addEventListener("change", onScrollThrottled);
     handleScroll();
 
     return () => {
       window.removeEventListener("scroll", onScrollThrottled);
-      desktopQuery.removeEventListener("change", onScrollThrottled);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
   function handleTabClick(index: number) {
     setActiveTab(index);
-    // Mobile stacks the tabs above the terminal: switch in place, no scroll jump.
-    if (!window.matchMedia("(min-width: 768px)").matches) return;
     if (!containerRef.current) return;
 
     isClickingRef.current = true;
@@ -464,10 +459,10 @@ export function EverythingYouNeed() {
     <section
       id="how-it-works"
       ref={containerRef}
-      className="relative w-full h-auto md:h-[260vh]"
+      className="relative w-full h-[260vh]"
     >
-      {/* Pinned Sticky Viewport Window (md+) — falls back to normal document flow on mobile so nothing is clipped */}
-      <div className="w-full flex flex-col md:sticky md:top-0 md:h-screen md:justify-center md:items-center md:overflow-hidden">
+      {/* Pinned Sticky Viewport Window — same pinned scroll-step at every width */}
+      <div className="w-full flex flex-col sticky top-0 min-h-screen md:h-screen md:justify-center md:items-center md:overflow-hidden">
         <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-start md:justify-between gap-10 md:gap-0 py-16 sm:py-20 md:py-6 md:h-full md:max-h-205">
           {/* Top Decorative Border track */}
           <div className="w-full flex flex-col gap-2 flex-none">
