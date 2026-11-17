@@ -390,6 +390,15 @@ export function register(on) {
   // a mod can neither read nor undo), our own ctrl+n toggle (`cardHidden`),
   // and the shared `newsMode === 'hide'`. Otherwise the card rides the model
   // turn itself (`isWorking`), never the old activity ledger.
+  //
+  // The band's frame is the engine's, not ours: it draws its `[-]` collapse
+  // affordance at the right end of the first row and reserves five columns for
+  // it (`e.props.bodyColumns` is already net of those), and it owns the one
+  // blank row between the band and the prompt border. A mod can neither hide
+  // that mark nor pad that row away. The card therefore spends its one row of
+  // its own ABOVE the headline: with the transcript's last line right on top
+  // of it, a flush card reads as part of the agent's output. Nothing goes
+  // below — that would stack a second gap under the prompt's own.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || e.props.isCollapsed) return next(e)
     if (cardHidden) return next(e)
@@ -431,9 +440,10 @@ export function register(on) {
       // openLink path, so openLink stays in use.)
       children.push(Link({ href: url, label: LINK_MARKER + linkTextOf(url) }))
     }
-    // Keep the card tight against the prompt input: zero bottom padding,
-    // margin, and gap of our own; one row of breathing room above the card.
-    return Box({ flexDirection: 'column', marginTop: 1, paddingBottom: 0, marginBottom: 0, gap: 0, children })
+    // Exactly one row above the headline is our whole spacing: breathing room
+    // between the agent's last line and the card. Below the card the prompt
+    // keeps its own margin (host-owned), so no bottom margin, padding, or gap.
+    return Box({ flexDirection: 'column', marginTop: 1, children })
   })
 
   // The pane: one pressable row per headline, its description under it.

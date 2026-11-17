@@ -47,6 +47,12 @@ mid-run.
   mid-run, `auto` is the busy-only rule above. Add a host (`npx waitfeed hide
   claude`) to write only this host's override.
 - A key the user already bound to something else is never clobbered.
+- **The `[-]` on the band's first row is Claude Code's own collapse control**
+  (it reserves five columns at the right end). The card keeps **one blank row
+  above it** as breathing room from the transcript's last line, and the one
+  blank row below it is the prompt's own margin — neither is removable, so
+  `Ctrl+N` (card) and `Ctrl+X Ctrl+A` (whole band) are the ways to take it off
+  screen.
 
 ## Install & migration
 

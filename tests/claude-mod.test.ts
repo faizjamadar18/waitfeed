@@ -161,6 +161,20 @@ describe("the news card rides the AbovePrompt band", () => {
     expect(src).toContain("Link({ href: url, label: LINK_MARKER + linkTextOf(url) })")
   })
 
+  it("keeps exactly one row of breathing room above the card — and nothing below", async () => {
+    const src = await registerSrc()
+    // The transcript's last line sits right on top of the band. With the card
+    // flush it reads as another line of agent output, so the card spends one
+    // row of its own above the headline. Below the card the prompt keeps its
+    // own margin (host-owned) — a margin/padding/gap there would stack a
+    // second gap under it.
+    expect(src).toContain("return Box({ flexDirection: 'column', marginTop: 1, children })")
+    expect(src, "the top gap stays at exactly one row").not.toMatch(/marginTop:\s*[2-9]/)
+    expect(src).not.toContain("marginBottom")
+    expect(src).not.toContain("paddingBottom")
+    expect(src).not.toMatch(/gap:\s*0/)
+  })
+
   it("dwell timer invalidates UI periodically for the band", async () => {
     const src = await registerSrc()
     expect(src).toContain("const TICKER_DWELL_MS = 20_000")

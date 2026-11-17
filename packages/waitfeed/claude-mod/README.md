@@ -29,6 +29,16 @@ Two independent switches:
   `command:waitfeed`) toggles just the card — instantly and with no file write.
   The host default `Ctrl+X Ctrl+A` collapses the whole band separately. A key
   the user already bound to something else is never taken.
+- **The `[-]` at the band's right end is Claude Code's own**, not the card's:
+  while the band is expanded the engine draws it on the first row (and reserves
+  five columns at the right — `bodyColumns` arrives already net of them); in
+  fullscreen rendering the user clicks it to collapse the band. No mod can draw
+  over it, move it, or hide it. The one blank row **above** the card is the
+  card's own breathing room — the transcript's last line would otherwise sit
+  right on the headline and read as part of the agent's output. The one blank
+  row **below** the card is the prompt's own margin, present with the card
+  hidden too, and not mod-owned. `Ctrl+N` / `Ctrl+X Ctrl+A` are the switches
+  that actually take the card off screen.
 - The visibility mode in `~/.config/waitfeed/config.json` — `newsMode`, or
   this host's `newsModes.claude` override — is the same switch the shell
   commands write. It flips the card off (`hide`) or back to normal (`auto`,
