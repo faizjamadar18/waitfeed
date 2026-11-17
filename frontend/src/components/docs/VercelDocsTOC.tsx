@@ -20,7 +20,7 @@ export function VercelDocsTOC({
   };
 
   return (
-    <aside className="hidden xl:block sticky top-16 h-[calc(100vh-4rem)] w-56 lg:w-64 shrink-0 border-l border-neutral-800/80 p-6 overflow-y-auto z-20">
+    <aside className="hidden xl:block sticky top-16 h-[calc(100vh-4rem)] w-56 lg:w-64 shrink-0 p-6 overflow-y-auto z-20">
       <div className="flex flex-col gap-6">
         {/* TOC Header */}
         <div>
@@ -31,8 +31,8 @@ export function VercelDocsTOC({
             On this page
           </h2>
 
-          {/* TOC Link list with active indicator track */}
-          <div className="relative pl-3 border-l border-neutral-800">
+          {/* TOC Link list with active indicator */}
+          <div className="relative pl-3">
             <ul className="space-y-2 text-xs">
               {TOC_ITEMS.map((item) => {
                 const isActive = activeSectionId === item.id;
@@ -41,7 +41,7 @@ export function VercelDocsTOC({
                     {isActive && (
                       <span
                         aria-hidden="true"
-                        className="absolute -left-[13px] top-1 bottom-1 w-0.5 bg-amber-400 rounded-full"
+                        className="absolute left-0 top-1 bottom-1 w-0.5 bg-white rounded-full"
                       />
                     )}
                     <a
@@ -66,11 +66,8 @@ export function VercelDocsTOC({
           </div>
         </div>
 
-        {/* Separator */}
-        <div className="h-px w-full bg-neutral-800/80" />
-
         {/* Community & Helpful Links */}
-        <div className="flex flex-col gap-2.5 text-xs text-neutral-400">
+        <div className="flex flex-col gap-2.5 pt-2 text-xs text-neutral-400">
           <a
             href="https://github.com/faizjamadar18/waitfeed/issues/new"
             target="_blank"

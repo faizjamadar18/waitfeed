@@ -35,6 +35,84 @@ function stripAnsi(str) {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "")
 }
 
+// --- Width-aware wrapping (SGR escapes are zero-width) ---
+// The next-steps box draws a border on both sides, so every row must measure
+// the same on screen. Wrap the visible characters, then re-apply whatever SGR
+// style was active at each character so a wrapped row keeps its colors.
+const SGR_AT_START = /^\x1B\[[0-9;]*m/
+
+function splitStyledChars(text) {
+  const chars = []
+  let active = ""
+  let i = 0
+  while (i < text.length) {
+    const sgr = text[i] === "\x1B" ? SGR_AT_START.exec(text.slice(i)) : null
+    if (sgr) {
+      active = sgr[0] === "\x1B[0m" ? "" : active + sgr[0]
+      i += sgr[0].length
+      continue
+    }
+    chars.push({ ch: text[i], style: active })
+    i++
+  }
+  return chars
+}
+
+function renderStyledChars(chars) {
+  let out = ""
+  let style = ""
+  for (const char of chars) {
+    if (char.style !== style) {
+      out += `\x1B[0m${char.style}`
+      style = char.style
+    }
+    out += char.ch
+  }
+  return style ? out + "\x1B[0m" : out
+}
+
+function wrapStyled(text, width) {
+  const limit = Math.max(1, width)
+  const words = []
+  let word = []
+  for (const char of splitStyledChars(text)) {
+    if (char.ch === " ") {
+      if (word.length) {
+        words.push(word)
+        word = []
+      }
+    } else {
+      word.push(char)
+    }
+  }
+  if (word.length) words.push(word)
+
+  const lines = []
+  let line = []
+  let used = 0
+  const flush = () => {
+    lines.push(line)
+    line = []
+    used = 0
+  }
+  for (const current of words) {
+    if (line.length && used + 1 + current.length > limit) flush()
+    // A single token longer than the row (a URL, a path) hard-splits too.
+    while (current.length > limit - used) {
+      line.push(...current.splice(0, limit - used))
+      flush()
+    }
+    if (line.length) {
+      line.push({ ch: " ", style: "" })
+      used++
+    }
+    line.push(...current)
+    used += current.length
+  }
+  if (line.length) lines.push(line)
+  return lines.map(renderStyledChars)
+}
+
 function countLinesRows(lines) {
   const cols = Math.max(20, process.stdout.columns || 80)
   let total = 0
@@ -995,6 +1073,52 @@ function renderBanner(options = {}) {
   return lines.join("\n")
 }
 
+// --- Next steps box ---
+// One inner width drives every line: labels form a two-column table (the
+// fastest way to scan "what do I type?") and copy wraps instead of spilling
+// past the right border. ASCII and `·` only inside the box — `—` is
+// ambiguous-width on CJK terminals and would shift the edge.
+function renderNextSteps(selected = {}, { columns = process.stdout.columns || 80 } = {}) {
+  const inner = Math.max(24, Math.min(62, columns - 6))
+  const width = inner + 2 // "│" + inner + "│"
+  const labelWidth = 11 // "Claude Code" / "Antigravity"
+  const gutter = labelWidth + 3 // leading space + two-column gap
+  const lines = []
+
+  const title = "◇ Next steps "
+  lines.push(`  ${c.cyan}${title}${"─".repeat(width - 1 - title.length)}┐${c.reset}`)
+
+  const cmd = (s) => `${c.white}${s}${c.reset}`
+  const dot = `${c.dim} · ${c.reset}`
+  const row = (label, text) => {
+    const head = ` ${c.bold}${label}${c.reset}${" ".repeat(Math.max(0, labelWidth - label.length) + 2)}`
+    const hang = " ".repeat(gutter)
+    wrapStyled(text, inner - gutter).forEach((part, index) => {
+      const pad = " ".repeat(Math.max(0, inner - gutter - stripAnsi(part).length))
+      lines.push(`  ${c.dim}│${c.reset}${index === 0 ? head : hang}${part}${pad}${c.dim}│${c.reset}`)
+    })
+  }
+
+  if (selected.opencode) {
+    row("OpenCode", `${cmd("opencode")}${dot}${cmd("/feed")}${c.dim} · Ctrl+O toggles card${c.reset}`)
+  }
+  if (selected.claude) {
+    row("Claude Code", `${cmd("claude")}${dot}${cmd("/feed")}${c.dim} · Ctrl+N toggles card${c.reset}`)
+  }
+  if (selected.agy) {
+    row("Antigravity", `${cmd("agy")}${dot}${c.dim}statusline ticker${c.reset}`)
+  }
+  if (!selected.opencode && !selected.claude && !selected.agy) {
+    row("Setup", `${cmd("npx waitfeed init")}${c.dim} · re-run this wizard${c.reset}`)
+  } else {
+    // Global switch, shown under the host rows it applies to.
+    row("", cmd("npx waitfeed show / hide / toggle"))
+  }
+
+  lines.push(`  ${c.cyan}└${"─".repeat(width - 2)}┘${c.reset}`)
+  return lines
+}
+
 // --- Main CLI Execution ---
 async function runInit() {
   console.log()
@@ -1108,12 +1232,11 @@ async function runInit() {
   if (selectedAgents.claude) {
     await registerClaudePlugin()
     console.log(`  ${c.green}✓${c.reset} Claude Code integration active`)
-    console.log(`  ${c.dim}│  Type /feed in Claude Code for the reader pane (needs Claude Code v2.1.295+).${c.reset}`)
   }
   console.log(`  ${c.dim}│${c.reset}`)
 
   // 6. Single Unified Live Card Preview
-  console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Live Ticker Preview (what you will see while your agent works):${c.reset}`)
+  console.log(`  ${c.cyan}◇${c.reset} ${c.bold}Live preview (while your agent works):${c.reset}`)
   console.log(`  ${c.dim}│${c.reset}`)
   console.log(`  ${c.dim}│  ┌───────────────────────────────────────────────────────────────┐${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset} ${c.orange}${c.bold}▍ [HN]${c.reset}  ${c.bold}${c.white}SWE-bench: Evaluating AI coding agents${c.reset}    ${c.orange}▲ 1.2k${c.reset}${c.dim} · 2h${c.reset} ${c.dim}│${c.reset}`)
@@ -1121,40 +1244,11 @@ async function runInit() {
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}full test suites without human intervention.               │${c.reset}`)
   console.log(`  ${c.dim}│  │${c.reset}    ${c.dim}> ${c.cyan}swebench.com${c.reset}${c.dim}                                             │${c.reset}`)
   console.log(`  ${c.dim}│  └───────────────────────────────────────────────────────────────┘${c.reset}`)
-  console.log(`  ${c.dim}│  ▸ Renders above prompt in OpenCode and Claude Code, in the AGY statusline${c.reset}`)
-  console.log(`  ${c.dim}│${c.reset}`)
+  console.log(`  ${c.dim}│  ▸ Above the prompt in OpenCode / Claude Code · AGY statusline${c.reset}`)
 
-  // 7. Next-steps box. ONE width drives every row so corners always line
-  // up: text pads to NEXT_INNER via stripAnsi (ANSI codes have no width),
-  // and both borders derive from the same number. Plain hyphens inside the
-  // box — `—` is ambiguous-width on CJK terminals and would shift the edge.
-  const NEXT_INNER = 62 // text columns between the vertical strokes
-  const nextRow = (text) => {
-    const pad = " ".repeat(Math.max(0, NEXT_INNER - stripAnsi(text).length))
-    console.log(`  ${c.dim}│${c.reset} ${text}${pad}${c.dim}│${c.reset}`)
-  }
-  console.log(`  ${c.cyan}◇ Next steps ${"─".repeat(NEXT_INNER - 11)}┐${c.reset}`)
-  if (selectedAgents.opencode) {
-    nextRow(`• ${c.bold}OpenCode:${c.reset} Start ${c.white}opencode${c.reset} - ticker appears when agent works.`)
-    nextRow(`  Type ${c.bold}/feed${c.reset} anytime to open the fullscreen reader.`)
-    nextRow(`  Press ${c.bold}Ctrl+O${c.reset} to show/hide the card, even while the agent works.`)
-  }
-  if (selectedAgents.claude) {
-    nextRow(`• ${c.bold}Claude Code:${c.reset} Start ${c.white}claude${c.reset} - the news card rides the band`)
-    nextRow(`  above the prompt, rotating while the agent works; at idle`)
-    nextRow(`  the terminal stays your own (nothing renders).`)
-    nextRow(`  Press ${c.bold}Ctrl+N${c.reset} to show/hide just this card (works mid-run).`)
-    nextRow(`  Type ${c.bold}/feed${c.reset} to read headlines in a pane (v2.1.295+).`)
-    nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card from any shell.`)
-  }
-  if (selectedAgents.agy) {
-    nextRow(`• ${c.bold}Antigravity (AGY):${c.reset} Start ${c.white}agy${c.reset} - the statusline ticker rotates only`)
-    nextRow(`  while the agent works; at idle the terminal stays your own.`)
-    nextRow(`  Run ${c.bold}npx waitfeed show${c.reset} / ${c.bold}hide${c.reset} to switch the card.`)
-    nextRow(`  The AGY card's origin link opens with a Ctrl+Click.`)
-  }
-  nextRow(`• The ticker appears while your agent works - it is quiet when you are.`)
-  console.log(`  ${c.cyan}└${"─".repeat(NEXT_INNER + 1)}┘${c.reset}`)
+  // 7. Next steps: one scannable row per configured host, borders aligned.
+  console.log()
+  for (const line of renderNextSteps(selectedAgents)) console.log(line)
   console.log()
   console.log(`  ${c.green}✓ WaitFeed setup complete! Happy coding.${c.reset}`)
   console.log()
@@ -1276,6 +1370,7 @@ export {
   countLinesRows,
   eraseBlock,
   renderBanner,
+  renderNextSteps,
 }
 
 // If invoked as CLI entry

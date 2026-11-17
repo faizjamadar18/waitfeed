@@ -102,7 +102,7 @@ function SectionHeading({
   description: ReactNode;
 }) {
   return (
-    <div className="border-b border-neutral-800/70 pb-3">
+    <div className="pb-1">
       <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
         {title}
       </h2>
@@ -787,7 +787,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
       </section>
 
       {/* Footer */}
-      <div className="flex flex-col gap-4 border-t border-neutral-800 pt-8 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 pt-10 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-5 text-neutral-500">
           MIT-licensed. Local-first. No accounts, API keys, or telemetry.
         </p>

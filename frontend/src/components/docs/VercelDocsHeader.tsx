@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { WaitFeedBrand, GitHubIcon, NpmIcon } from "@/components/Icons";
 
@@ -14,11 +15,26 @@ export function VercelDocsHeader({
   onToggleMobileSidebar,
   isMobileSidebarOpen,
 }: VercelDocsHeaderProps) {
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 0);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 w-full h-16 bg-black/85 backdrop-blur-md border-b border-neutral-800/80 transition-colors">
+    <header
+      className={`sticky top-0 z-40 w-full h-16 bg-black/85 backdrop-blur-md transition-[border-color,background-color] duration-200 border-b ${
+        isScrolled ? "border-neutral-800/80" : "border-transparent"
+      }`}
+    >
       <div className="h-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
-        {/* Left: Brand + Breadcrumb */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Left: Brand Logo + Nav Links beside it */}
+        <div className="flex items-center gap-8 lg:gap-10 shrink-0">
           <Link
             href="/"
             aria-label="WaitFeed home"
@@ -26,72 +42,13 @@ export function VercelDocsHeader({
           >
             <WaitFeedBrand
               isDark={true}
-              markClassName="w-6 h-6"
-              textClassName="text-[19px]"
+              markClassName="w-7 h-7"
+              textClassName="text-[21px] sm:text-[22px]"
             />
           </Link>
-          <span className="text-neutral-600 font-light select-none text-lg">/</span>
-          <Link
-            href="/docs"
-            className="text-xs uppercase font-mono tracking-wider px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 transition-colors"
-          >
-            Docs
-          </Link>
-        </div>
 
-        {/* Center: Vercel-style Search Bar */}
-        <div className="flex-1 max-w-md hidden md:block">
-          <button
-            type="button"
-            onClick={onOpenSearch}
-            className="w-full h-9 px-3 rounded-md bg-neutral-900/90 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-neutral-300 flex items-center justify-between text-xs tracking-wide transition-all cursor-pointer group"
-          >
-            <span className="flex items-center gap-2">
-              <svg
-                viewBox="0 0 16 16"
-                className="w-3.5 h-3.5 text-neutral-500 group-hover:text-neutral-300 transition-colors"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="7" cy="7" r="5" />
-                <path d="m11 11 3.5 3.5" />
-              </svg>
-              <span>Search documentation...</span>
-            </span>
-            <kbd className="inline-flex items-center gap-0.5 font-mono text-[10px] uppercase px-1.5 py-0.5 rounded-sm bg-neutral-800 text-neutral-400 border border-neutral-700">
-              <span className="text-[12px]">⌘</span>K
-            </kbd>
-          </button>
-        </div>
-
-        {/* Right: Quick Links + Icons + Mobile Toggle */}
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-          {/* Mobile Search Button */}
-          <button
-            type="button"
-            onClick={onOpenSearch}
-            aria-label="Search documentation"
-            className="md:hidden p-2 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-900 transition-colors"
-          >
-            <svg
-              viewBox="0 0 16 16"
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="7" cy="7" r="5" />
-              <path d="m11 11 3.5 3.5" />
-            </svg>
-          </button>
-
-          {/* Quick Nav Anchor Links (Desktop) */}
-          <nav className="hidden lg:flex items-center gap-5 text-xs text-neutral-400 font-medium">
+          {/* Nav links on the left, directly beside the logo */}
+          <nav className="hidden md:flex items-center gap-5 lg:gap-6 text-xs text-neutral-400 font-normal">
             <a
               href="#quickstart"
               className="hover:text-white transition-colors"
@@ -123,11 +80,59 @@ export function VercelDocsHeader({
               CLI
             </a>
           </nav>
+        </div>
 
-          <div className="hidden sm:block h-4 w-px bg-neutral-800" />
+        {/* Right: Search Bar + Social/External Icons + Mobile Hamburger */}
+        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          {/* Search Button in right corner */}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className="hidden sm:flex items-center justify-between gap-3 h-8 w-44 md:w-52 px-2.5 rounded-md bg-neutral-900/90 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-neutral-300 text-xs tracking-wide transition-all cursor-pointer group"
+          >
+            <span className="flex items-center gap-2 truncate">
+              <svg
+                viewBox="0 0 16 16"
+                className="w-3.5 h-3.5 text-neutral-500 group-hover:text-neutral-300 transition-colors shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="7" cy="7" r="5" />
+                <path d="m11 11 3.5 3.5" />
+              </svg>
+              <span className="truncate">Search...</span>
+            </span>
+            <kbd className="inline-flex items-center gap-0.5 font-mono text-[10px] uppercase px-1.5 py-0.5 rounded-xs bg-neutral-800 text-neutral-400 border border-neutral-700 shrink-0">
+              <span className="text-[11px]">⌘</span>K
+            </kbd>
+          </button>
+
+          {/* Mobile Search Icon */}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="Search documentation"
+            className="sm:hidden p-2 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-900 transition-colors"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="7" cy="7" r="5" />
+              <path d="m11 11 3.5 3.5" />
+            </svg>
+          </button>
 
           {/* External links */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <a
               href="https://github.com/faizjamadar18/waitfeed"
               target="_blank"
@@ -153,7 +158,7 @@ export function VercelDocsHeader({
             type="button"
             onClick={onToggleMobileSidebar}
             aria-label={isMobileSidebarOpen ? "Close navigation menu" : "Open navigation menu"}
-            className="lg:hidden p-2 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-900 transition-colors"
+            className="md:hidden p-2 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-900 transition-colors"
           >
             {isMobileSidebarOpen ? (
               <svg

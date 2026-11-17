@@ -24,6 +24,7 @@ import {
   setNewsMode,
   toggleNewsMode,
   countLinesRows,
+  renderNextSteps,
 } from "../packages/waitfeed/bin.mjs"
 
 const PKG = join(import.meta.dirname, "..", "packages", "waitfeed")
@@ -744,6 +745,55 @@ describe("Removal (full teardown)", () => {
     } finally {
       await rm(home, { recursive: true, force: true })
     }
+  })
+})
+
+describe("Next steps box geometry", () => {
+  const visibleWidth = (line: string) => line.replace(/\x1B\[[0-9;]*m/g, "").length
+  const allHosts = { opencode: true, claude: true, agy: true }
+
+  it("gives every line the same width so the right border never drifts", () => {
+    for (const columns of [80, 60, 40]) {
+      const lines = renderNextSteps(allHosts, { columns })
+      const widths = new Set(lines.map(visibleWidth))
+      expect(widths.size, `columns=${columns}`).toBe(1)
+      expect(Math.max(...widths), `columns=${columns}`).toBeLessThanOrEqual(columns)
+    }
+  })
+
+  it("wraps starter copy instead of letting it spill past the border", () => {
+    const lines = renderNextSteps(allHosts, { columns: 50 })
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(50)
+    }
+    // A wrapped body row is still a boxed row: both strokes stay in place.
+    for (const line of lines.slice(1, -1)) {
+      const plain = line.replace(/\x1B\[[0-9;]*m/g, "").trim()
+      expect(plain.startsWith("│")).toBe(true)
+      expect(plain.endsWith("│")).toBe(true)
+    }
+  })
+
+  it("shows only the hosts the user configured", () => {
+    const text = renderNextSteps({ opencode: true }).join("\n")
+    expect(text).toContain("opencode")
+    expect(text).toContain("/feed")
+    expect(text).not.toContain("claude")
+    expect(text).not.toContain("agy")
+  })
+
+  it("stays scannable: one row per host, not a paragraph", () => {
+    const text = renderNextSteps(allHosts).join("\n")
+    expect(renderNextSteps(allHosts).length).toBeLessThanOrEqual(7)
+    // No extra label/version/link clutter; the global switch sits under the hosts.
+    expect(text).not.toContain("Any shell")
+    expect(text).not.toContain("Ctrl+Click")
+    expect(text).not.toContain("2.1.295")
+    expect(text).toContain("npx waitfeed show / hide / toggle")
+  })
+
+  it("still points somewhere useful when no host is configured", () => {
+    expect(renderNextSteps({}).join("\n")).toContain("npx waitfeed init")
   })
 })
 
