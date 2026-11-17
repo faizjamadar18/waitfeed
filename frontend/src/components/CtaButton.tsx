@@ -16,6 +16,8 @@ interface CtaButtonProps {
   rel?: string;
   onClick?: () => void;
   showArrow?: boolean;
+  leftIcon?: React.ReactNode;
+  ariaLabel?: string;
 }
 
 export function CtaButton({
@@ -27,6 +29,8 @@ export function CtaButton({
   rel,
   onClick,
   showArrow,
+  leftIcon,
+  ariaLabel,
 }: CtaButtonProps) {
   // Accent = yellow background with dark text
   // Beige = light beige background that turns black on hover with white text
@@ -62,10 +66,16 @@ export function CtaButton({
       target={target || (isExternal ? "_blank" : undefined)}
       rel={rel || (isExternal ? "noopener noreferrer" : undefined)}
       onClick={onClick}
+      aria-label={ariaLabel}
       whileHover={{ scale: 1.015, transition: { duration: 0.2, ease: RELACE_EASE } }}
       whileTap={{ scale: 0.98, transition: { duration: 0.1, ease: RELACE_EASE } }}
       className={`${baseClasses} ${sizeClasses} ${colorClasses} ${className}`}
     >
+      {leftIcon && (
+        <span className="relative z-10 shrink-0 inline-flex items-center justify-center">
+          {leftIcon}
+        </span>
+      )}
       <span className="relative z-10 font-parabole">{children}</span>
 
       {/* Dual sliding arrow icon */}

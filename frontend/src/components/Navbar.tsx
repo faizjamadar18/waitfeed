@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { WaitFeedBrand } from "./Icons";
+import { WaitFeedBrand, GitHubIcon } from "./Icons";
 import { CtaButton } from "./CtaButton";
 import { RELACE_EASE } from "@/lib/motion";
 
@@ -52,9 +52,11 @@ export function Navbar() {
             target="_blank"
             variant="accent"
             showArrow
+            ariaLabel="Star WaitFeed on GitHub"
+            leftIcon={<GitHubIcon className="w-3.5 h-3.5" />}
             className="py-2! pl-3! pr-2.5! sm:pl-4! sm:pr-3! gap-1.5! text-[11px]! font-medium! uppercase tracking-wider text-[#191918]!"
           >
-            GITHUB
+            <span className="hidden sm:inline">HIT A STAR</span>
           </CtaButton>
         </div>
       </div>
