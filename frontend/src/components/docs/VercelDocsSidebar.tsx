@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, AnimatePresence } from "motion/react";
 import {
   VERCEL_DOCS_NAV_GROUPS,
   WAITFEED_VERSION,
@@ -86,41 +87,53 @@ export function VercelDocsSidebar({
       </aside>
 
       {/* Mobile Slide-over Drawer */}
-      {isOpenMobile && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity"
-            onClick={onCloseMobile}
-          />
-          {/* Drawer Canvas */}
-          <div className="relative w-72 max-w-[85vw] h-full bg-neutral-950 border-r border-neutral-800 shadow-2xl flex flex-col z-10">
-            <div className="h-14 flex items-center justify-between px-4 border-b border-neutral-800">
-              <span className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-300">
-                Documentation Menu
-              </span>
-              <button
-                type="button"
-                onClick={onCloseMobile}
-                className="p-1.5 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-900"
-              >
-                <svg
-                  viewBox="0 0 16 16"
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+      <AnimatePresence>
+        {isOpenMobile && (
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-xs"
+              onClick={onCloseMobile}
+            />
+            {/* Drawer Canvas */}
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-72 max-w-[85vw] h-full bg-neutral-950 border-r border-neutral-800 shadow-2xl flex flex-col z-10"
+            >
+              <div className="h-14 flex items-center justify-between px-4 border-b border-neutral-800">
+                <span className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-300">
+                  Documentation Menu
+                </span>
+                <button
+                  type="button"
+                  onClick={onCloseMobile}
+                  className="p-1.5 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-900"
                 >
-                  <path d="M3 3l10 10M13 3 3 13" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">{sidebarContent}</div>
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 3l10 10M13 3 3 13" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">{sidebarContent}</div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </>
   );
 }

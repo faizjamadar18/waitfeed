@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { motion, useReducedMotion } from "motion/react";
 import {
   AGENT_GUIDES,
   BEGINNER_FAQS,
@@ -13,6 +14,8 @@ import {
 import { VercelCard, VercelCardGrid } from "./VercelDocsCards";
 import { VercelCliTabs, VercelCodeBlock } from "./VercelCodeBlock";
 import { VercelCallout } from "./VercelCallout";
+
+const DRAWER_EASE = [0.22, 1, 0.36, 1] as const;
 
 interface DocsPageContentProps {
   onSelectSection: (id: string) => void;
@@ -223,8 +226,86 @@ function Step({
   );
 }
 
+function AgentSetupDrawer({
+  setup,
+}: {
+  setup: {
+    label: string;
+    code: string;
+    filename?: string;
+    language?: string;
+  };
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-[#0a0a0a]">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between cursor-pointer px-4 py-3 text-sm font-medium text-neutral-200 hover:bg-neutral-900/50 transition-colors"
+      >
+        <span>{setup.label}</span>
+        <motion.svg
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          className="h-3.5 w-3.5 shrink-0 text-neutral-500"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={
+            shouldReduceMotion
+              ? { duration: 0 }
+              : { duration: 0.3, ease: DRAWER_EASE }
+          }
+        >
+          <path d="m4 6 4 4 4-4" />
+        </motion.svg>
+      </button>
+
+      <motion.div
+        initial={false}
+        animate={{
+          height: isOpen ? "auto" : 0,
+          opacity: isOpen ? 1 : 0,
+        }}
+        transition={
+          shouldReduceMotion
+            ? { duration: 0 }
+            : {
+                height: {
+                  duration: isOpen ? 0.45 : 0.3,
+                  ease: DRAWER_EASE,
+                },
+                opacity: {
+                  duration: isOpen ? 0.35 : 0.2,
+                  delay: isOpen ? 0.05 : 0,
+                  ease: "easeInOut",
+                },
+              }
+        }
+        className="overflow-hidden"
+      >
+        <div className="border-t border-neutral-800/70 px-4 pb-1 pt-3">
+          <VercelCodeBlock
+            code={setup.code}
+            filename={setup.filename}
+            language={setup.language}
+          />
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-16 px-4 py-10 text-neutral-200 sm:px-8 sm:py-14">
@@ -538,18 +619,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           <Notes items={agent.notes} />
 
           {agent.setup && (
-            <details className="rounded-xl border border-neutral-800 bg-[#0a0a0a]">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-200 marker:text-neutral-500">
-                {agent.setup.label}
-              </summary>
-              <div className="border-t border-neutral-800/70 px-4 pb-1 pt-3">
-                <VercelCodeBlock
-                  code={agent.setup.code}
-                  filename={agent.setup.filename}
-                  language={agent.setup.language}
-                />
-              </div>
-            </details>
+            <AgentSetupDrawer setup={agent.setup} />
           )}
         </section>
       ))}
@@ -754,32 +824,71 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
                   type="button"
                   onClick={() => setOpenFaqIndex(isOpen ? null : index)}
                   aria-expanded={isOpen}
-                  className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-neutral-900/50"
+                  className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-neutral-900/50 cursor-pointer"
                 >
                   <span className="text-sm font-medium text-neutral-100">
                     {faq.q}
                   </span>
-                  <svg
+                  <motion.svg
                     viewBox="0 0 16 16"
                     aria-hidden="true"
-                    className={`h-3.5 w-3.5 shrink-0 text-neutral-500 transition-transform ${
-                      isOpen ? "rotate-180" : ""
-                    }`}
+                    className="h-3.5 w-3.5 shrink-0 text-neutral-500"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    animate={{ rotate: isOpen ? 180 : 0 }}
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0 }
+                        : { duration: 0.3, ease: DRAWER_EASE }
+                    }
                   >
                     <path d="m4 6 4 4 4-4" />
-                  </svg>
+                  </motion.svg>
                 </button>
 
-                {isOpen && (
-                  <div className="border-t border-neutral-800/60 px-4 py-3 text-sm leading-6 text-neutral-300">
+                <motion.div
+                  initial={false}
+                  animate={{
+                    height: isOpen ? "auto" : 0,
+                    opacity: isOpen ? 1 : 0,
+                  }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : {
+                          height: {
+                            duration: isOpen ? 0.45 : 0.3,
+                            ease: DRAWER_EASE,
+                          },
+                          opacity: {
+                            duration: isOpen ? 0.35 : 0.2,
+                            delay: isOpen ? 0.05 : 0,
+                            ease: "easeInOut",
+                          },
+                        }
+                  }
+                  className="overflow-hidden"
+                >
+                  <motion.div
+                    animate={{
+                      y: isOpen ? 0 : -6,
+                    }}
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0 }
+                        : {
+                            duration: isOpen ? 0.4 : 0.25,
+                            ease: DRAWER_EASE,
+                          }
+                    }
+                    className="border-t border-neutral-800/60 px-4 py-3 text-sm leading-6 text-neutral-300"
+                  >
                     <TextWithCode text={faq.a} />
-                  </div>
-                )}
+                  </motion.div>
+                </motion.div>
               </div>
             );
           })}
