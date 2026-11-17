@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { VERCEL_DOCS_NAV_GROUPS } from "@/data/docsData";
 
 const TOC_ITEMS = VERCEL_DOCS_NAV_GROUPS.flatMap((group) =>
@@ -15,6 +16,17 @@ export function VercelDocsTOC({
   activeSectionId,
   onSelectSection,
 }: VercelDocsTOCProps) {
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 150);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -111,24 +123,26 @@ export function VercelDocsTOC({
             <span>Edit this page</span>
           </a>
 
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="hover:text-white transition-colors flex items-center gap-1.5 text-left pt-2 cursor-pointer"
-          >
-            <svg
-              viewBox="0 0 16 16"
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {showBackToTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="hover:text-white transition-colors flex items-center gap-1.5 text-left pt-2 cursor-pointer text-xs text-neutral-400"
             >
-              <path d="M8 12V4M4 8l4-4 4 4" />
-            </svg>
-            <span>Back to top</span>
-          </button>
+              <svg
+                viewBox="0 0 16 16"
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M8 12V4M4 8l4-4 4 4" />
+              </svg>
+              <span>Back to top</span>
+            </button>
+          )}
         </div>
       </div>
     </aside>

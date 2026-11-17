@@ -1079,7 +1079,9 @@ function renderBanner(options = {}) {
 // past the right border. ASCII and `·` only inside the box — `—` is
 // ambiguous-width on CJK terminals and would shift the edge.
 function renderNextSteps(selected = {}, { columns = process.stdout.columns || 80 } = {}) {
-  const inner = Math.max(24, Math.min(62, columns - 6))
+  // 64 keeps the longest row (AGY + the global switch) two columns clear of
+  // the right border; `columns - 6` keeps the whole box clear of the edge.
+  const inner = Math.max(24, Math.min(64, columns - 6))
   const width = inner + 2 // "│" + inner + "│"
   const labelWidth = 11 // "Claude Code" / "Antigravity"
   const gutter = labelWidth + 3 // leading space + two-column gap
@@ -1106,13 +1108,16 @@ function renderNextSteps(selected = {}, { columns = process.stdout.columns || 80
     row("Claude Code", `${cmd("claude")}${dot}${cmd("/feed")}${c.dim} · Ctrl+N toggles card${c.reset}`)
   }
   if (selected.agy) {
-    row("Antigravity", `${cmd("agy")}${dot}${c.dim}statusline ticker${c.reset}`)
+    row(
+      "Antigravity",
+      `${cmd("agy")}${dot}${c.dim}statusline${c.reset}${dot}${cmd("npx waitfeed show/hide/toggle")}`,
+    )
   }
   if (!selected.opencode && !selected.claude && !selected.agy) {
     row("Setup", `${cmd("npx waitfeed init")}${c.dim} · re-run this wizard${c.reset}`)
-  } else {
-    // Global switch, shown under the host rows it applies to.
-    row("", cmd("npx waitfeed show / hide / toggle"))
+  } else if (!selected.agy) {
+    // The AGY row carries the switch; keep it discoverable without AGY too.
+    row("", cmd("npx waitfeed show/hide/toggle"))
   }
 
   lines.push(`  ${c.cyan}└${"─".repeat(width - 2)}┘${c.reset}`)

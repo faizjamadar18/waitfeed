@@ -774,6 +774,13 @@ describe("Next steps box geometry", () => {
     }
   })
 
+  it("leaves breathing room between the copy and the right border", () => {
+    for (const line of renderNextSteps(allHosts).slice(1, -1)) {
+      const plain = line.replace(/\x1B\[[0-9;]*m/g, "")
+      expect(plain, `row: ${plain}`).toMatch(/ {2}│$/)
+    }
+  })
+
   it("shows only the hosts the user configured", () => {
     const text = renderNextSteps({ opencode: true }).join("\n")
     expect(text).toContain("opencode")
@@ -785,11 +792,11 @@ describe("Next steps box geometry", () => {
   it("stays scannable: one row per host, not a paragraph", () => {
     const text = renderNextSteps(allHosts).join("\n")
     expect(renderNextSteps(allHosts).length).toBeLessThanOrEqual(7)
-    // No extra label/version/link clutter; the global switch sits under the hosts.
+    // No extra label/version/link clutter; the switch rides the AGY row.
     expect(text).not.toContain("Any shell")
     expect(text).not.toContain("Ctrl+Click")
     expect(text).not.toContain("2.1.295")
-    expect(text).toContain("npx waitfeed show / hide / toggle")
+    expect(text).toContain("agy · statusline · npx waitfeed show/hide/toggle")
   })
 
   it("still points somewhere useful when no host is configured", () => {
