@@ -52,7 +52,7 @@
   ],
   "dependencies": {
     "@opencode/plugin": "2.0.32",
-    "@opentui/core": "0.6.6",
+    "@opentui/core": "0.8.4",
     "@opentui/solid": "0.6.6",
     "rss-parser": "3.13.0",
     "solid-js": "1.9.17"
