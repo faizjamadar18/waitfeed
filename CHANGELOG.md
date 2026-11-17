@@ -5,11 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Entries begin with the unreleased `1.3.0`. The project's earlier releases
-(`1.0.0` → `1.2.0`) predate this file; their history lives in the git log and
-on [npm](https://www.npmjs.com/package/waitfeed?activeTab=versions).
+Entries begin with `1.3.0`. The project's earlier releases (`1.0.0` → `1.2.0`)
+predate this file; their history lives in the git log and on
+[npm](https://www.npmjs.com/package/waitfeed?activeTab=versions).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-17
 
 ### Added
 
@@ -29,5 +29,3 @@ on [npm](https://www.npmjs.com/package/waitfeed?activeTab=versions).
 ### Fixed
 
 - Claude mod contract tests, and Tailwind `cssConflict` warnings on the site.
-
-[Unreleased]: https://github.com/faizjamadar18/waitfeed/commits/main
