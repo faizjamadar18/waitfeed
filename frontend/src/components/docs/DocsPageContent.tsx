@@ -45,7 +45,7 @@ function TextWithCode({ text }: { text: string }) {
 }
 
 function ChannelIcon({ badge }: { badge: string }) {
-  const className = "h-[22px] w-[22px] fill-current";
+  const className = "h-5.5 w-5.5 fill-current";
 
   switch (badge) {
     case "HN":
@@ -122,19 +122,21 @@ function Facts({
   rows: Array<{ label: string; value: ReactNode }>;
 }) {
   return (
-    <dl className="divide-y divide-neutral-800/60 overflow-hidden rounded-xl border border-neutral-800 bg-[#0a0a0a]">
-      {rows.map((row) => (
-        <div
-          key={row.label}
-          className="grid gap-1 px-4 py-3 sm:grid-cols-[128px_1fr] sm:gap-4"
-        >
-          <dt className="font-mono text-[10px] uppercase tracking-wider text-neutral-500 sm:pt-0.5">
-            {row.label}
-          </dt>
-          <dd className="text-sm leading-6 text-neutral-200">{row.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-[#0a0a0a]">
+      <dl className="divide-y divide-neutral-800/60">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="grid gap-1 px-4 py-3 sm:grid-cols-[128px_1fr] sm:gap-4"
+          >
+            <dt className="font-mono text-[10px] uppercase tracking-wider text-neutral-500 sm:pt-0.5">
+              {row.label}
+            </dt>
+            <dd className="text-sm leading-6 text-neutral-200">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -167,7 +169,7 @@ function DocsTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-[#0a0a0a]">
-      <table className="w-full min-w-[560px] text-left text-sm">
+      <table className="w-full min-w-140 text-left text-sm">
         <thead className="border-b border-neutral-800 bg-neutral-900/50">
           <tr>
             {head.map((label) => (
