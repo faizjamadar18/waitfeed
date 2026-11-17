@@ -135,7 +135,7 @@ const INITIAL_HISTORY = [
 ];
 
 const LINE_INTERVALS = [400, 850, 1300, 1800, 2350, 2900, 3500, 4150];
-const STEP_LABELS = ["agent working", "ticker streaming", "ctrl+n / ctrl+o toggle"];
+const STEP_LABELS = ["agent working", "ticker streaming", "toggle on demand"];
 
 export function HeroTerminal() {
   const [history, setHistory] = useState<string[]>(INITIAL_HISTORY);
@@ -208,7 +208,10 @@ export function HeroTerminal() {
 
   const handleTerminalKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleToggleFeed();
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
         const key = e.key.toLowerCase();
         if (key === "n" || key === "o") {
           e.preventDefault();
@@ -300,7 +303,7 @@ export function HeroTerminal() {
         });
       });
 
-      // 4. Briefly demonstrate hotkey hide & restore mid-run
+      // 4. Briefly demonstrate on-demand hide & restore mid-run
       trigger("hotkeyHide", enterThreshold + 4550, () => {
         setDismissed(true);
       });
@@ -351,7 +354,7 @@ export function HeroTerminal() {
     <div
       ref={containerRef}
       role="group"
-      aria-label="Demo: tech ticker shows while agent works and toggles with ctrl+n or ctrl+o"
+      aria-label="Demo: tech ticker shows while agent works and toggles on demand"
       onKeyDown={handleTerminalKeyDown}
       className="w-full select-none"
     >
@@ -410,7 +413,7 @@ export function HeroTerminal() {
           )}
         </div>
 
-        {/* Ticker Slot Area (Collapsible, toggles via ctrl+n / ctrl+o hotkey) */}
+        {/* Ticker Slot Area (Collapsible, toggles on demand) */}
         <div
           className={cn(
             "transition-all duration-300 ease-out overflow-hidden text-[11px]",
@@ -497,9 +500,9 @@ export function HeroTerminal() {
                   ? "border-[#fcaa2d]/60 bg-[#fcaa2d]/10 text-[#fcaa2d]"
                   : "border-[#2A2A32] bg-[#141418] text-[#8A8A94] hover:border-[#fcaa2d]/50 hover:text-[#EDEDF0]"
               )}
-              title="Toggle feed card (Ctrl+N or Ctrl+O)"
+              title="Toggle feed on demand"
             >
-              {dismissed ? "feed hidden · ctrl+n / ctrl+o show" : "ctrl+n / ctrl+o hide feed"}
+              {dismissed ? "feed hidden · toggle on demand" : "toggle on demand · hide feed"}
             </button>
           ) : (
             <span className="hidden sm:inline text-[#5C5C66]">idle · feed quiet</span>
