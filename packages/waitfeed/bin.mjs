@@ -962,29 +962,50 @@ const BANNER_LINES = [
   " ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝     ╚══════╝╚══════╝╚═════╝ ",
 ]
 
-const BANNER_STOPS = {
-  top: { r: 0xff, g: 0xd9, b: 0xa0 },
-  middle: { r: 0xff, g: 0x8a, b: 0x1f },
-  bottom: { r: 0xc4, g: 0x50, b: 0x0a },
-}
+// Banner color mapping (orange gradient + outline -> neutral greys)
+// Letters (5 horizontal bands, top to bottom):
+//   #FFD9A0 -> #919191 (145, 145, 145)
+//   #FFB96C -> #7B7B7B (123, 123, 123)
+//   #FF9A39 -> #656565 (101, 101, 101)
+//   #F37E1B -> #4F4F4F (79, 79, 79)
+//   #DC6712 -> #3A3A3A (58, 58, 58)
+// Outline / shadow:
+//   #665740 -> #595959 (89, 89, 89)   [neutral grey matching original outline brightness]
+//   #664A2B -> #6A6A6A (106, 106, 106)
+//   #663E17 -> #4B4B4B (75, 75, 75)
+//   #61320B -> #383838 (56, 56, 56)
+//   #582907 -> #333333 (51, 51, 51)
+//   #4E2004 -> #2E2E2E (46, 46, 46)
+const BANNER_ROW_COLORS = [
+  { front: { r: 145, g: 145, b: 145 }, shadow: { r: 89, g: 89, b: 89 } },
+  { front: { r: 123, g: 123, b: 123 }, shadow: { r: 106, g: 106, b: 106 } },
+  { front: { r: 101, g: 101, b: 101 }, shadow: { r: 75, g: 75, b: 75 } },
+  { front: { r: 79, g: 79, b: 79 }, shadow: { r: 56, g: 56, b: 56 } },
+  { front: { r: 58, g: 58, b: 58 }, shadow: { r: 51, g: 51, b: 51 } },
+  { front: { r: 58, g: 58, b: 58 }, shadow: { r: 46, g: 46, b: 46 } },
+]
 
-function lerpColor(c1, c2, factor) {
-  return {
-    r: Math.round(c1.r + (c2.r - c1.r) * factor),
-    g: Math.round(c1.g + (c2.g - c1.g) * factor),
-    b: Math.round(c1.b + (c2.b - c1.b) * factor),
-  }
-}
+// 256-color fallback codes (nearest greys from xterm 256 grayscale ramp 232-255)
+const BANNER_256_COLORS = [
+  { front: 246, shadow: 240 },
+  { front: 243, shadow: 242 },
+  { front: 241, shadow: 239 },
+  { front: 239, shadow: 237 },
+  { front: 237, shadow: 236 },
+  { front: 237, shadow: 236 },
+]
 
 function getRowColor(rowIndex) {
-  const t = rowIndex / 5
-  if (t <= 0.5) {
-    return lerpColor(BANNER_STOPS.top, BANNER_STOPS.middle, t / 0.5)
-  }
-  return lerpColor(BANNER_STOPS.middle, BANNER_STOPS.bottom, (t - 0.5) / 0.5)
+  const i = Math.max(0, Math.min(BANNER_ROW_COLORS.length - 1, rowIndex))
+  return BANNER_ROW_COLORS[i].front
 }
 
-function colorLine24(line, frontColor, shadowColor) {
+function getShadowColor(rowIndex) {
+  const i = Math.max(0, Math.min(BANNER_ROW_COLORS.length - 1, rowIndex))
+  return BANNER_ROW_COLORS[i].shadow
+}
+
+function colorLine(line, frontEscape, shadowEscape) {
   let result = ""
   let currentColor = null
   for (const char of line) {
@@ -997,14 +1018,14 @@ function colorLine24(line, frontColor, shadowColor) {
     } else if (char === "█") {
       if (currentColor !== "front") {
         if (currentColor !== null) result += "\x1b[0m"
-        result += `\x1b[38;2;${frontColor.r};${frontColor.g};${frontColor.b}m`
+        result += frontEscape
         currentColor = "front"
       }
       result += char
     } else {
       if (currentColor !== "shadow") {
         if (currentColor !== null) result += "\x1b[0m"
-        result += `\x1b[38;2;${shadowColor.r};${shadowColor.g};${shadowColor.b}m`
+        result += shadowEscape
         currentColor = "shadow"
       }
       result += char
@@ -1014,6 +1035,18 @@ function colorLine24(line, frontColor, shadowColor) {
     result += "\x1b[0m"
   }
   return result
+}
+
+function colorLine24(line, frontColor, shadowColor) {
+  return colorLine(
+    line,
+    `\x1b[38;2;${frontColor.r};${frontColor.g};${frontColor.b}m`,
+    `\x1b[38;2;${shadowColor.r};${shadowColor.g};${shadowColor.b}m`
+  )
+}
+
+function colorLine256(line, frontCode, shadowCode) {
+  return colorLine(line, `\x1b[38;5;${frontCode}m`, `\x1b[38;5;${shadowCode}m`)
 }
 
 function getPackageVersion() {
@@ -1042,9 +1075,9 @@ function renderBanner(options = {}) {
       return `WAITFEED  ·  v${version}`
     }
     if (!supports24Bit) {
-      return `\x1b[38;5;208mWAITFEED\x1b[0m  ·  v${version}`
+      return `\x1b[38;5;241mWAITFEED\x1b[0m  ·  v${version}`
     }
-    return `\x1b[38;2;255;138;31mWAITFEED\x1b[0m  ·  v${version}`
+    return `\x1b[38;2;101;101;101mWAITFEED\x1b[0m  ·  v${version}`
   }
 
   if (noColor) {
@@ -1053,20 +1086,17 @@ function renderBanner(options = {}) {
   }
 
   if (!supports24Bit) {
-    const orange256 = "\x1b[38;5;208m"
-    const reset = "\x1b[0m"
-    const lines = BANNER_LINES.map((l) => `${orange256}${l}${reset}`)
-    lines.push(`\x1b[90mNews on your screen while your AI agent works · v${version}${reset}`)
+    const lines = BANNER_LINES.map((line, i) => {
+      const { front, shadow } = BANNER_256_COLORS[i]
+      return colorLine256(line, front, shadow)
+    })
+    lines.push(`\x1b[90mNews on your screen while your AI agent works · v${version}\x1b[0m`)
     return lines.join("\n")
   }
 
   const lines = BANNER_LINES.map((line, i) => {
     const front = getRowColor(i)
-    const shadow = {
-      r: Math.round(front.r * 0.4),
-      g: Math.round(front.g * 0.4),
-      b: Math.round(front.b * 0.4),
-    }
+    const shadow = getShadowColor(i)
     return colorLine24(line, front, shadow)
   })
   lines.push(`\x1b[38;2;139;137;129mNews on your screen while your AI agent works · v${version}\x1b[0m`)

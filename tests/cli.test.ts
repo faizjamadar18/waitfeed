@@ -24,6 +24,7 @@ import {
   setNewsMode,
   toggleNewsMode,
   countLinesRows,
+  renderBanner,
   renderNextSteps,
 } from "../packages/waitfeed/bin.mjs"
 
@@ -821,6 +822,84 @@ describe("TUI physical row calculations", () => {
     const ansi = ["\x1B[1m\x1B[38;5;208mShort line\x1B[0m"]
     expect(countLinesRows(plain)).toBe(1)
     expect(countLinesRows(ansi)).toBe(1)
+  })
+})
+
+describe("ASCII banner colors (pure grey theme)", () => {
+  it("renders 24-bit banner with exact grey gradient and outlines, with zero orange or brown", () => {
+    const banner = renderBanner({ isTTY: true, env: { COLORTERM: "truecolor" } })
+    const lines = banner.split("\n")
+
+    // 5 letter horizontal bands (rows 0 to 4)
+    expect(lines[0]).toContain("\x1b[38;2;145;145;145m") // #919191
+    expect(lines[1]).toContain("\x1b[38;2;123;123;123m") // #7B7B7B
+    expect(lines[2]).toContain("\x1b[38;2;101;101;101m") // #656565
+    expect(lines[3]).toContain("\x1b[38;2;79;79;79m")     // #4F4F4F
+    expect(lines[4]).toContain("\x1b[38;2;58;58;58m")     // #3A3A3A
+
+    // Outline / shadow bands (rows 0 to 5)
+    expect(lines[0]).toContain("\x1b[38;2;89;89;89m")     // #595959 (matches original #665740 outline brightness)
+    expect(lines[1]).toContain("\x1b[38;2;106;106;106m")  // #6A6A6A
+    expect(lines[2]).toContain("\x1b[38;2;75;75;75m")     // #4B4B4B
+    expect(lines[3]).toContain("\x1b[38;2;56;56;56m")     // #383838
+    expect(lines[4]).toContain("\x1b[38;2;51;51;51m")     // #333333
+    expect(lines[5]).toContain("\x1b[38;2;46;46;46m")     // #2E2E2E
+
+    // Ensure no legacy orange or brown color escapes exist in the banner
+    const orangeBrownPatterns = [
+      "255;217;160",
+      "255;185;108",
+      "255;154;57",
+      "243;126;27",
+      "220;103;18",
+      "102;87;64",
+      "102;74;43",
+      "102;62;23",
+      "97;50;11",
+      "88;41;7",
+      "78;32;4",
+      "255;138;31",
+      "196;80;10",
+    ]
+    for (const pattern of orangeBrownPatterns) {
+      expect(banner).not.toContain(pattern)
+    }
+  })
+
+  it("renders 256-color fallback using nearest grey codes", () => {
+    const banner = renderBanner({ isTTY: true, env: { COLORTERM: "" } })
+    const lines = banner.split("\n")
+
+    // Letters 256-color codes
+    expect(lines[0]).toContain("\x1b[38;5;246m")
+    expect(lines[1]).toContain("\x1b[38;5;243m")
+    expect(lines[2]).toContain("\x1b[38;5;241m")
+    expect(lines[3]).toContain("\x1b[38;5;239m")
+    expect(lines[4]).toContain("\x1b[38;5;237m")
+
+    // Outline 256-color codes
+    expect(lines[0]).toContain("\x1b[38;5;240m")
+    expect(lines[1]).toContain("\x1b[38;5;242m")
+    expect(lines[2]).toContain("\x1b[38;5;239m")
+    expect(lines[3]).toContain("\x1b[38;5;237m")
+    expect(lines[4]).toContain("\x1b[38;5;236m")
+    expect(lines[5]).toContain("\x1b[38;5;236m")
+    expect(banner).not.toContain("\x1b[38;5;208m")
+  })
+
+  it("respects NO_COLOR with unstyled text", () => {
+    const banner = renderBanner({ isTTY: true, env: { NO_COLOR: "1" } })
+    expect(banner).not.toContain("\x1b[")
+    expect(banner).toContain("██╗")
+    expect(banner).toContain("News on your screen while your AI agent works")
+  })
+
+  it("renders narrow terminal banner with pure grey text", () => {
+    const narrow24 = renderBanner({ isTTY: true, columns: 40, env: { COLORTERM: "truecolor" } })
+    expect(narrow24).toBe("\x1b[38;2;101;101;101mWAITFEED\x1b[0m  ·  v1.3.0")
+
+    const narrow256 = renderBanner({ isTTY: true, columns: 40, env: { COLORTERM: "" } })
+    expect(narrow256).toBe("\x1b[38;5;241mWAITFEED\x1b[0m  ·  v1.3.0")
   })
 })
 

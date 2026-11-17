@@ -245,7 +245,7 @@ function AgentSetupDrawer({
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        className="flex w-full items-center justify-between cursor-pointer px-4 py-3 text-sm font-medium text-neutral-200 hover:bg-neutral-900/50 transition-colors"
+        className="flex w-full items-center justify-between cursor-pointer px-4 py-3 text-sm font-medium text-neutral-200 bg-neutral-900/50 hover:bg-neutral-900/80 transition-colors"
       >
         <span>{setup.label}</span>
         <motion.svg
@@ -824,7 +824,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
                   type="button"
                   onClick={() => setOpenFaqIndex(isOpen ? null : index)}
                   aria-expanded={isOpen}
-                  className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-neutral-900/50 cursor-pointer"
+                  className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors bg-neutral-900/50 hover:bg-neutral-900/80 cursor-pointer"
                 >
                   <span className="text-sm font-medium text-neutral-100">
                     {faq.q}
@@ -832,7 +832,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
                   <motion.svg
                     viewBox="0 0 16 16"
                     aria-hidden="true"
-                    className="h-3.5 w-3.5 shrink-0 text-neutral-500"
+                    className="h-3.5 w-3.5 shrink-0 text-neutral-400"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.5"
