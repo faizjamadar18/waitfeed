@@ -459,11 +459,11 @@ export function EverythingYouNeed() {
     <section
       id="how-it-works"
       ref={containerRef}
-      className="relative w-full h-[260vh]"
+      className="relative w-full h-[160vh]"
     >
       {/* Pinned Sticky Viewport Window — same pinned scroll-step at every width */}
       <div className="w-full flex flex-col sticky top-0 min-h-screen md:h-screen md:justify-center md:items-center md:overflow-hidden">
-        <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-start md:justify-between gap-10 md:gap-0 py-16 sm:py-20 md:py-6 md:h-full md:max-h-205">
+        <div className="w-full max-w-266 mx-auto px-5 sm:px-10 flex flex-col justify-start md:justify-between gap-10 md:gap-0 pt-8 pb-16 sm:pt-10 sm:pb-20 md:py-6 md:h-full md:max-h-205">
           {/* Top Decorative Border track */}
           <div className="w-full flex flex-col gap-2 flex-none">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 text-[9px] sm:text-[10px] font-decima text-[#191918]/50 uppercase tracking-widest px-1">
