@@ -23,7 +23,7 @@ interface DocsPageContentProps {
 
 function InlineCode({ children }: { children: ReactNode }) {
   return (
-    <code className="rounded border border-neutral-800 bg-neutral-900 px-1.5 py-0.5 font-mono text-[0.85em] text-amber-200">
+    <code className="rounded-md border border-neutral-800/80 bg-neutral-900/70 px-1.5 py-0.5 font-mono text-[0.85em] text-neutral-200">
       {children}
     </code>
   );
@@ -63,7 +63,7 @@ function ChannelIcon({ badge }: { badge: string }) {
       return (
         <svg
           viewBox="0 0 24 24"
-          className={className}
+          className="h-6 w-6 shrink-0 fill-white"
           aria-hidden="true"
           focusable="false"
         >
@@ -122,7 +122,7 @@ function Facts({
   rows: Array<{ label: string; value: ReactNode }>;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-[#0a0a0a]">
+    <div className="overflow-hidden rounded-xl border border-neutral-800/80 bg-neutral-950/40">
       <dl className="divide-y divide-neutral-800/60">
         {rows.map((row) => (
           <div
@@ -147,7 +147,7 @@ function Notes({ items }: { items: string[] }) {
         <li key={item} className="flex items-start gap-2.5">
           <span
             aria-hidden="true"
-            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-amber-400"
+            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-neutral-500"
           />
           <span>
             <TextWithCode text={item} />
@@ -168,9 +168,9 @@ function DocsTable({
   monoFirst?: boolean;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-[#0a0a0a]">
+    <div className="overflow-x-auto rounded-xl border border-neutral-800/80 bg-neutral-950/40">
       <table className="w-full min-w-140 text-left text-sm">
-        <thead className="border-b border-neutral-800 bg-neutral-900/50">
+        <thead className="border-b border-neutral-800/80 bg-neutral-900/30">
           <tr>
             {head.map((label) => (
               <th
@@ -217,7 +217,7 @@ function Step({
 }) {
   return (
     <div className="flex gap-4">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 font-mono text-xs font-semibold text-white">
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-900/70 font-mono text-xs font-medium text-neutral-400">
         {number}
       </div>
       <div className="min-w-0 flex-1 space-y-2">
@@ -242,18 +242,18 @@ function AgentSetupDrawer({
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-[#0a0a0a]">
+    <div className="overflow-hidden rounded-xl border border-neutral-800/80 bg-neutral-950/40">
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        className="flex w-full items-center justify-between cursor-pointer px-4 py-3 text-sm font-medium text-neutral-200 bg-neutral-900/50 hover:bg-neutral-900/80 transition-colors"
+        className="flex w-full items-center justify-between cursor-pointer px-4 py-3 text-sm font-medium text-neutral-300 hover:text-white bg-neutral-900/30 hover:bg-neutral-900/50 transition-colors"
       >
         <span>{setup.label}</span>
         <motion.svg
           viewBox="0 0 16 16"
           aria-hidden="true"
-          className="h-3.5 w-3.5 shrink-0 text-neutral-500"
+          className="h-3.5 w-3.5 shrink-0 text-neutral-400"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
@@ -280,16 +280,16 @@ function AgentSetupDrawer({
           shouldReduceMotion
             ? { duration: 0 }
             : {
-                height: {
-                  duration: isOpen ? 0.45 : 0.3,
-                  ease: DRAWER_EASE,
-                },
-                opacity: {
-                  duration: isOpen ? 0.35 : 0.2,
-                  delay: isOpen ? 0.05 : 0,
-                  ease: "easeInOut",
-                },
-              }
+              height: {
+                duration: isOpen ? 0.45 : 0.3,
+                ease: DRAWER_EASE,
+              },
+              opacity: {
+                duration: isOpen ? 0.35 : 0.2,
+                delay: isOpen ? 0.05 : 0,
+                ease: "easeInOut",
+              },
+            }
         }
         className="overflow-hidden"
       >
@@ -314,8 +314,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
       {/* Overview */}
       <section id="overview" className="scroll-mt-24 space-y-7">
         <div className="space-y-4">
-          <div className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
             Documentation
           </div>
           <h1 className="max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
@@ -346,14 +345,13 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           <VercelCard
             title="Quickstart"
             description="Install, pick your hosts, and see the first card."
-            badge="START"
             href="#quickstart"
             onClick={() => onSelectSection("quickstart")}
             meta="~2 minutes"
             icon={
               <svg
                 viewBox="0 0 16 16"
-                className="h-4 w-4 text-amber-300"
+                className="h-4 w-4 text-neutral-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
@@ -368,14 +366,13 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           <VercelCard
             title="How it works"
             description="One local cache, one refresh cycle, no model in the loop."
-            badge="LOCAL"
             href="#architecture"
             onClick={() => onSelectSection("architecture")}
             meta="Shared by every host"
             icon={
               <svg
                 viewBox="0 0 16 16"
-                className="h-4 w-4 text-amber-300"
+                className="h-4 w-4 text-neutral-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
@@ -391,14 +388,13 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           <VercelCard
             title="Configuration"
             description="Every key in config.json, with defaults and fallbacks."
-            badge="JSON"
             href="#config-schema"
             onClick={() => onSelectSection("config-schema")}
             meta="~/.config/waitfeed/"
             icon={
               <svg
                 viewBox="0 0 16 16"
-                className="h-4 w-4 text-amber-300"
+                className="h-4 w-4 text-neutral-400"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
@@ -411,28 +407,6 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
             }
           />
         </VercelCardGrid>
-
-        <VercelCallout title="Good to know">
-          <ul>
-            <li>
-              If you forget to create the root layout, Next.js will automatically
-              create this file when running the development server with{" "}
-              <code>next dev</code>.
-            </li>
-            <li>
-              You can optionally use a{" "}
-              <a
-                href="https://nextjs.org/docs/app/api-reference/file-conventions/src-folder"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                <code>src</code> folder
-              </a>{" "}
-              in the root of your project to separate your application&apos;s
-              code from configuration files.
-            </li>
-          </ul>
-        </VercelCallout>
       </section>
 
       {/* Quickstart */}
@@ -483,32 +457,27 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           description="The pipeline is shared. Renderers only read the cache, and each host decides when the card is visible."
         />
 
-        <div className="rounded-xl border border-neutral-800 bg-[#0a0a0a] p-5">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+        <div className="rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3 sm:p-4">
+          <div className="grid grid-cols-1 divide-y sm:divide-y-0 sm:divide-x divide-neutral-800/80 sm:grid-cols-4">
             {[
-              { label: "1. Sources", detail: "4 built-ins + RSS" },
-              { label: "2. Fetch cycle", detail: "30-min baseline" },
-              { label: "3. Cache", detail: "90 items · 36 h" },
-              { label: "4. Host gate", detail: "busy → show" },
-            ].map((node, index) => (
+              { step: "01", label: "Sources", detail: "4 built-ins + RSS" },
+              { step: "02", label: "Fetch cycle", detail: "30-min baseline" },
+              { step: "03", label: "Shared cache", detail: "90 items · 36 h" },
+              { step: "04", label: "Host gate", detail: "busy → show" },
+            ].map((node) => (
               <div
                 key={node.label}
-                className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-3 text-center"
+                className="py-3 px-4 first:pt-1 last:pb-1 sm:py-2 sm:px-4 text-left"
               >
-                <div className="font-mono text-[11px] font-semibold text-neutral-100">
+                <div className="font-mono text-[10px] text-neutral-500 uppercase tracking-wider">
+                  {node.step}
+                </div>
+                <div className="mt-1 font-mono text-xs font-medium text-neutral-200">
                   {node.label}
                 </div>
-                <div className="mt-1 font-mono text-[10px] text-neutral-400">
+                <div className="mt-1 text-xs text-neutral-400">
                   {node.detail}
                 </div>
-                {index < 3 && (
-                  <div
-                    aria-hidden="true"
-                    className="mt-2 text-[10px] text-neutral-600 sm:hidden"
-                  >
-                    ↓
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -814,21 +783,18 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           description="Short answers about behavior, privacy, and removal."
         />
 
-        <div className="space-y-2">
+        <div className="overflow-hidden rounded-xl border border-neutral-800/80 bg-neutral-950/40 divide-y divide-neutral-800/70">
           {BEGINNER_FAQS.map((faq, index) => {
             const isOpen = openFaqIndex === index;
             return (
-              <div
-                key={faq.q}
-                className="overflow-hidden rounded-lg border border-neutral-800 bg-[#0a0a0a]"
-              >
+              <div key={faq.q}>
                 <button
                   type="button"
                   onClick={() => setOpenFaqIndex(isOpen ? null : index)}
                   aria-expanded={isOpen}
-                  className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors bg-neutral-900/50 hover:bg-neutral-900/80 cursor-pointer"
+                  className="flex w-full items-center justify-between gap-4 px-4.5 py-3.5 text-left transition-colors hover:bg-neutral-900/30 cursor-pointer"
                 >
-                  <span className="text-sm font-medium text-neutral-100">
+                  <span className="text-sm font-medium text-neutral-200">
                     {faq.q}
                   </span>
                   <motion.svg
@@ -861,16 +827,16 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
                     shouldReduceMotion
                       ? { duration: 0 }
                       : {
-                          height: {
-                            duration: isOpen ? 0.45 : 0.3,
-                            ease: DRAWER_EASE,
-                          },
-                          opacity: {
-                            duration: isOpen ? 0.35 : 0.2,
-                            delay: isOpen ? 0.05 : 0,
-                            ease: "easeInOut",
-                          },
-                        }
+                        height: {
+                          duration: isOpen ? 0.45 : 0.3,
+                          ease: DRAWER_EASE,
+                        },
+                        opacity: {
+                          duration: isOpen ? 0.35 : 0.2,
+                          delay: isOpen ? 0.05 : 0,
+                          ease: "easeInOut",
+                        },
+                      }
                   }
                   className="overflow-hidden"
                 >
@@ -882,11 +848,11 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
                       shouldReduceMotion
                         ? { duration: 0 }
                         : {
-                            duration: isOpen ? 0.4 : 0.25,
-                            ease: DRAWER_EASE,
-                          }
+                          duration: isOpen ? 0.4 : 0.25,
+                          ease: DRAWER_EASE,
+                        }
                     }
-                    className="border-t border-neutral-800/60 px-4 py-3 text-sm leading-6 text-neutral-300"
+                    className="border-t border-neutral-800/60 px-4.5 py-3 text-sm leading-6 text-neutral-400"
                   >
                     <TextWithCode text={faq.a} />
                   </motion.div>

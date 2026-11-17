@@ -25,15 +25,14 @@ export function VercelCallout({
           : "Important";
 
   return (
-    <div className="my-4 flex items-start justify-start gap-3 rounded-[6px] bg-[#1a1a1a] px-4 py-3 font-normal text-sm leading-[150%] text-[#ededed] [&_ul]:list-none [&_ul]:pl-0! [&_ul]:space-y-2 [&_ul]:my-0 [&_ul_li]:relative [&_ul_li]:pl-6! [&_ul_li]:before:absolute [&_ul_li]:before:top-[0.6em] [&_ul_li]:before:left-0 [&_ul_li]:before:size-[5px] [&_ul_li]:before:rounded-full [&_ul_li]:before:bg-[#878787] [&_ul_li]:before:content-[''] [&_code]:text-[12px]! [&_code]:font-mono [&_code]:rounded-[5px] [&_code]:px-[5px] [&_code]:py-[2px] [&_code]:bg-[#ffffff17]! [&_code]:border! [&_code]:border-[#ffffff24]! [&_code]:text-[#ededed]! [&_a]:font-normal [&_a]:text-[#ededed] [&_a]:underline [&_a]:decoration-1 [&_a]:decoration-[#878787] [&_a]:underline-offset-4 hover:[&_a]:decoration-white hover:[&_a]:text-white">
+    <div className="my-5 flex items-start gap-3 rounded-lg border border-white/10 bg-[#181818] p-4 sm:p-5 text-sm leading-relaxed text-[#ededed]">
       <div className="shrink-0 mt-0.5 text-[#8e8e8e]">
         {type === "note" && (
           <svg
             viewBox="0 0 16 16"
-            className="size-4 flex-none"
+            className="size-4 shrink-0 text-[#8e8e8e]"
             fill="currentColor"
-            data-slot="geist-icon"
-            data-glyph="circular"
+            aria-hidden="true"
           >
             <path
               fillRule="evenodd"
@@ -45,12 +44,13 @@ export function VercelCallout({
         {type === "tip" && (
           <svg
             viewBox="0 0 16 16"
-            className="size-4 flex-none"
+            className="size-4 shrink-0 text-[#8e8e8e]"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             <path d="M8 1.5a4.5 4.5 0 0 0-2.5 8.2V11a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1V9.7A4.5 4.5 0 0 0 8 1.5z" />
             <line x1="6.5" y1="14" x2="9.5" y2="14" />
@@ -59,12 +59,13 @@ export function VercelCallout({
         {type === "warning" && (
           <svg
             viewBox="0 0 16 16"
-            className="size-4 flex-none"
+            className="size-4 shrink-0 text-[#8e8e8e]"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             <path d="m8 2 6 11H2L8 2z" />
             <line x1="8" y1="6" x2="8" y2="9" />
@@ -74,12 +75,13 @@ export function VercelCallout({
         {type === "important" && (
           <svg
             viewBox="0 0 16 16"
-            className="size-4 flex-none"
+            className="size-4 shrink-0 text-[#8e8e8e]"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             <path d="M8 1.5 2 4.5v5c0 3.5 3 5.5 6 6 3-.5 6-2.5 6-6v-5L8 1.5z" />
           </svg>
@@ -87,31 +89,11 @@ export function VercelCallout({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="my-0 font-medium text-[#ededed] text-sm">
+        <div className="font-medium text-[#ededed] text-sm leading-normal mb-1.5">
           {title ?? defaultTitle}
-        </p>
-        <div className="mt-[7px] text-sm text-[#ededed] leading-[150%]">
-          {children ?? (
-            <ul>
-              <li>
-                If you forget to create the root layout, Next.js will
-                automatically create this file when running the development
-                server with <code>next dev</code>.
-              </li>
-              <li>
-                You can optionally use a{" "}
-                <a
-                  href="https://nextjs.org/docs/app/api-reference/file-conventions/src-folder"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  <code>src</code> folder
-                </a>{" "}
-                in the root of your project to separate your application&apos;s
-                code from configuration files.
-              </li>
-            </ul>
-          )}
+        </div>
+        <div className="text-sm text-[#ededed] leading-relaxed [&_code]:rounded [&_code]:border [&_code]:border-white/15 [&_code]:bg-white/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_code]:text-[#ededed] [&_a]:text-[#ededed] [&_a]:underline [&_a]:decoration-1 [&_a]:decoration-[#878787] [&_a]:underline-offset-4 hover:[&_a]:decoration-white hover:[&_a]:text-white [&_ul]:list-none [&_ul]:pl-0 [&_ul]:space-y-2 [&_ul]:my-1.5 [&_li]:relative [&_li]:pl-5 [&_li]:before:absolute [&_li]:before:top-[0.6em] [&_li]:before:left-0 [&_li]:before:size-1 [&_li]:before:rounded-full [&_li]:before:bg-[#878787] [&_li]:before:content-['']">
+          {children}
         </div>
       </div>
     </div>

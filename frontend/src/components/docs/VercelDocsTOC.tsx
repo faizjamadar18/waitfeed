@@ -44,7 +44,7 @@ export function VercelDocsTOC({
           </h2>
 
           {/* TOC Link list with active indicator */}
-          <div className="relative pl-3">
+          <div className="relative">
             <ul className="space-y-2 text-xs">
               {TOC_ITEMS.map((item) => {
                 const isActive = activeSectionId === item.id;
@@ -63,7 +63,7 @@ export function VercelDocsTOC({
                         onSelectSection(item.id);
                       }}
                       aria-current={isActive ? "page" : undefined}
-                      className={`block truncate py-0.5 transition-colors duration-150 ${
+                      className={`block truncate py-0.5 pl-3 transition-colors duration-150 ${
                         isActive
                           ? "text-white font-medium"
                           : "text-neutral-400 hover:text-neutral-200"

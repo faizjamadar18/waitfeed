@@ -30,11 +30,11 @@ export function VercelDocsSidebar({
       {/* Nav tree */}
       <nav
         aria-label="Docs navigation"
-        className="docs-sidebar-scroll flex-1 overflow-y-auto px-3 py-4 space-y-6 text-xs select-none"
+        className="docs-sidebar-scroll flex-1 overflow-y-auto px-2 pt-5 pb-6 space-y-6 text-xs select-none"
       >
         {VERCEL_DOCS_NAV_GROUPS.map((group) => (
           <div key={group.title} className="space-y-1">
-            <h2 className="px-2.5 py-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider font-mono">
+            <h2 className="px-3 py-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider font-mono">
               {group.title}
             </h2>
             <ul className="space-y-0.5">
@@ -49,18 +49,12 @@ export function VercelDocsSidebar({
                         handleItemClick(item);
                       }}
                       aria-current={isActive ? "page" : undefined}
-                      className={`relative flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors duration-150 ${
+                      className={`flex items-center justify-between py-1.5 px-3 rounded-md text-xs transition-colors duration-150 ${
                         isActive
                           ? "bg-white/[0.08] text-white font-medium shadow-xs"
                           : "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
                       }`}
                     >
-                      {isActive && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-amber-400 rounded-r-xs"
-                        />
-                      )}
                       <span className="truncate">{item.label}</span>
                     </a>
                   </li>
@@ -129,7 +123,7 @@ export function VercelDocsSidebar({
                   </svg>
                 </button>
               </div>
-              <div className="flex-1 overflow-hidden">{sidebarContent}</div>
+              <div className="flex-1 overflow-hidden px-4">{sidebarContent}</div>
             </motion.div>
           </div>
         )}

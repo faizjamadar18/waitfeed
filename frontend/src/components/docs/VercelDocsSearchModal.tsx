@@ -249,7 +249,7 @@ export function VercelDocsSearchModal({
                     <span className="text-xs sm:text-sm font-medium tracking-tight truncate">
                       {item.title}
                     </span>
-                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded-xs border border-neutral-700 bg-neutral-900 text-neutral-300 shrink-0">
+                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded-sm border border-neutral-800 bg-neutral-900/80 text-neutral-400 shrink-0">
                       {item.category}
                     </span>
                   </div>

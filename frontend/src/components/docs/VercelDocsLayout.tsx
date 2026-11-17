@@ -58,7 +58,7 @@ export function VercelDocsLayout() {
   };
 
   return (
-    <div className="docs-root min-h-screen bg-black text-[#ededed] flex flex-col font-sans selection:bg-amber-400 selection:text-black">
+    <div className="docs-root min-h-screen bg-black text-[#ededed] flex flex-col font-sans selection:bg-neutral-800 selection:text-white">
       {/* Top Docs Header */}
       <VercelDocsHeader
         onOpenSearch={() => setIsSearchOpen(true)}
@@ -67,7 +67,7 @@ export function VercelDocsLayout() {
       />
 
       {/* Main Container: 3-column Vercel layout */}
-      <div className="flex-1 w-full max-w-[1440px] mx-auto flex items-start">
+      <div className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-start">
         {/* Left Sticky Sidebar */}
         <VercelDocsSidebar
           activeSectionId={activeSectionId}
