@@ -318,7 +318,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
             Documentation
           </div>
           <h1 className="max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
-            A quiet news ticker for AI coding agents.
+            A quiet tech feed for your coding agents.
           </h1>
           <p className="max-w-2xl text-base leading-7 text-neutral-400 sm:text-lg">
             WaitFeed shows a rotating tech-news card while Claude Code,

@@ -38,13 +38,13 @@ export function VercelDocsTOC({
         <div>
           <h2
             id="toc-heading"
-            className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider font-mono mb-3"
+            className="text-sm font-medium text-white mb-3.5"
           >
             On this page
           </h2>
 
-          {/* TOC Link list with active indicator */}
-          <div className="relative">
+          {/* Continuous vertical track line with active highlight */}
+          <div className="relative border-l border-neutral-800/80">
             <ul className="space-y-2 text-xs">
               {TOC_ITEMS.map((item) => {
                 const isActive = activeSectionId === item.id;
@@ -53,7 +53,7 @@ export function VercelDocsTOC({
                     {isActive && (
                       <span
                         aria-hidden="true"
-                        className="absolute left-0 top-1 bottom-1 w-0.5 bg-white rounded-full"
+                        className="absolute -left-px top-1 bottom-1 w-px bg-white"
                       />
                     )}
                     <a
@@ -63,11 +63,10 @@ export function VercelDocsTOC({
                         onSelectSection(item.id);
                       }}
                       aria-current={isActive ? "page" : undefined}
-                      className={`block truncate py-0.5 pl-3 transition-colors duration-150 ${
-                        isActive
-                          ? "text-white font-medium"
-                          : "text-neutral-400 hover:text-neutral-200"
-                      }`}
+                      className={`block truncate pl-3.5 py-0.5 text-xs sm:text-[13px] transition-colors duration-150 ${isActive
+                        ? "text-white font-medium"
+                        : "text-neutral-500 hover:text-neutral-300"
+                        }`}
                     >
                       {item.label}
                     </a>
@@ -79,7 +78,7 @@ export function VercelDocsTOC({
         </div>
 
         {/* Community & Helpful Links */}
-        <div className="flex flex-col gap-2.5 pt-2 text-xs text-neutral-400">
+        <div className="flex flex-col gap-2.5 pt-4 border-t border-neutral-800/80 text-xs text-neutral-400">
           <a
             href="https://github.com/faizjamadar18/waitfeed/issues/new"
             target="_blank"
