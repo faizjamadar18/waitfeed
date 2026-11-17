@@ -1,5 +1,12 @@
 # WaitFeed
 
+[![CI](https://img.shields.io/github/actions/workflow/status/faizjamadar18/waitfeed/ci.yml?label=CI&style=flat-square&branch=main)](https://github.com/faizjamadar18/waitfeed/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/waitfeed?style=flat-square&label=npm&color=fcaa2d)](https://www.npmjs.com/package/waitfeed)
+[![npm downloads](https://img.shields.io/npm/dm/waitfeed?style=flat-square&label=downloads)](https://www.npmjs.com/package/waitfeed)
+[![license](https://img.shields.io/npm/l/waitfeed?style=flat-square&label=license)](./LICENSE)
+[![node](https://img.shields.io/node/v/waitfeed?style=flat-square&label=node)](./packages/waitfeed/package.json)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](./CONTRIBUTING.md)
+
 > While your AI coding agent works, a slim news ticker appears in your
 > terminal — above the prompt in **OpenCode** and **Claude Code**, in the
 > **Google Antigravity** statusline.
@@ -147,7 +154,12 @@ npm test                                # builds the adapter bundles, runs all s
 npm run preview                         # exactly what npm would publish
 ```
 
-PRs welcome — keep them small; CI must stay green.
+PRs welcome — keep them small; CI must stay green. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, the test-first workflow, and
+where things live. Notable changes are tracked in
+[`CHANGELOG.md`](CHANGELOG.md); to report a vulnerability, follow
+[`SECURITY.md`](SECURITY.md) instead of opening a public issue. This project
+follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
 
 ## Privacy
 

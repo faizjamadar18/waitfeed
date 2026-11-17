@@ -1,5 +1,11 @@
 # WaitFeed
 
+[![npm version](https://img.shields.io/npm/v/waitfeed?style=flat-square&label=npm&color=fcaa2d)](https://www.npmjs.com/package/waitfeed)
+[![downloads](https://img.shields.io/npm/dm/waitfeed?style=flat-square&label=downloads)](https://www.npmjs.com/package/waitfeed)
+[![license](https://img.shields.io/npm/l/waitfeed?style=flat-square&label=license)](https://github.com/faizjamadar18/waitfeed/blob/main/LICENSE)
+[![node](https://img.shields.io/node/v/waitfeed?style=flat-square&label=node)](https://github.com/faizjamadar18/waitfeed/blob/main/packages/waitfeed/package.json)
+[![CI](https://img.shields.io/github/actions/workflow/status/faizjamadar18/waitfeed/ci.yml?label=CI&style=flat-square&branch=main)](https://github.com/faizjamadar18/waitfeed/actions/workflows/ci.yml)
+
 > While your agent works, a slim news ticker appears above the prompt
 > (OpenCode, Claude Code) or in the statusline (Antigravity).
 > It's gone the moment the agent stops — which is when you start typing.
@@ -169,6 +175,15 @@ Two things are inherited from the OpenCode adapter's chain
   installs; waitfeed's own dev tree pins `undici` to the Node 20-compatible
   6.x via its root override (overrides cannot travel with a published
   package). Loading through OpenCode is verified at each release.
+
+## Contributing & security
+
+The project lives at
+[github.com/faizjamadar18/waitfeed](https://github.com/faizjamadar18/waitfeed) —
+see the [contributing guide](https://github.com/faizjamadar18/waitfeed/blob/main/CONTRIBUTING.md),
+[changelog](https://github.com/faizjamadar18/waitfeed/blob/main/CHANGELOG.md),
+and [security policy](https://github.com/faizjamadar18/waitfeed/blob/main/SECURITY.md).
+Report vulnerabilities privately, never in a public issue.
 
 ## License
 

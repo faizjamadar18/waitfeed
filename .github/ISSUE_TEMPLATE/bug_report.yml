@@ -1,0 +1,74 @@
+name: Bug report
+description: Something broke, rendered wrong, or behaved unexpectedly.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The card renders from a shared local cache,
+        so the host, version, and Node version are the fastest way to
+        reproduce something.
+  - type: dropdown
+    id: host
+    attributes:
+      label: Host
+      description: Which agent shows the problem?
+      options:
+        - OpenCode
+        - Claude Code
+        - Google Antigravity (AGY)
+        - The `waitfeed` CLI
+        - More than one / not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: WaitFeed version
+      description: "`npm view waitfeed version` or the version you installed."
+      placeholder: "1.3.0"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: "`node --version`"
+      placeholder: "v20.19.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `npx waitfeed init`
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or terminal output
+      description: Paste any error output. Redact anything you consider private.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I'm not reporting a problem caused by a feed being down (news comes from live third-party sources).
+          required: false

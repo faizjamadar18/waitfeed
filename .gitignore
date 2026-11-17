@@ -1,20 +1,44 @@
+# Dependencies
 node_modules/
-.waitfeed-loaded
-opencode-api-spec.json
-*.log
-.DS_Store
-.vscode/
-.idea/
-*.tsbuildinfo
-.next/
+
+# Build output
 dist/
 build/
-.opencode/
-scratch/
+.next/
+out/
+*.tsbuildinfo
+
+# Test & tooling output
+coverage/
+.turbo/
+.vercel/
+
+# Packed tarballs from `npm pack`
+*.tgz
+
+# Local runtime state (the shared data dir anchors to ~/.config/waitfeed/)
+.waitfeed-loaded
+opencode-api-spec.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Secrets & environment — WaitFeed is keyless by design
 .env*
-Thumbs.db
-desktop.ini
-launch-video.md
-launch video.md
 key.txt
 
+# Editors & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Host install state / local scratch
+.opencode/
+scratch/
+
+# Local-only working files
+launch-video.md
+launch video.md
