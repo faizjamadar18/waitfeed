@@ -46,13 +46,6 @@ export function Hero() {
             >
               <CopyCommandButton className="px-5 py-3 text-xs tracking-wider font-medium" />
               <CtaButton
-                href="/docs"
-                variant="beige"
-                className="px-6 py-4 text-[11px]! uppercase tracking-wider font-medium font-parabole"
-              >
-                Documentation
-              </CtaButton>
-              <CtaButton
                 href="https://www.npmjs.com/package/waitfeed"
                 target="_blank"
                 rel="noopener noreferrer"
