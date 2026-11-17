@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  VERCEL_DOCS_NAV_GROUPS,
+  DOCS_NAV_GROUPS,
   AGENT_GUIDES,
   BUILTIN_CHANNELS,
   CLI_COMMANDS,
@@ -20,17 +20,17 @@ interface SearchEntry {
   keywords: string;
 }
 
-interface VercelDocsSearchModalProps {
+interface DocsSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectSection: (sectionId: string) => void;
 }
 
-export function VercelDocsSearchModal({
+export function DocsSearchModal({
   isOpen,
   onClose,
   onSelectSection,
-}: VercelDocsSearchModalProps) {
+}: DocsSearchModalProps) {
   const [query, setQuery] = useState("");
   const [rawSelectedIndex, setRawSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,7 +40,7 @@ export function VercelDocsSearchModal({
     const list: SearchEntry[] = [];
 
     // Nav items
-    VERCEL_DOCS_NAV_GROUPS.forEach((group) => {
+    DOCS_NAV_GROUPS.forEach((group) => {
       group.items.forEach((item) => {
         list.push({
           id: `nav-${item.id}`,

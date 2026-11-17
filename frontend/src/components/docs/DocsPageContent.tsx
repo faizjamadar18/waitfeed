@@ -11,9 +11,9 @@ import {
   CONFIG_OPTIONS,
   LOCAL_FILES_EXPLAINED,
 } from "@/data/docsData";
-import { VercelCard, VercelCardGrid } from "./VercelDocsCards";
-import { VercelCliTabs, VercelCodeBlock } from "./VercelCodeBlock";
-import { VercelCallout } from "./VercelCallout";
+import { DocsCard, DocsCardGrid } from "./DocsCards";
+import { DocsCliTabs, DocsCodeBlock } from "./DocsCodeBlock";
+import { DocsCallout } from "./DocsCallout";
 
 const DRAWER_EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -294,7 +294,7 @@ function AgentSetupDrawer({
         className="overflow-hidden"
       >
         <div className="border-t border-neutral-800/70 px-4 pb-1 pt-3">
-          <VercelCodeBlock
+          <DocsCodeBlock
             code={setup.code}
             filename={setup.filename}
             language={setup.language}
@@ -338,11 +338,11 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           <div className="mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-400">
             Install
           </div>
-          <VercelCliTabs command="waitfeed init" />
+          <DocsCliTabs command="waitfeed init" />
         </div>
 
-        <VercelCardGrid columns={3}>
-          <VercelCard
+        <DocsCardGrid columns={3}>
+          <DocsCard
             title="Quickstart"
             description="Install, pick your hosts, and see the first card."
             href="#quickstart"
@@ -363,7 +363,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
               </svg>
             }
           />
-          <VercelCard
+          <DocsCard
             title="How it works"
             description="One local cache, one refresh cycle, no model in the loop."
             href="#architecture"
@@ -385,7 +385,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
               </svg>
             }
           />
-          <VercelCard
+          <DocsCard
             title="Configuration"
             description="Every key in config.json, with defaults and fallbacks."
             href="#config-schema"
@@ -406,7 +406,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
               </svg>
             }
           />
-        </VercelCardGrid>
+        </DocsCardGrid>
       </section>
 
       {/* Quickstart */}
@@ -423,7 +423,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
               channels, stages each integration, and writes the shared config.
               Re-running is safe.
             </p>
-            <VercelCodeBlock code="npx waitfeed init" language="bash" />
+            <DocsCodeBlock code="npx waitfeed init" language="bash" />
           </Step>
 
           <Step number={2} title="Start an agent">
@@ -444,10 +444,10 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           </Step>
         </div>
 
-        <VercelCallout type="tip" title="First fetch">
+        <DocsCallout type="tip" title="First fetch">
           A fresh install can stay empty for a few seconds while the first
           fetch cycle lands.
-        </VercelCallout>
+        </DocsCallout>
       </section>
 
       {/* How it works */}
@@ -550,11 +550,11 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           />
         </div>
 
-        <VercelCallout type="important" title="No LLM in the loop">
+        <DocsCallout type="important" title="No LLM in the loop">
           Descriptions come from the feeds themselves. Items with thin
           descriptions are dropped rather than padded, and no prompt, API key,
           or model call is involved.
-        </VercelCallout>
+        </DocsCallout>
       </section>
 
       {/* Agents */}
@@ -602,9 +602,9 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           description="Four built-in sources, all enabled by default. Each one uses the same card format and shared cache."
         />
 
-        <VercelCardGrid columns={2}>
+        <DocsCardGrid columns={2}>
           {BUILTIN_CHANNELS.map((channel) => (
-            <VercelCard
+            <DocsCard
               key={channel.name}
               title={channel.name}
               description={channel.description}
@@ -612,7 +612,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
               icon={<ChannelIcon badge={channel.badge} />}
             />
           ))}
-        </VercelCardGrid>
+        </DocsCardGrid>
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-white">
@@ -627,10 +627,10 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           />
         </div>
 
-        <VercelCallout type="note" title="RSS is a badge, not a channel">
+        <DocsCallout type="note" title="RSS is a badge, not a channel">
           Custom feeds always run when configured. There is no fifth built-in
           channel toggle for RSS.
-        </VercelCallout>
+        </DocsCallout>
       </section>
 
       {/* Custom feeds */}
@@ -645,7 +645,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           and render with the <InlineCode>RSS</InlineCode> badge.
         </p>
 
-        <VercelCodeBlock
+        <DocsCodeBlock
           filename="~/.config/waitfeed/config.json"
           language="json"
           code={`{
@@ -672,7 +672,7 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           description="One shared file at ~/.config/waitfeed/config.json. Hosts read it; init writes it."
         />
 
-        <VercelCodeBlock
+        <DocsCodeBlock
           filename="~/.config/waitfeed/config.json"
           language="json"
           code={`{
@@ -707,10 +707,10 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           }))}
         />
 
-        <VercelCallout type="note" title="Safe to hand-edit">
+        <DocsCallout type="note" title="Safe to hand-edit">
           Unknown keys and invalid values fall back to defaults. A half-written
           file cannot break the ticker.
-        </VercelCallout>
+        </DocsCallout>
       </section>
 
       {/* Local data */}

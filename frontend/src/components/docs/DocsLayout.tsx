@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { VercelDocsHeader } from "./VercelDocsHeader";
-import { VercelDocsSidebar } from "./VercelDocsSidebar";
-import { VercelDocsTOC } from "./VercelDocsTOC";
-import { VercelDocsSearchModal } from "./VercelDocsSearchModal";
+import { DocsHeader } from "./DocsHeader";
+import { DocsSidebar } from "./DocsSidebar";
+import { DocsTOC } from "./DocsTOC";
+import { DocsSearchModal } from "./DocsSearchModal";
 import { DocsPageContent } from "./DocsPageContent";
 import { DOCS_SECTION_IDS } from "@/data/docsData";
 
-export function VercelDocsLayout() {
+export function DocsLayout() {
   const [activeSectionId, setActiveSectionId] = useState("overview");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -60,16 +60,16 @@ export function VercelDocsLayout() {
   return (
     <div className="docs-root min-h-screen bg-black text-[#ededed] flex flex-col font-sans selection:bg-neutral-800 selection:text-white">
       {/* Top Docs Header */}
-      <VercelDocsHeader
+      <DocsHeader
         onOpenSearch={() => setIsSearchOpen(true)}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
         isMobileSidebarOpen={isMobileSidebarOpen}
       />
 
-      {/* Main Container: 3-column Vercel layout */}
+      {/* Main Container: 3-column documentation layout */}
       <div className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-start">
         {/* Left Sticky Sidebar */}
-        <VercelDocsSidebar
+        <DocsSidebar
           activeSectionId={activeSectionId}
           onSelectSection={handleSelectSection}
           isOpenMobile={isMobileSidebarOpen}
@@ -82,14 +82,14 @@ export function VercelDocsLayout() {
         </main>
 
         {/* Right Sticky TOC */}
-        <VercelDocsTOC
+        <DocsTOC
           activeSectionId={activeSectionId}
           onSelectSection={handleSelectSection}
         />
       </div>
 
       {/* Search Modal (Cmd+K) */}
-      <VercelDocsSearchModal
+      <DocsSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onSelectSection={handleSelectSection}

@@ -4,17 +4,17 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { WaitFeedMarkInverted, GitHubIcon, NpmIcon } from "@/components/Icons";
 
-interface VercelDocsHeaderProps {
+interface DocsHeaderProps {
   onOpenSearch: () => void;
   onToggleMobileSidebar: () => void;
   isMobileSidebarOpen: boolean;
 }
 
-export function VercelDocsHeader({
+export function DocsHeader({
   onOpenSearch,
   onToggleMobileSidebar,
   isMobileSidebarOpen,
-}: VercelDocsHeaderProps) {
+}: DocsHeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {

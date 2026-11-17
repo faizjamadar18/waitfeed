@@ -2,24 +2,24 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import {
-  VERCEL_DOCS_NAV_GROUPS,
+  DOCS_NAV_GROUPS,
   WAITFEED_VERSION,
   type DocsNavItem,
 } from "@/data/docsData";
 
-interface VercelDocsSidebarProps {
+interface DocsSidebarProps {
   activeSectionId: string;
   onSelectSection: (id: string) => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
 }
 
-export function VercelDocsSidebar({
+export function DocsSidebar({
   activeSectionId,
   onSelectSection,
   isOpenMobile,
   onCloseMobile,
-}: VercelDocsSidebarProps) {
+}: DocsSidebarProps) {
   const handleItemClick = (item: DocsNavItem) => {
     onSelectSection(item.id);
     onCloseMobile();
@@ -32,7 +32,7 @@ export function VercelDocsSidebar({
         aria-label="Docs navigation"
         className="docs-sidebar-scroll flex-1 overflow-y-auto px-2 pt-5 pb-6 space-y-6 text-xs select-none"
       >
-        {VERCEL_DOCS_NAV_GROUPS.map((group) => (
+        {DOCS_NAV_GROUPS.map((group) => (
           <div key={group.title} className="space-y-1">
             <h2 className="px-3 py-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider font-mono">
               {group.title}

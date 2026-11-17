@@ -4,17 +4,17 @@ import { type ReactNode } from "react";
 
 type CalloutType = "note" | "tip" | "warning" | "important";
 
-interface VercelCalloutProps {
+interface DocsCalloutProps {
   type?: CalloutType;
   title?: string;
   children?: ReactNode;
 }
 
-export function VercelCallout({
+export function DocsCallout({
   type = "note",
   title,
   children,
-}: VercelCalloutProps) {
+}: DocsCalloutProps) {
   const defaultTitle =
     type === "note"
       ? "Good to know"

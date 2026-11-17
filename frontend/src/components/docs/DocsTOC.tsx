@@ -1,21 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { VERCEL_DOCS_NAV_GROUPS } from "@/data/docsData";
+import { DOCS_NAV_GROUPS } from "@/data/docsData";
 
-const TOC_ITEMS = VERCEL_DOCS_NAV_GROUPS.flatMap((group) =>
+const TOC_ITEMS = DOCS_NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => ({ id: item.id, label: item.label }))
 );
 
-interface VercelDocsTOCProps {
+interface DocsTOCProps {
   activeSectionId: string;
   onSelectSection: (id: string) => void;
 }
 
-export function VercelDocsTOC({
+export function DocsTOC({
   activeSectionId,
   onSelectSection,
-}: VercelDocsTOCProps) {
+}: DocsTOCProps) {
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {

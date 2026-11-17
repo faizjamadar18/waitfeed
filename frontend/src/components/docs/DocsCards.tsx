@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 
-interface VercelCardProps {
+interface DocsCardProps {
   title: string;
   description: string;
   icon?: ReactNode;
@@ -12,7 +12,7 @@ interface VercelCardProps {
   meta?: string;
 }
 
-export function VercelCard({
+export function DocsCard({
   title,
   description,
   icon,
@@ -20,7 +20,7 @@ export function VercelCard({
   href,
   onClick,
   meta,
-}: VercelCardProps) {
+}: DocsCardProps) {
   const content = (
     <div className="relative h-full flex flex-col justify-between p-4.5 sm:p-5 rounded-xl border border-neutral-800/80 bg-neutral-950/40 hover:border-neutral-700 hover:bg-neutral-900/30 transition-colors group">
       <div>
@@ -91,7 +91,7 @@ export function VercelCard({
   );
 }
 
-export function VercelCardGrid({
+export function DocsCardGrid({
   children,
   columns = 3,
 }: {

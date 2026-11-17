@@ -13,7 +13,7 @@ export interface DocsNavGroup {
 /** Keep this in step with packages/waitfeed/package.json. */
 export const WAITFEED_VERSION = "1.3.0";
 
-export const VERCEL_DOCS_NAV_GROUPS: DocsNavGroup[] = [
+export const DOCS_NAV_GROUPS: DocsNavGroup[] = [
   {
     title: "Get started",
     items: [
@@ -113,11 +113,8 @@ export const VERCEL_DOCS_NAV_GROUPS: DocsNavGroup[] = [
   },
 ];
 
-// Preserving the old alias for any external import.
-export const DOCS_NAV_GROUPS = VERCEL_DOCS_NAV_GROUPS;
-
 /** The single source of truth for scrollspy, navigation, and search targets. */
-export const DOCS_SECTION_IDS = VERCEL_DOCS_NAV_GROUPS.flatMap((group) =>
+export const DOCS_SECTION_IDS = DOCS_NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => item.id)
 );
 

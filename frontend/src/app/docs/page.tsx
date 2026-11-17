@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { VercelDocsLayout } from "@/components/docs/VercelDocsLayout";
+import { DocsLayout } from "@/components/docs/DocsLayout";
 
 export const metadata: Metadata = {
   title: "WaitFeed Documentation — A News Ticker for AI Coding Agents",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function DocsPage() {
-  return <VercelDocsLayout />;
+  return <DocsLayout />;
 }

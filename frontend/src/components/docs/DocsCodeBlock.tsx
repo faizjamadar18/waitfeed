@@ -2,19 +2,19 @@
 
 import { useState } from "react";
 
-interface VercelCodeBlockProps {
+interface DocsCodeBlockProps {
   code: string;
   language?: string;
   filename?: string;
   showLineNumbers?: boolean;
 }
 
-export function VercelCodeBlock({
+export function DocsCodeBlock({
   code,
   language = "bash",
   filename,
   showLineNumbers = false,
-}: VercelCodeBlockProps) {
+}: DocsCodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -148,11 +148,11 @@ export function VercelCodeBlock({
 
 type PackageManager = "npx" | "pnpm" | "bun" | "yarn";
 
-interface VercelCliTabsProps {
+interface DocsCliTabsProps {
   command: string;
 }
 
-export function VercelCliTabs({ command }: VercelCliTabsProps) {
+export function DocsCliTabs({ command }: DocsCliTabsProps) {
   const [activePm, setActivePm] = useState<PackageManager>("npx");
   const [copied, setCopied] = useState(false);
 
