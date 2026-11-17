@@ -55,7 +55,7 @@
     "@opentui/core": "0.6.6",
     "@opentui/solid": "0.6.6",
     "rss-parser": "3.13.0",
-    "solid-js": "1.9.17"
+    "solid-js": "1.9.19"
   },
   "overrides": {
     "undici": "6.29.1"
