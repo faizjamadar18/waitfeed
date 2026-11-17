@@ -329,9 +329,26 @@ export function DocsPageContent({ onSelectSection }: DocsPageContentProps) {
           />
         </VercelCardGrid>
 
-        <VercelCallout type="note" title="Quiet by design">
-          The card appears only while the agent is busy. Nothing can pin it on
-          at idle.
+        <VercelCallout title="Good to know">
+          <ul>
+            <li>
+              If you forget to create the root layout, Next.js will automatically
+              create this file when running the development server with{" "}
+              <code>next dev</code>.
+            </li>
+            <li>
+              You can optionally use a{" "}
+              <a
+                href="https://nextjs.org/docs/app/api-reference/file-conventions/src-folder"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <code>src</code> folder
+              </a>{" "}
+              in the root of your project to separate your application&apos;s
+              code from configuration files.
+            </li>
+          </ul>
         </VercelCallout>
       </section>
 
