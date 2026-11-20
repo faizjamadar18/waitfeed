@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { CtaButton } from "./CtaButton";
 import { HeroTerminal } from "./HeroTerminal";
 import { CopyCommandButton } from "./CopyCommandButton";
+import { ProductHuntBadge } from "./ProductHuntBadge";
 import { RELACE_EASE } from "@/lib/motion";
 
 export function Hero() {
@@ -15,16 +16,26 @@ export function Hero() {
       <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4 px-5 min-[810px]:max-w-[1000px] min-[810px]:gap-10 min-[810px]:px-10 min-[1200px]:max-w-266">
         {/* Header Row: Left Title & Right Paragraph with Action Buttons */}
         <div className="flex w-full flex-col items-start justify-between gap-6 pb-10 min-[810px]:flex-row min-[810px]:px-5 min-[810px]:pb-16">
-          {/* Left Column: Heading */}
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: RELACE_EASE, delay: 0 }}
-            className="w-full font-parabole text-[40px] font-normal leading-[1.1] tracking-[-0.05em] text-[#191918] min-[810px]:w-px min-[810px]:flex-1 min-[810px]:text-[52px] min-[1200px]:text-[64px]"
-          >
-            Tech feed <strong className="font-display font-normal text-black">inside</strong>
-            {" "}agent <strong className="font-display font-normal text-black">wait time</strong>
-          </motion.h1>
+          {/* Left Column: Heading, with the Product Hunt badge underneath */}
+          <div className="flex w-full flex-col items-start gap-6 min-[810px]:w-px min-[810px]:flex-1 min-[810px]:gap-8">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: RELACE_EASE, delay: 0 }}
+              className="w-full font-parabole text-[40px] font-normal leading-[1.1] tracking-[-0.05em] text-[#191918] min-[810px]:text-[52px] min-[1200px]:text-[64px]"
+            >
+              Tech feed <strong className="font-display font-normal text-black">inside</strong>
+              {" "}agent <strong className="font-display font-normal text-black">wait time</strong>
+            </motion.h1>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: RELACE_EASE, delay: 0.08 }}
+            >
+              <ProductHuntBadge />
+            </motion.div>
+          </div>
 
           {/* Right Column: Paragraph and Action CTAs */}
           <div className="flex w-full flex-col gap-6 min-[810px]:w-px min-[810px]:flex-1 min-[810px]:max-w-115">
