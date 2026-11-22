@@ -57,9 +57,14 @@ let rowKeys = []
 // in this session only; the shared `newsMode` switch still works from any host.
 let cardHidden = false
 
-/** The dedupe key — the same url/id rule every host groups by. */
+/** Mirror core/item-key.ts without imports: only the HTTP scheme and host
+ * ignore case; credentials, path, query, fragment and fallback ID do not. */
 function itemKeyOf(it) {
-  return String((it.url || it.id) || '').trim().toLowerCase()
+  const value = String((it.url || it.id) || '').trim()
+  return value.replace(/^(https?:\/\/)([^/?#]*)/i, (_match, scheme, authority) => {
+    const hostStart = authority.lastIndexOf('@') + 1
+    return scheme.toLowerCase() + authority.slice(0, hostStart) + authority.slice(hostStart).toLowerCase()
+  })
 }
 
 /** "2h" — the age suffix shared with the other hosts' rows. */

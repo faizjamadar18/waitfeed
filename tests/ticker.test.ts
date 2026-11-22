@@ -96,6 +96,26 @@ describe("truncateSentence (v2 store rule: never end mid-sentence)", () => {
 })
 
 describe("mergeItems", () => {
+  it("deduplicates HTTP scheme and host case without changing the article suffix", () => {
+    const first = item({ url: " HTTPS://EXAMPLE.com/Article?id=AbC " })
+    const duplicate = item({ url: "https://example.com/Article?id=AbC" })
+    expect(mergeItems([[first], [duplicate]])).toEqual([first])
+  })
+
+  it("keeps case-sensitive fallback IDs when links are absent", () => {
+    const articles = [item({ url: "", id: "RSS-AbC" }), item({ url: "", id: "rss-abc" })]
+    expect(mergeItems([articles])).toEqual(articles)
+  })
+
+  it.each([
+    ["https://example.com/Article", "https://example.com/article"],
+    ["https://example.com/?id=AbC", "https://example.com/?id=abc"],
+    ["https://example.com/#Section", "https://example.com/#section"],
+  ])("keeps distinct case-sensitive links: %s and %s", (first, second) => {
+    const articles = [item({ url: first }), item({ url: second })]
+    expect(mergeItems([articles])).toEqual(articles)
+  })
+
   it("dedupes by url, sorts newest first and caps", () => {
     const now = Date.now()
     const a = item({ id: "a", url: "https://x.com/a", time: now - 1000 })
@@ -110,6 +130,18 @@ describe("mergeItems", () => {
 })
 
 describe("retainMerge", () => {
+  it("refreshes the same article even when the scheme and host use different case", () => {
+    const previous = item({ url: "HTTPS://EXAMPLE.com/Article", time: 100 })
+    const fresh = item({ url: "https://example.com/Article", time: 200 })
+    expect(retainMerge([previous], [fresh], { now: 200 })).toEqual([fresh])
+  })
+
+  it("keeps a cached article when a different case-sensitive link arrives", () => {
+    const previous = item({ url: "https://example.com/?id=AbC", time: 100 })
+    const fresh = item({ url: "https://example.com/?id=abc", time: 200 })
+    expect(retainMerge([previous], [fresh], { now: 200 })).toEqual([fresh, previous])
+  })
+
   it("keeps previous items alive when the fresh fetch is empty (dead channel = no empty screen)", () => {
     const now = Date.now()
     const prev = [item({ id: "p1", url: "https://x.com/p1", time: now - HOUR })]

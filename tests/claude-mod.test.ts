@@ -189,10 +189,8 @@ describe("shared data — the same rule as every host", () => {
     expect(src).toContain("+ '/cache.json'")
     expect(src).toContain("+ '/reader-state.json'")
   })
-  it("the ledger keys match the other hosts: url|id, trimmed lowercased", async () => {
+  it("keeps the explicit read time as the only auto label", async () => {
     const src = await registerSrc()
-    expect(src).toContain("it.url || it.id")
-    expect(src).toContain(".trim().toLowerCase()")
     expect(src, "the only auto label kept is your own read time").toContain("'read ' + agoOf(")
   })
   it("marks read and re-reads the ledger right before writing", async () => {

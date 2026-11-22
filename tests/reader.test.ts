@@ -48,10 +48,14 @@ afterAll(async () => {
 })
 
 describe("reader-state marks", () => {
-  it("itemKey trims, lowercases, and falls back to the id", () => {
-    expect(itemKey(item("  https://Example.com/A  "))).toBe("https://example.com/a")
+  it("itemKey normalizes the scheme and host, preserves the suffix and falls back to the id", () => {
+    expect(itemKey(item("  HTTPS://Example.com/A?id=AbC#Section  "))).toBe("https://example.com/A?id=AbC#Section")
+    expect(itemKey(item("https://User:Pass@EXAMPLE.com/A"))).toBe("https://User:Pass@example.com/A")
+    expect(itemKey(item("https://[ABCD::1]:8080/A"))).toBe("https://[abcd::1]:8080/A")
+    expect(itemKey(item("not-a-URL"))).toBe("not-a-URL")
     const noUrl: FeedItem = { id: "hn-1", source: "HN", title: "no link here", url: "" }
     expect(itemKey(noUrl)).toBe("hn-1")
+    expect(itemKey({ ...noUrl, id: "RSS-AbC" })).toBe("RSS-AbC")
   })
 
   it("markItem records without mutating the input state", () => {
@@ -69,6 +73,31 @@ describe("reader-state marks", () => {
 })
 
 describe("reader grouping — seen vs upcoming", () => {
+  it("shares a read mark across HTTP scheme and host case variations", () => {
+    const first = item("HTTPS://EXAMPLE.com/Article")
+    const duplicate = item("https://example.com/Article")
+    const state = markItem(emptyReaderState(), "read", itemKey(first), NOW)
+    expect(groupItems([duplicate], state).seen).toEqual([duplicate])
+  })
+
+  it("does not guess that a legacy lowercase mark belongs to an uppercase path", () => {
+    const upper = item("https://example.com/Article")
+    const lower = item("https://example.com/article")
+    const legacy = { read: { "https://example.com/article": NOW }, glanced: {} }
+    const groups = groupItems([upper, lower], legacy)
+    expect(groups.seen).toEqual([lower])
+    expect(groups.upcoming).toEqual([upper])
+  })
+
+  it.each(["read", "glanced"] as const)("a %s mark does not hide a different case-sensitive article", (kind) => {
+    const first = item("https://example.com/Article?id=AbC")
+    const second = item("https://example.com/article?id=abc")
+    const state = markItem(emptyReaderState(), kind, itemKey(first), NOW)
+    const groups = groupItems([first, second], state)
+    expect(groups.seen).toEqual([first])
+    expect(groups.upcoming).toEqual([second])
+  })
+
   it("unseen items stay in upcoming, in input order (newest first)", () => {
     const items = [item("a", NOW), item("b", NOW - MINUTE), item("c", NOW - 2 * MINUTE)]
     const { seen, upcoming } = groupItems(items, emptyReaderState())

@@ -118,6 +118,19 @@ anywhere; `npx waitfeed init` afterwards starts the onboarding fresh.
   shared CLI is the switch. The card is always quiet at idle.
 - Channels are shared with OpenCode, exactly as above.
 
+**Article links and reader history**
+
+Article links are deduplicated across sources. For HTTP(S) links, scheme and
+host case are ignored; path, query and fragment case are preserved, so distinct
+articles keep separate read/glance marks in both readers. Links are opened as
+supplied by the feed. Fallback IDs keep their case, too.
+
+Older versions lowercased entire links in saved marks. Their original case
+cannot be recovered, so a previously seen article with an uppercase path or
+query may appear as new after upgrading. Existing marks retain their usual
+36-hour expiry; no case-insensitive lookup is used to guess which article they
+belonged to.
+
 ## Configuration
 
 `~/.config/waitfeed/config.json` (shared by every host):
