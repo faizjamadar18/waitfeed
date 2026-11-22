@@ -1,5 +1,6 @@
 // WaitFeed ticker helpers — pure functions, fully unit-tested, no I/O.
 import type { FeedItem } from "./types"
+import { itemKey } from "./item-key"
 export type { FeedItem }
 
 const MIN = 60_000
@@ -419,7 +420,7 @@ export function mergeItems(groups: FeedItem[][], cap = 30): FeedItem[] {
   const out: FeedItem[] = []
   for (const group of groups) {
     for (const it of group) {
-      const key = (it.url || it.id).trim().toLowerCase()
+      const key = itemKey(it)
       if (seen.has(key)) continue
       seen.add(key)
       out.push(it)
@@ -451,10 +452,10 @@ export function retainMerge(previous: FeedItem[], fresh: FeedItem[], opts: Retai
   const cap = opts.cap ?? 90
   const now = opts.now ?? Date.now()
   const byKey = new Map<string, FeedItem>()
-  for (const it of fresh) byKey.set((it.url || it.id).trim().toLowerCase(), it) // fresh wins
+  for (const it of fresh) byKey.set(itemKey(it), it) // fresh wins
   for (const it of previous) {
     if (typeof it.time === "number" && now - it.time > ttlMs) continue // expired
-    const key = (it.url || it.id).trim().toLowerCase()
+    const key = itemKey(it)
     if (!byKey.has(key)) byKey.set(key, it)
   }
   return [...byKey.values()].sort((a, b) => (b.time ?? 0) - (a.time ?? 0)).slice(0, cap)

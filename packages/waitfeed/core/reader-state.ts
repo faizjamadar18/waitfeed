@@ -16,6 +16,9 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import type { FeedItem } from "./types"
+import { itemKey } from "./item-key"
+
+export { itemKey } from "./item-key"
 
 /** Marks live exactly as long as the cache keeps items (36h). */
 const MAX_AGE_MS = 36 * 60 * 60 * 1000
@@ -29,11 +32,6 @@ export interface ReaderState {
 }
 
 export const emptyReaderState = (): ReaderState => ({ read: {}, glanced: {} })
-
-/** The dedupe key — the same url/id rule the pipeline uses for merging. */
-export function itemKey(it: FeedItem): string {
-  return (it.url || it.id).trim().toLowerCase()
-}
 
 /** Record a mark immutably: returns a NEW state, never mutates the input. */
 export function markItem(state: ReaderState, kind: MarkKind, key: string, at = Date.now()): ReaderState {
